@@ -3,7 +3,7 @@ import { TripRepository } from "./repository";
 import { ApiError, assertSameOrigin, readJson } from "./validation";
 
 type Dependencies = {
-  db: D1Database;
+  repository: (request: Request) => TripRepository;
   resolveUser: (request: Request) => Promise<CurrentUser | null>;
 };
 
@@ -38,32 +38,31 @@ export function createApiHandler(deps: Dependencies) {
       if (segments.length === 1 && segments[0] === "me" && method === "GET")
         return json({ user, signInUrl: "#login", signOutUrl: "#logout" });
       if (!user) throw new ApiError(401, "로그인이 필요합니다.", "UNAUTHENTICATED");
-      const repository = new TripRepository(deps.db);
+      const repository = deps.repository(request);
       if (segments.length === 1 && segments[0] === "trips") {
-        if (method === "GET") return json({ trips: await repository.list(user) });
+        if (method === "GET") return json({ trips: await repository.list() });
         if (method === "POST")
-          return json(await repository.create(user, await readJson(request)), 201);
+          return json(await repository.create(await readJson(request)), 201);
       }
       if (segments[0] === "trips" && segments.length === 2) {
-        if (method === "GET") return json(await repository.workspace(segments[1], user));
+        if (method === "GET") return json(await repository.workspace(segments[1]));
         if (method === "POST")
-          return json(await repository.mutate(segments[1], user, await readJson(request)));
+          return json(await repository.mutate(segments[1], await readJson(request)));
       }
       if (segments[0] === "trips" && segments[2] === "invites" && segments.length === 3) {
         if (method === "GET")
-          return json({ invites: await repository.listInvites(segments[1], user) });
+          return json({ invites: await repository.listInvites(segments[1]) });
         if (method === "POST")
           return json(
             await repository.createInvite(
               segments[1],
-              user,
               await readJson(request),
               new URL(request.url).origin,
             ),
             201,
           );
         if (method === "DELETE")
-          return json(await repository.revokeInvite(segments[1], user, await readJson(request)));
+          return json(await repository.revokeInvite(segments[1], await readJson(request)));
       }
       if (
         segments[0] === "trips" &&
@@ -72,14 +71,14 @@ export function createApiHandler(deps: Dependencies) {
         method === "DELETE"
       ) {
         assertSameOrigin(request);
-        return json(await repository.removeMember(segments[1], segments[3], user));
+        return json(await repository.removeMember(segments[1], segments[3]));
       }
       if (segments[0] === "invites" && segments.length === 2) {
         if (method === "GET") return json(await repository.invitePreview(segments[1]));
         if (method === "POST") {
           assertSameOrigin(request);
           if (request.body) await readJson(request);
-          return json(await repository.join(segments[1], user));
+          return json(await repository.join(segments[1]));
         }
       }
       throw new ApiError(404, "API 경로를 찾을 수 없습니다.", "NOT_FOUND");

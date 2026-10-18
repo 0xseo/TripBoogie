@@ -11,7 +11,7 @@
 - 공유 데이터의 버전 충돌 감지와 화면이 보이는 동안 8초 간격 동기화
 - Google Maps 브라우저 키가 있으면 지도에 장소 표시, 없으면 Google Maps 링크 제공
 
-개인 여행은 브라우저 저장소를 지우면 없어집니다. 공유 여행의 원본은 서버 D1에 저장되며 브라우저 캐시는 사용자별로 구분합니다. 오프라인에서 공유 여행을 수정하는 기능과 최초 오프라인 실행은 제공하지 않습니다. 실시간 장소 검색, 예약 판매, 원본 앱의 도시 콘텐츠는 구현 범위에 포함하지 않습니다.
+개인 여행은 브라우저 저장소를 지우면 없어집니다. 공유 여행의 원본은 Supabase Postgres에 저장되며 브라우저 캐시는 사용자별로 구분합니다. 오프라인에서 공유 여행을 수정하는 기능과 최초 오프라인 실행은 제공하지 않습니다. 실시간 장소 검색, 예약 판매, 원본 앱의 도시 콘텐츠는 구현 범위에 포함하지 않습니다.
 
 ## 실행 및 검증
 
@@ -26,17 +26,13 @@ node --test app/server/integration.test.mjs
 npm run build
 ```
 
-새 로컬 DB는 빌드 후 생성된 설정으로 마이그레이션을 한 번 적용합니다. 이미 적용한 SQL을 재실행하지 않습니다.
+공유 여행은 로컬 미리보기와 배포 앱 모두 같은 Supabase 프로젝트를 사용합니다. 초기 테이블·RLS는 이미 적용되어 있습니다. 자세한 구조·관리 명령·검증 범위는 [데이터베이스 문서](docs/DATABASE.md)를 참고하세요.
 
-```sh
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_skinny_virginia_dare.sql
-```
-
-`.dev.vars`와 백업은 Git에서 제외됩니다. 운영 환경 변수는 Sites에 저장하고 배포해야 적용됩니다. `.openai/hosting.json`의 기존 프로젝트 ID를 유지하세요. Sites 플러그인의 source helper가 정확한 소스 커밋을 저장소에 푸시하고 동일 소스로 배포 아카이브를 만듭니다.
+`.dev.vars`는 로컬 앱 설정이고 `.env`는 프로젝트 전용 관리 토큰 파일입니다. 둘 다 Git과 배포에서 제외됩니다. 관리 토큰은 앱 런타임에 넣지 않습니다. 운영 앱 설정은 Sites에 저장하고 배포해야 적용됩니다. `.openai/hosting.json`의 기존 프로젝트 ID를 유지하세요.
 
 ## 로그인 설정
 
-`SUPABASE_URL`과 `SUPABASE_PUBLISHABLE_KEY`를 설정합니다. 서비스 역할 키는 사용하지 않습니다. API는 Supabase `/auth/v1/user`에서 액세스 토큰을 검증한 뒤 서버의 여행 멤버십을 검사합니다. 사용자 메타데이터는 표시 이름에만 사용합니다.
+`SUPABASE_URL`과 `SUPABASE_PUBLISHABLE_KEY`를 설정합니다. 서비스 역할 키는 사용하지 않습니다. API는 Supabase `/auth/v1/user`에서 액세스 토큰을 검증한 뒤 같은 사용자 JWT로 Supabase RPC를 호출합니다. 데이터베이스가 여행 멤버십과 변경 권한을 다시 검사합니다. 사용자 메타데이터는 표시 이름에만 사용합니다.
 
 현재 연결 대상: `https://faekdclvcieuksoxsrtw.supabase.co`.
 
@@ -67,7 +63,7 @@ https://faekdclvcieuksoxsrtw.supabase.co/auth/v1/callback
 
 리소스 한도: 사용자당 여행 100개, 여행당 활성 레코드 5,000개·삭제 이력 포함 20,000개·활성 데이터 2 MiB, 멤버 100명, 활성 초대 20개·누적 초대 1,000개, 요청 본문 64 KiB. 레코드와 여행의 변경·초대 수락은 SQL의 멤버십 조건으로 다시 검사합니다.
 
-SQLite 통합 테스트는 실제 생성된 SQL과 API·저장소 구현을 사용합니다. D1 전송과 인증 사용자 어댑터만 대체하므로 이 테스트가 실제 Supabase 로그인이나 운영 D1 검증을 대신하지는 않습니다.
+Postgres 통합 테스트는 실제 마이그레이션과 API·저장소 구현을 사용합니다. Auth 검증과 PostgREST 전송을 대체하며, 실제 Supabase에서도 역할별 SQL 검사를 롤백 트랜잭션으로 실행했습니다. 이 검사가 실제 두 브라우저의 로그인·공동 편집 종단 검증을 대신하지는 않습니다.
 
 ## APK 분석의 근거와 한계
 
@@ -79,7 +75,7 @@ SQLite 통합 테스트는 실제 생성된 SQL과 API·저장소 구현을 사�
 - 도출: 비공개 여행 단위와 세부 레코드 단위로 웹앱을 구성
 - 미확인: 원본 서버의 데이터와 권한 규칙, 실제 런타임 동작, 보호된 코드 전체
 
-APK를 실행하거나 보호를 해제하지 않았습니다. REA Evidence와 보조 리소스 분석은 작업 공간의 형제 폴더 `triple-analysis/`에 보관합니다. 리소스 문구나 클래스 존재는 해당 기능의 런타임 활성화를 증명하지 않습니다.
+APK를 실행하거나 보호를 해제하지 않았습니다. REA Evidence와 보조 리소스 분석은 `/Users/0xseo/.codex/visualizations/2026/10/18/01a14d12-f689-7283-b396-15d3458d7306/triple-analysis/`에 보관합니다. 현재 기능 비교는 [비교표](docs/FEATURE_COMPARISON.md)에 정리했습니다. 리소스 문구나 클래스 존재는 해당 기능의 런타임 활성화를 증명하지 않습니다.
 
 ## 마스코트
 

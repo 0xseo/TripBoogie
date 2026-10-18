@@ -70,6 +70,8 @@ export function tripData(input: unknown) {
   const startDate = date(data.startDate, "시작일");
   const endDate = date(data.endDate, "종료일");
   if (endDate < startDate) throw new ApiError(400, "종료일은 시작일 이후여야 합니다.");
+  if ((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86400000 > 364)
+    throw new ApiError(400, "한 여행은 최대 365일로 설정해 주세요.");
   const timezone =
     data.timezone === undefined ? "Asia/Seoul" : string(data.timezone, "시간대", 100);
   try {

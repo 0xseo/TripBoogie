@@ -717,8 +717,6 @@ export default function TripApp() {
       if (modal.type === "trip") {
         if (values.endDate < values.startDate)
           throw new Error("마지막 날짜는 시작 날짜 이후여야 합니다.");
-        if (daysBetween(values.startDate, values.endDate).length >= 366)
-          throw new Error("한 여행은 최대 365일로 나눠 만들어 주세요.");
         const data = tripData({
           title: values.title.trim(),
           destination: values.destination.trim(),
@@ -765,8 +763,6 @@ export default function TripApp() {
         }
       } else if (modal.type === "settings") {
         if (values.endDate < values.startDate) throw new Error("날짜를 다시 확인해 주세요.");
-        if (daysBetween(values.startDate, values.endDate).length >= 366)
-          throw new Error("한 여행은 최대 365일로 설정해 주세요.");
         const outOfRange = workspace?.records.some(
           (r) =>
             r.kind === "plan" &&
