@@ -3829,3 +3829,8 @@ svg {
   background: none;
   text-align: left;
 }
+
+.shared-list-status { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px; margin-bottom: 20px; border: 1px solid #dcc894; border-radius: 16px; background: #fff9ea; color: #514725; }
+.shared-list-status p { margin: 6px 0 0; font-size: 14px; }
+.shared-list-status button { flex-shrink: 0; }
+@media (max-width: 600px) { .shared-list-status { align-items: flex-start; flex-direction: column; } }

@@ -348,6 +348,9 @@ export default function TripApp() {
   const [authOpen, setAuthOpen] = useState(false);
   const [localTrips, setLocalTrips] = useState<StoredTrip[]>([]);
   const [sharedTrips, setSharedTrips] = useState<Trip[]>([]);
+  const [sharedListLoading, setSharedListLoading] = useState(false);
+  const [sharedListError, setSharedListError] = useState("");
+  const sharedRequestRef = useRef(0);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [mode, setMode] = useState<Mode>("local");
   const [tab, setTab] = useState<Tab>("plan");
@@ -409,12 +412,29 @@ export default function TripApp() {
       window.removeEventListener("offline", update);
     };
   }, [flash]);
+  const userId = user?.id;
+  const loadSharedTrips = useCallback(async () => {
+    if (!userId) return;
+    const request = ++sharedRequestRef.current;
+    setSharedListLoading(true);
+    setSharedListError("");
+    try {
+      const result = await api<{ trips: Trip[] }>("/api/trips");
+      if (request === sharedRequestRef.current) setSharedTrips(result.trips);
+    } catch (error) {
+      if (request === sharedRequestRef.current)
+        setSharedListError(error instanceof Error ? error.message : "여행 목록을 불러오지 못했습니다.");
+    } finally {
+      if (request === sharedRequestRef.current) setSharedListLoading(false);
+    }
+  }, [userId]);
   useEffect(() => {
-    if (user)
-      api<{ trips: Trip[] }>("/api/trips")
-        .then((r) => setSharedTrips(r.trips))
-        .catch((e) => flash(e.message));
-  }, [user, flash]);
+    setSharedTrips([]);
+    setSharedListError("");
+    setSharedListLoading(false);
+    void loadSharedTrips();
+    return () => { sharedRequestRef.current++; };
+  }, [loadSharedTrips]);
   useEffect(() => {
     let dispose: (() => void) | undefined;
     let cancelled = false;
@@ -1229,6 +1249,15 @@ export default function TripApp() {
                   />
                 </label>
               </div>
+              {user && (sharedListLoading || sharedListError) && (
+                <div className="shared-list-status" role={sharedListError ? "alert" : "status"}>
+                  <div>
+                    <strong>{sharedListLoading ? "함께하는 여행을 불러오는 중이에요" : "함께하는 여행을 불러오지 못했어요"}</strong>
+                    {sharedListError && <p>{sharedListError}</p>}
+                  </div>
+                  {sharedListError && <button className="secondary-button" onClick={() => { void loadSharedTrips(); }}>다시 불러오기</button>}
+                </div>
+              )}
               {visibleTrips.length ? (
                 <div className="trip-grid">
                   {visibleTrips.map(({ trip, mode: cardMode }) => (
@@ -1271,7 +1300,7 @@ export default function TripApp() {
                     <small>새로운 설렘을 추가해요</small>
                   </button>
                 </div>
-              ) : (
+              ) : user && (sharedListLoading || sharedListError) ? null : (
                 <div className="empty-trips">
                   <div className="empty-trip-icon">
                     <Plane size={28} strokeWidth={1.3} />

@@ -43,6 +43,24 @@ test("invitation URLs require a bare HTTP(S) app origin and a canonical token", 
     assert.throws(() => invitationUrl("https://tripboogie.example.test", token));
 });
 
+test("repository refuses redirects without forwarding credentials or hiding the HTTP failure", async () => {
+  let requests = 0;
+  const repo = new TripRepository({url:"https://supabase.example.test",publishableKey:"public-test",authorization:"Bearer test_owner",fetch:async (url,init) => {
+    requests++;
+    assert.equal(init.redirect,"manual");
+    return new Response(null,{status:307,headers:{Location:"https://untrusted.example.test"}});
+  }});
+  const original = console.error;
+  const diagnostics = [];
+  console.error = (...args) => diagnostics.push(args);
+  try {
+    await assert.rejects(repo.list(),error => error.status === 503 && error.code === "DATABASE_UNAVAILABLE");
+    assert.equal(requests,1);
+    assert.equal(diagnostics[0][1].status,307);
+    assert.equal(JSON.stringify(diagnostics).includes("test_owner"),false);
+  } finally { console.error = original; }
+});
+
 const users = Object.fromEntries(["owner", "editor", "viewer", "outsider"].map((name, index) => [name, {
   id: `10000000-0000-4000-8000-00000000000${index + 1}`, name, email: `${name}@example.test`,
 }]));
@@ -74,6 +92,7 @@ async function fixture() {
   async function transport(url, init) {
     assert.equal(new URL(url).pathname, "/rest/v1/rpc/tripboogie_api");
     assert.equal(init.headers.apikey, "publishable-test-key");
+    assert.equal(init.redirect, "manual");
     const name = init.headers.authorization.replace("Bearer test_", "");
     const { p_operation, p_trip_id, p_payload } = JSON.parse(init.body);
     try { return Response.json(await rpc(name, p_operation, p_trip_id, p_payload)); }

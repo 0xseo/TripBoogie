@@ -24,7 +24,8 @@ export class TripRepository {
     try {
       response = await (this.options.fetch ?? globalThis.fetch)(this.endpoint, {
         method: "POST",
-        redirect: "error",
+        // Workers support manual/follow only. Refuse redirects without forwarding the JWT.
+        redirect: "manual",
         headers: {
           apikey: this.options.publishableKey,
           authorization: this.options.authorization,
@@ -33,7 +34,8 @@ export class TripRepository {
         body: JSON.stringify({ p_operation: operation, p_trip_id: tripId, p_payload: payload }),
         signal: AbortSignal.timeout(15000),
       });
-    } catch {
+    } catch (error) {
+      console.error("Trip storage request failed", { operation, phase: "transport", name: error instanceof Error ? error.name : "unknown" });
       throw new ApiError(503, "여행 저장소에 연결하지 못했습니다. 연결 후 다시 확인해 주세요.", "DATABASE_UNAVAILABLE");
     }
     const value: unknown = await response.json().catch(() => null);
@@ -46,6 +48,8 @@ export class TripRepository {
           typeof error.details === "string" && /^[A-Z_]+$/.test(error.details) ? error.details : "INVALID_REQUEST");
       if (response.status === 401)
         throw new ApiError(401, "로그인이 만료되었습니다. 다시 로그인해 주세요.", "UNAUTHENTICATED");
+      console.error("Trip storage request failed", { operation, phase: "response", status: response.status,
+        code: typeof error?.code === "string" && /^[A-Z0-9]{5,12}$/.test(error.code) ? error.code : "unknown" });
       throw new ApiError(503, "여행 저장소 설정을 확인하지 못했습니다. 잠시 후 다시 시도하세요.", "DATABASE_UNAVAILABLE");
     }
     if (value === null) throw new ApiError(503, "여행 저장소 응답이 올바르지 않습니다.", "DATABASE_UNAVAILABLE");
