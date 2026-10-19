@@ -1,0 +1,2056 @@
+/* Compact companion-app controls. Touch-only hit regions remain at least 44px. */
+:root {
+  --on-primary: #fff;
+  --soft: #f1f5ef;
+}
+:root[data-theme="dark"] {
+  --bg: #141917;
+  --paper: #1f2622;
+  --ink: #edf2ee;
+  --muted: #a6b2ab;
+  --line: #34413a;
+  --green: #a3b18a;
+  --mint: #304032;
+  --soft: #28342b;
+  --on-primary: #172219;
+}
+body {
+  font-weight: 400;
+}
+h1 {
+  font-weight: 700;
+}
+h2,
+h3,
+strong {
+  font-weight: 600;
+}
+button {
+  padding: 5px 12px;
+  font-weight: 500;
+}
+.primary,
+.secondary {
+  padding: 6px 14px;
+  min-height: 34px;
+  font-size: 14px;
+}
+.primary {
+  color: var(--on-primary);
+}
+.primary:hover {
+  background: var(--green);
+  filter: brightness(0.94);
+}
+textarea {
+  resize: none;
+  min-height: 84px;
+  max-height: 160px;
+  overflow-y: auto;
+  line-height: 1.55;
+}
+.field {
+  gap: 6px;
+}
+.field > span {
+  font-size: 13px;
+  font-weight: 500;
+}
+.stack {
+  gap: 14px;
+}
+.dialog-inner {
+  padding: var(--form-edge,20px);
+}
+.dialog-inner > header {
+  margin-bottom: 16px;
+}
+.dialog-inner > header h2 {
+  font-size: 19px;
+  font-weight: 600;
+}
+.dialog {
+  max-height: calc(var(--dialog-vh, 100dvh) - 24px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scroll-padding-block: 70px 80px;
+}
+.dialog form > .primary:last-child {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  box-shadow: 0 -6px 0 6px var(--paper);
+}
+.choice-field {
+  width: 100%;
+  min-height: 44px;
+  justify-content: space-between;
+  padding: 9px 12px;
+  font-size: 14px;
+  background: var(--paper);
+}
+.choice-field span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.choice-options {
+  display: grid;
+  gap: 4px;
+  max-height: 55dvh;
+  overflow: auto;
+}
+.choice-options > button {
+  width: 100%;
+  min-height: 44px;
+  justify-content: space-between;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 14px;
+}
+.choice-options > button[aria-pressed="true"] {
+  background: var(--mint);
+  color: var(--green);
+}
+.time-trigger {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px;
+  min-height: 28px;
+  min-width: 28px;
+  border: 0;
+  gap: 5px;
+  background: transparent;
+}
+.time-trigger.has-time {
+  color: var(--green);
+}
+.time-picker {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 22px;
+  margin: 0 0 20px;
+}
+.time-wheel-wrap {
+  width: 90px;
+  text-align: center;
+}
+.time-wheel {
+  height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+  padding: 88px 0;
+  scrollbar-width: none;
+  background: linear-gradient(var(--paper), var(--soft), var(--paper));
+  border-radius: 14px;
+}
+.time-wheel button {
+  display: block;
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  scroll-snap-align: center;
+  font-size: 19px;
+  color: var(--muted);
+  border-radius: 0;
+}
+.time-wheel button[aria-selected="true"] {
+  color: var(--green);
+  font-weight: 600;
+  background: var(--mint);
+}
+.optional-time {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.optional-time details {
+  font-size: 12px;
+  color: var(--muted);
+}
+.optional-time summary {
+  cursor: pointer;
+}
+.optional-time input {
+  width: 100px;
+  margin-top: 8px;
+  min-height: 36px;
+}
+.account-settings {
+  max-width: 640px;
+  margin: auto;
+  width: 100%;
+}
+.account-settings h1 {
+  font-size: 24px;
+  margin: 6px 0 24px;
+}
+.profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 0 24px;
+}
+.profile-summary h2 {
+  font-size: 18px;
+  margin: 0 0 4px;
+}
+.profile-summary p {
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.profile-summary .text-button {
+  font-size: 11px;
+  padding: 2px 0;
+}
+.profile-photo {
+  position: relative;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+.profile-photo > .avatar {
+  width: 66px;
+  height: 66px;
+  font-size: 24px;
+}
+.profile-photo > span:last-child {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--green);
+  color: var(--on-primary);
+  border: 2px solid var(--paper);
+}
+.avatar {
+  overflow: hidden;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.account-setting-list {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--paper);
+  margin-bottom: 16px;
+}
+.account-setting-list > button {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 14px;
+  justify-content: flex-start;
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+  font-size: 14px;
+  background: transparent;
+}
+.account-setting-list > button + button {
+  border-top: 1px solid var(--line);
+}
+.account-setting-list > button > small {
+  margin-left: auto;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.account-setting-list > button > svg:last-child {
+  margin-left: auto;
+}
+.account-setting-list > button > small + svg:last-child {
+  margin-left: 0;
+}
+.account-setting-list .account-logout {
+  color: #b15951;
+}
+.account-signin {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 24px;
+}
+.app-about {
+  font-size: 14px;
+  line-height: 1.8;
+}
+.app-about small {
+  font-size: 12px;
+}
+.account-page {
+  padding-bottom: 16px;
+}
+.trip-header-link {
+  position: relative;
+  padding: 8px 0;
+  gap: 5px;
+}
+.trip-header-link > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.trip-header-link > span > svg {
+  flex: none;
+  color: var(--muted);
+}
+.settings-menu > button {
+  gap: 12px;
+  padding: 14px;
+}
+.settings-menu > button > span {
+  gap: 1px;
+}
+.settings-menu strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.settings-menu small {
+  font-size: 11px;
+  line-height: 1.45;
+}
+.settings-page-heading {
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.settings-page-heading:empty {
+  display: none;
+}
+.settings-edit {
+  padding: 4px 12px;
+  min-height: 32px;
+}
+.backup-settings {
+  padding: 16px;
+}
+.backup-settings h3 {
+  font-size: 16px;
+}
+.backup-settings p {
+  font-size: 12px;
+}
+.backup-settings > button {
+  min-height: 36px;
+}
+.category-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.category-edit-row > input {
+  min-width: 0;
+  flex: 1;
+  min-height: 40px;
+  font-size: 14px;
+  padding: 8px;
+}
+.category-edit-row > .choice-field {
+  width: 85px;
+  min-width: 85px;
+  font-size: 12px;
+  padding: 8px 5px;
+}
+.category-edit-row .sort-handle {
+  width: 32px;
+  min-width: 32px;
+}
+.category-settings {
+  max-width: 760px;
+}
+:is(.preparation-tabs, .booking-category-tabs, .period-tabs) {
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  gap: 20px;
+  padding: 0;
+  margin: 0 0 16px;
+  box-shadow: none;
+}
+:is(.preparation-tabs, .booking-category-tabs, .period-tabs) > button {
+  flex: none;
+  white-space: nowrap;
+  position: relative;
+  min-height: 36px;
+  padding: 6px 2px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 400;
+}
+:is(.preparation-tabs, .booking-category-tabs, .period-tabs)
+  > button:is([aria-current="page"], .active) {
+  color: var(--green);
+  font-weight: 600;
+  background: transparent;
+  box-shadow: none;
+}
+:is(.preparation-tabs, .booking-category-tabs, .period-tabs)
+  > button:is([aria-current="page"], .active):after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--green);
+}
+.booking-grid {
+  gap: 12px;
+}
+.booking-card {
+  padding: 16px;
+}
+.booking-card h3 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.booking-card p {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.flight-tag,
+.flight-tags > button {
+  display: inline-flex;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  color: var(--muted);
+}
+.flight-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.flight-tags > button[aria-pressed="true"] {
+  background: var(--mint);
+  color: var(--green);
+  border-color: var(--green);
+}
+.reservation-files {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.reservation-files > h3 {
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.file-list {
+  font-size: 13px;
+}
+.edit-plan-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  position: relative;
+  min-width: 0;
+}
+.edit-plan-row > .compact-check {
+  width: 24px;
+  min-width: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.edit-plan-row > .compact-plan {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 9px 7px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 12px;
+  min-height: 58px;
+}
+.compact-plan-content {
+  flex: 1;
+  min-width: 0;
+}
+.compact-plan-content > span {
+  display: block;
+  font-size: 14px;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compact-plan-content small {
+  font-size: 11px;
+}
+.edit-plan-row .sort-handle {
+  margin: 0;
+  padding: 4px;
+  min-width: 28px;
+  width: 28px;
+  height: 36px;
+  min-height: 36px;
+  border: 0;
+}
+.edit-plan-row > .edit-delete {
+  width: 28px;
+  min-width: 28px;
+  height: 40px;
+  min-height: 40px;
+  padding: 3px;
+  color: var(--muted);
+  border: 0;
+  background: transparent;
+}
+.edit-plan-row[data-selected="true"] > .compact-plan {
+  background: var(--mint);
+  border-color: var(--green);
+}
+.schedule-tools {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.schedule-tools .select-all {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 24px;
+  flex: none;
+}
+.select-all small {
+  font-size: 9px;
+  line-height: 1.4;
+}
+.selection-count {
+  margin-left: 0;
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.bulk-actions {
+  gap: 4px;
+  margin-bottom: 0;
+  margin-left: auto;
+  width: auto;
+  flex-wrap: nowrap;
+}
+.bulk-actions button {
+  padding: 4px 6px;
+  min-height: 30px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.plan-card h3 {
+  font-size: 16px;
+  font-weight: 500;
+}
+.plan-card .memo-body {
+  font-weight: 400;
+  font-size: 14px;
+}
+.memo-row .plan-card {
+  background: var(--soft);
+}
+.place-media:empty {
+  display: none;
+}
+.place-media figure {
+  margin: 8px 0;
+}
+.place-media .image-credit {
+  font-size: 9px;
+}
+.week-days strong {
+  font-size: 11px;
+}
+.week-days span {
+  font-size: 10px;
+}
+.trip-members {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.avatar-stack {
+  display: flex;
+  padding-left: 0;
+}
+.avatar-stack .avatar {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  flex: none;
+  border: 2px solid var(--paper);
+  font-size: 11px;
+  margin-left: -10px;
+}
+.avatar-stack .avatar:first-child {
+  margin-left: 0;
+}
+.trip-members > small {
+  font-size: 11px;
+}
+.collection-controls {
+  margin-bottom: 18px;
+}
+.compact-exchange {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: 16px;
+}
+.compact-exchange > div {
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+.compact-exchange h2 {
+  font-size: 13px;
+  font-weight: 500;
+}
+.compact-exchange strong {
+  font-size: 16px;
+  font-weight: 500;
+}
+.compact-exchange small {
+  font-size: 10px;
+}
+.compact-exchange > .icon {
+  border: 0;
+  background: transparent;
+}
+.local-clock strong {
+  font-size: 25px;
+  font-weight: 500;
+}
+.compact-weather h2 {
+  font-size: 15px;
+  font-weight: 500;
+}
+.compact-weather-days strong {
+  font-weight: 500;
+}
+.compact-weather-days > div {
+  background: var(--bg);
+}
+[data-theme="dark"]
+  :is(
+    .soft-panel,
+    .info,
+    .wizard-summary,
+    .trip-review,
+    .expense-summary,
+    .record-card,
+    .compact-plan[data-selected="true"]
+  ) {
+  background: var(--soft);
+  color: var(--ink);
+}
+[data-theme="dark"] :is(.hero, .home-hero) {
+  background: var(--paper);
+}
+[data-theme="dark"] .trip-cover {
+  color: #1a1d1e;
+}
+[data-theme="dark"]
+  :is(
+    .sidebar,
+    .app-header,
+    .mobile-trip-nav,
+    .dialog,
+    .sort-menu,
+    .suggestions,
+    .account-card
+  ) {
+  background: var(--paper);
+}
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  border-color: var(--line);
+}
+@media (max-width: 960px) {
+  .dialog:not(.full-screen-dialog):not(.mobile-page-dialog) {
+    position: fixed;
+    inset-inline: 0;
+    top: calc(var(--dialog-top, 0px) + var(--dialog-vh, 100dvh) / 2);
+    bottom: auto;
+    margin: 0 auto;
+    transform: translateY(-50%);
+    max-height: calc(var(--dialog-vh, 100dvh) - 24px);
+    width: calc(100vw - 24px);
+  }
+  .app-shell .primary:not(.add-fab):not(.collection-create),
+  .app-shell .secondary {
+    min-height: 34px;
+    padding: 5px 12px;
+  }
+  .app-shell .feature > .section-heading {
+    margin-bottom: 0;
+    min-height: 0;
+  }
+  .preparation-tabs {
+    gap: 22px;
+    justify-content: flex-start;
+    padding-inline: 12px;
+  }
+  .preparation-tabs > button {
+    font-size: 13px;
+    padding: 5px 1px;
+    min-height: 34px;
+  }
+  .app-shell .settings-menu > button {
+    padding: 13px;
+  }
+  .week-days strong {
+    font-size: 10px;
+  }
+  .week-days span {
+    font-size: 9px;
+  }
+  .week-days button {
+    min-height: 46px;
+    gap: 3px;
+    padding: 6px 0;
+  }
+  .account-page {
+    padding: 20px 18px 24px;
+  }
+  .trip-header-link strong {
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .trip-header-link span {
+    font-size: 10px;
+  }
+  .account-settings h1 {
+    font-size: 22px;
+  }
+  .booking-category-tabs {
+    gap: 20px;
+  }
+  .account-settings .primary {
+    min-height: 36px;
+  }
+  .plan-card .row-actions > .icon {
+    width: 30px;
+    height: 30px;
+    min-height: 30px;
+    min-width: 30px;
+    padding: 4px;
+  }
+  .collection-grid[data-columns="3"] .trip-members {
+    gap: 3px;
+  }
+  .collection-grid[data-columns="3"] .avatar-stack .avatar:nth-child(n + 3) {
+    display: none;
+  }
+  .compact-plan .sort-handle {
+    display: flex;
+  }
+}
+
+.week-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.week-selector > .icon {
+  width: 30px;
+  min-width: 30px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.week-days {
+  flex: 1;
+}
+.map-card-dock:has(.empty-map-card) .map-card-carousel {
+  justify-content: center;
+  padding: 4px 24px 10px;
+}
+.empty-map-card {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  font-weight: 400;
+  font-size: 14px;
+  flex: 0 1 520px;
+  width: 100%;
+}
+.map-schedule-card[role="button"] {
+  cursor: pointer;
+}
+.map-card-count {
+  justify-content: center;
+}
+.map-card-count > span {
+  text-align: center;
+  min-width: 58px;
+}
+@media (min-width: 961px) {
+  .workspace {
+    max-width: none;
+  }
+  .workspace-tabs {
+    display: none;
+  }
+  .workspace > .week-selector {
+    gap: 10px;
+    padding: 8px;
+  }
+  .week-days button {
+    min-height: 62px;
+  }
+  .week-days strong {
+    font-size: 15px;
+  }
+  .week-days span {
+    font-size: 13px;
+  }
+  .plan-card h3 {
+    font-size: 19px;
+  }
+  .plan-card .preserve {
+    font-size: 16px;
+  }
+  .travel-leg {
+    font-size: 14px;
+  }
+  .itinerary .section-heading h2 {
+    font-size: 24px;
+  }
+  .itinerary .section-heading .secondary {
+    font-size: 15px;
+    padding: 6px 15px;
+  }
+  .daily-map .map-frame {
+    height: 390px;
+    min-height: 390px;
+  }
+  .travel-tools {
+    max-width: none;
+    grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+    gap: 20px;
+    align-items: stretch;
+  }
+  .tools-cities {
+    grid-column: 1/-1;
+  }
+  .compact-weather {
+    grid-column: 1;
+    grid-row: 2/4;
+    padding: 24px;
+    min-height: 0;
+  }
+  .local-clock {
+    grid-column: 2;
+    grid-row: 2;
+    padding: 24px;
+    min-height: 130px;
+  }
+  .compact-exchange {
+    grid-column: 2;
+    grid-row: 3;
+    padding: 24px;
+    min-height: 130px;
+  }
+  .compact-weather h2 {
+    font-size: 20px;
+  }
+  .compact-weather-days {
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    gap: 12px;
+  }
+  .compact-weather-days > div {
+    padding: 18px 6px;
+  }
+  .compact-weather-days small {
+    font-size: 12px;
+  }
+  .compact-weather-days strong,
+  .compact-weather-days span {
+    font-size: 15px;
+  }
+  .local-clock strong {
+    font-size: 32px;
+  }
+  .compact-exchange h2 {
+    font-size: 16px;
+  }
+  .compact-exchange strong {
+    font-size: 20px;
+  }
+  .booking-card h3 {
+    font-size: 18px;
+  }
+  .booking-card p {
+    font-size: 14px;
+  }
+  .account-settings {
+    max-width: 760px;
+  }
+  .account-setting-list > button {
+    font-size: 16px;
+  }
+  .settings-menu strong {
+    font-size: 16px;
+  }
+  .settings-menu small {
+    font-size: 13px;
+  }
+}
+@media (max-width: 960px) {
+  .week-selector {
+    gap: 2px;
+    padding: 5px 2px;
+  }
+  .week-selector > .icon {
+    width: 23px;
+    min-width: 23px;
+  }
+  .week-days {
+    gap: 1px;
+  }
+  .week-days span {
+    font-size: 8px;
+  }
+  .week-days strong {
+    font-size: 10px;
+  }
+  .app-shell .itinerary > .section-heading > div:first-child {
+    display: block;
+  }
+}
+@media (pointer: coarse) {
+  .secondary,
+  .text-button,
+  .time-trigger,
+  .flight-tags > button {
+    position: relative;
+  }
+  .secondary:before,
+  .text-button:before,
+  .time-trigger:before,
+  .flight-tags > button:before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: max(100%, 44px);
+    transform: translateY(-50%);
+  }
+}
+
+.travel-details-row {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  gap: 7px;
+}
+.travel-details-row > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.travel-details-row strong {
+  font-size: 15px;
+  font-weight: 500;
+}
+.travel-details-row small {
+  font-size: 11px;
+}
+.travel-details-row > span > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-period-summary {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 12px;
+  border-radius: 12px;
+}
+.trip-period-summary > header {
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+.trip-date-pair strong {
+  font-size: 17px;
+  font-weight: 500;
+}
+.trip-date-pair > div {
+  gap: 3px;
+}
+.trip-length-badge {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 8px;
+  background: var(--mint);
+  color: var(--green);
+}
+.compact-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.compact-detail-row > span {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.compact-detail-row > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+.city-name-chip {
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+}
+.compact-detail-row > .text-button {
+  flex: none;
+  padding: 4px 0;
+  font-size: 11px;
+}
+.range-label {
+  text-align: center;
+  gap: 14px;
+  background: var(--soft);
+}
+.range-label > span:not(:nth-child(2)) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+}
+.range-label strong {
+  margin: 0;
+  font-weight: 500;
+}
+.calendar-footer {
+  justify-content: center;
+}
+.calendar-footer strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.currency-select {
+  padding-right: 14px;
+}
+@media (min-width: 961px) {
+  .range-calendar .rdp-root {
+    --calendar-dot-size: 44px;
+    --rdp-day-height: 50px;
+    --rdp-day-width: 54px;
+    font-size: 17px;
+  }
+  .range-calendar {
+    max-width: 440px;
+    margin-inline: auto;
+    width: 100%;
+  }
+  .range-label {
+    padding: 14px;
+    font-size: 13px;
+  }
+  .range-label strong {
+    font-size: 18px;
+  }
+  .trip-date-pair strong {
+    font-size: 20px;
+  }
+  .trip-period-summary {
+    padding: 18px;
+  }
+  .compact-detail-row > span {
+    font-size: 14px;
+  }
+  .city-name-chip {
+    font-size: 16px;
+  }
+  .compact-detail-row > .text-button {
+    font-size: 13px;
+  }
+}
+@media (max-width: 960px) {
+  .week-days span {
+    font-size: 9.5px;
+  }
+  .week-days strong {
+    font-size: 10px;
+  }
+  .city-chip {
+    gap: 8px;
+    padding: 10px;
+  }
+  .city-chip > span {
+    min-width: 0;
+  }
+  .city-chip .secondary {
+    font-size: 11px;
+    padding: 4px 7px;
+  }
+  .trip-period-summary {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 960px) {
+  .collection-grid .trip-destination {
+    top: 7px;
+    left: 7px;
+    padding: 4px 7px;
+    gap: 4px;
+    border-radius: 8px;
+  }
+  .collection-grid[data-columns="3"] .trip-destination {
+    top: 5px;
+    left: 5px;
+    right: 5px;
+    max-width: calc(100% - 10px);
+    padding: 3px;
+  }
+  .collection-grid[data-columns="3"] .trip-days {
+    display: block;
+    font-size: 9px;
+    padding: 3px 5px;
+    right: 5px;
+    bottom: 5px;
+  }
+  .collection-grid[data-columns="3"]
+    .trip-cover:has(.city-cover-media)
+    .trip-days {
+    bottom: 25px;
+  }
+}
+
+.field > span {
+  color: var(--muted);
+}
+[data-theme="dark"] .wizard-steps {
+  background: var(--soft);
+}
+[data-theme="dark"] .wizard-steps button {
+  color: var(--muted);
+}
+[data-theme="dark"] .wizard-steps button.active {
+  background: var(--green);
+  color: var(--on-primary);
+}
+[data-theme="dark"] .range-label strong {
+  color: var(--ink);
+}
+[data-theme="dark"] .range-label {
+  color: var(--muted);
+}
+
+@media (min-width: 961px) {
+  .travel-tools:not(:has(.tools-cities)) .compact-weather {
+    grid-row: 1/3;
+  }
+  .travel-tools:not(:has(.tools-cities)) .local-clock {
+    grid-row: 1;
+  }
+  .travel-tools:not(:has(.tools-cities)) .compact-exchange {
+    grid-row: 2;
+  }
+}
+
+.map-schedule-card > .map-memo-body {
+  display: block;
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 400;
+  color: var(--ink);
+  white-space: pre-wrap;
+  max-height: 88px;
+  overflow: auto;
+  padding-right: 34px;
+}
+
+/* Calendar weekday strip aligns with seven dates inside the arrow box. */
+.week-calendar {
+  --week-arrow: 30px;
+  --week-gap: 6px;
+  margin: 12px 0 16px;
+  min-width: 0;
+}
+.week-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  padding: 0 calc(var(--week-arrow) + var(--week-gap) + 7px);
+  margin-bottom: 6px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+.week-weekdays > span:first-child {
+  color: var(--calendar-red);
+}
+.week-weekdays > span:last-child {
+  color: var(--calendar-blue);
+}
+.week-calendar > .week-selector {
+  margin: 0;
+  gap: var(--week-gap);
+  padding: 6px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.week-selector > .icon {
+  width: var(--week-arrow);
+  min-width: var(--week-arrow);
+}
+.map-explorer > .week-calendar {
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--paper);
+  z-index: 2;
+}
+.plan-card {
+  padding: 10px 12px;
+}
+.plan-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.plan-heading h3 {
+  flex: 1;
+  min-width: 0;
+  margin: 3px 0 0;
+  line-height: 1.4;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.plan-heading > .row-actions {
+  margin-left: auto;
+  gap: 3px;
+  flex: none;
+  align-items: center;
+}
+.plan-heading .icon {
+  height: 28px;
+  width: 28px;
+  min-height: 28px;
+  min-width: 28px;
+  padding: 4px;
+}
+.plan-heading .time-trigger {
+  height: 28px;
+  min-height: 28px;
+}
+.plan-heading > .memo-body {
+  flex: 1;
+  margin: 3px 0;
+  line-height: 1.6;
+  font-weight: 400;
+}
+.plan-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.plan-details {
+  min-width: 0;
+  flex: 1;
+}
+.plan-meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 26px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.plan-meta > .time-trigger {
+  flex: none;
+  padding: 0;
+  font-size: 12px;
+  gap: 4px;
+}
+.plan-meta > small {
+  flex: none;
+  font-size: 11px;
+}
+.plan-place {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 12px;
+}
+.plan-place > svg {
+  flex: none;
+}
+.plan-place > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plan-note {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.place-media.compact {
+  flex: none;
+  margin-top: 3px;
+}
+.place-thumbnail {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.place-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.place-thumbnail > span {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: #fffffff2;
+  color: #1a1d1e;
+  border-radius: 4px;
+  padding: 0 3px;
+  font-size: 12px;
+}
+.place-photo-view {
+  margin: 0;
+}
+.place-photo-view > img {
+  width: 100%;
+  max-height: 55dvh;
+  object-fit: contain;
+  border-radius: 10px;
+}
+.place-photo-view > .image-credit {
+  font-size: 12px;
+  display: block;
+  margin-top: 10px;
+}
+.travel-leg {
+  gap: 9px;
+  margin-bottom: 8px;
+  padding: 2px 0;
+  flex-wrap: nowrap;
+}
+.travel-leg > strong {
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+}
+.travel-leg > .choice-field {
+  width: 100px;
+  min-width: 0;
+  min-height: 32px;
+  flex: none;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 9px;
+  background: var(--paper);
+}
+.travel-leg .manual-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--paper);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.manual-time input {
+  width: 32px;
+  min-height: 26px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-size: inherit;
+  color: var(--ink);
+  text-align: center;
+  border-radius: 0;
+  appearance: textfield;
+}
+.manual-time input::-webkit-inner-spin-button,
+.manual-time input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.manual-time .approximate {
+  font-size: 11px;
+}
+.travel-leg > .error {
+  position: absolute;
+  top: 100%;
+  z-index: 2;
+  font-size: 11px;
+  padding: 4px;
+}
+.app-info-details {
+  margin: 0 0 24px;
+}
+.app-info-details > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  gap: 20px;
+}
+.app-info-details dt {
+  font-size: 14px;
+  color: var(--muted);
+}
+.app-info-details dd {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink);
+}
+.app-about h3 {
+  font-size: 15px;
+  margin: 0 0 12px;
+}
+.open-source-list {
+  margin: 0;
+  display: grid;
+  gap: 16px;
+}
+.open-source-list > div {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 13px;
+}
+.open-source-list dt {
+  color: var(--muted);
+}
+.open-source-list dd {
+  margin: 0;
+  display: grid;
+  gap: 3px;
+}
+.open-source-list small {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+@media (min-width: 961px) {
+  .week-calendar {
+    --week-arrow: 32px;
+    --week-gap: 10px;
+  }
+  .week-weekdays {
+    font-size: 14px;
+    margin-bottom: 7px;
+  }
+  .plan-heading h3 {
+    font-size: 19px;
+  }
+  .plan-card {
+    padding: 12px 16px;
+  }
+  .plan-place,
+  .plan-meta > .time-trigger {
+    font-size: 14px;
+  }
+  .plan-note {
+    font-size: 15px;
+  }
+}
+@media (max-width: 960px) {
+  .week-calendar {
+    --week-arrow: 23px;
+    --week-gap: 2px;
+  }
+  .week-calendar .week-days {
+    gap: 1px;
+  }
+  .week-calendar .week-days button {
+    min-height: 46px;
+  }
+  .week-calendar .week-days strong {
+    font-size: 10px;
+  }
+  .week-calendar .week-days span {
+    font-size: 10px;
+  }
+  .week-weekdays {
+    font-size: 11px;
+    margin-bottom: 5px;
+  }
+  .app-header:has(.trip-header-link) {
+    height: auto;
+    min-height: 76px;
+  }
+  .trip-header-link {
+    padding: 11px 0;
+  }
+  .plan-card {
+    padding: 9px 11px;
+  }
+  .plan-heading h3 {
+    font-size: 16px;
+  }
+  .travel-leg {
+    margin-left: 38px;
+    gap: 7px;
+  }
+  .travel-leg > .choice-field {
+    width: 88px;
+  }
+  .manual-time input {
+    font-size: inherit;
+    width: 32px;
+  }
+  .plan-card .plan-heading .row-actions > .icon {
+    height: 28px;
+    min-height: 28px;
+    width: 28px;
+    min-width: 28px;
+  }
+  .dialog.mobile-page-dialog {
+    position: fixed;
+    top: var(--dialog-top, 0px);
+    left: 0;
+    right: 0;
+    margin: 0;
+    max-width: none;
+    width: 100%;
+    height: var(--dialog-vh, 100dvh);
+    max-height: var(--dialog-vh, 100dvh);
+    border: 0;
+    border-radius: 0;
+    overflow: hidden;
+  }
+  .mobile-page-dialog > .dialog-inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 0;
+    overflow: hidden;
+  }
+  .mobile-page-dialog > .dialog-inner > header {
+    flex: none;
+    margin: 0;
+    padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper);
+    z-index: 3;
+  }
+  .mobile-page-dialog > .dialog-inner > :not(header) {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 16px;
+    scroll-padding-block: 16px 110px;
+  }
+  .mobile-page-dialog .wizard-footer {
+    position: sticky;
+    bottom: -16px;
+    margin-top: auto;
+    background: var(--paper);
+    padding: 12px 0 calc(8px + env(safe-area-inset-bottom));
+    z-index: 2;
+    box-shadow: 0 -10px 0 4px var(--paper);
+  }
+  .mobile-page-dialog input:not([type="checkbox"]):not([type="radio"]),
+  .mobile-page-dialog textarea {
+    font-size: 16px;
+  }
+  .mobile-page-dialog .choice-options {
+    max-height: 100%;
+  }
+}
+
+.dialog .primary,
+.dialog .secondary {
+  min-height: 36px;
+  padding: 6px 14px;
+}
+.dialog .dialog-inner > header .icon {
+  min-height: 36px;
+  height: 36px;
+  width: 36px;
+  padding: 5px;
+}
+
+.locked-category-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  padding: 8px 4px;
+  color: var(--ink);
+}
+.category-lock {
+  flex: none;
+  color: var(--muted);
+  margin-inline: 10px;
+}
+.map-schedule-card {
+  min-height: 94px;
+  padding: 12px 14px;
+}
+.map-schedule-card > .map-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 7px;
+  min-width: 0;
+}
+.map-card-heading > .map-card-number {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.map-card-heading > h3 {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  line-height: 1.35;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map-card-heading > .map-memo-body {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 400;
+  max-height: 48px;
+  overflow: auto;
+}
+.map-card-heading > .text-button {
+  position: static;
+  flex: none;
+  min-height: 28px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+.map-schedule-card > .map-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin: 0 0 0 34px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.map-card-meta > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map-card-meta > span > svg {
+  flex: none;
+}
+.map-card-meta > small {
+  white-space: nowrap;
+  flex: none;
+  font-size: 12px;
+}
+.map-schedule-card.empty-map-card {
+  min-height: 94px;
+}
+@media (max-width: 359px) {
+  .schedule-tools {
+    gap: 5px;
+  }
+  .selection-count {
+    font-size: 10px;
+  }
+  .bulk-actions {
+    gap: 3px;
+  }
+  .bulk-actions button {
+    font-size: 10px;
+    padding: 4px 5px;
+  }
+  .preparation-tabs {
+    gap: 18px;
+  }
+}
+
+.app-install {
+  position: static;
+}
+.app-install:empty {
+  display: none;
+}
+.expense-totals {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.expense-totals strong {
+  font-size: 24px;
+}
+.rate-date {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.allocation-section > .section-heading {
+  justify-content: flex-start;
+  gap: 5px;
+  margin: 0 0 8px;
+}
+.allocation-section > .section-heading h3 {
+  font-size: 15px;
+}
+.allocation-section > .section-heading > .icon {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 5px;
+}
+.allocation-cards {
+  margin-top: 0;
+}
+.compact-exchange .inverse-rate {
+  font-size: 13px;
+  color: var(--muted);
+}
+.dialog-inner > header > button:last-child {
+  margin-left: auto;
+}
+.place-picker > .searchbox {
+  margin-top: 0;
+}
+.place-picker .map-frame {
+  height: min(280px, calc(var(--dialog-vh, 100dvh) * 0.34));
+  min-height: 140px;
+}
+.place-picker .suggestions {
+  max-height: min(260px, calc(var(--dialog-vh, 100dvh) * 0.38));
+  overflow: auto;
+}
+@media (min-width: 961px) {
+  .app-shell.is-home,
+  html:not(.native-app) .app-shell.is-settings {
+    --app-header-space: 0px;
+  }
+  .app-shell.is-home .app-header,
+  html:not(.native-app) .app-shell.is-settings .app-header {
+    display: none;
+  }
+  .sidebar .brand img {
+    object-fit: contain;
+    flex: none;
+    min-width: 47px;
+  }
+  .app-install .install-trigger {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 960px) {
+  :root {
+    --app-header-space: 76px;
+  }
+  .app-header {
+    min-height: 76px;
+    height: auto;
+  }
+  .app-header-brand {
+    padding-block: 5px;
+  }
+  .app-header-brand img {
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+  }
+  .app-header-brand strong {
+    font-size: 22px;
+  }
+  .app-install {
+    position: absolute;
+    z-index: 42;
+    left: auto;
+    right: 18px;
+    top: 20px;
+    bottom: auto;
+  }
+  .app-shell:not(.in-trip):has(.app-install .install-trigger) .app-header-actions {
+    margin-right: 40px;
+  }
+  .account-settings {
+    padding-top: 6px;
+  }
+  .expense-totals {
+    gap: 10px;
+  }
+  .expense-totals strong {
+    font-size: 20px;
+  }
+}
+
+.booking-optional-field {
+  display: grid;
+  gap: 8px;
+}
+.booking-optional-field > .text-button {
+  justify-self: start;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.booking-details {
+  gap: 14px;
+}
+.booking-form .time-trigger {
+  min-height: 36px;
+  font-size: 13px;
+  gap: 7px;
+  padding: 5px 8px;
+  background: var(--soft);
+  border-radius: 9px;
+}
+.booking-form .time-trigger > span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+.airport-leg-fields > .field {
+  min-width: 0;
+}
+
+.booking-time-range {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  flex-wrap: nowrap;
+}
+.booking-time-range > .time-trigger {
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.booking-time-range > svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.trip-cover-topline {
+  position: absolute;
+  inset: 12px 12px auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 1;
+  min-width: 0;
+}
+.collection-grid .trip-cover-topline > .trip-destination {
+  position: static;
+  inset: auto;
+  max-width: calc(100% - 52px);
+  min-width: 0;
+  padding: 5px 8px;
+  flex: 0 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.trip-cover-topline .trip-destination > svg {
+  flex: none;
+}
+.trip-cover-topline .trip-destination > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trip-countdown {
+  margin-left: auto;
+  flex: none;
+  border-radius: 8px;
+  padding: 5px 7px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 960px) {
+  .trip-cover-topline {
+    inset: 7px 7px auto;
+    gap: 4px;
+  }
+  .trip-countdown {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+  .collection-grid .trip-cover-topline > .trip-destination {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+}
+
+/* Document headers scroll with the page and share one height. */
+.app-shell .app-header{position:relative;top:auto;height:76px;min-height:76px;box-sizing:border-box}.app-header-brand,.sidebar .brand{display:flex;align-items:center;gap:12px}.sidebar .brand img,.app-header-brand img{border-radius:13px;overflow:hidden;object-fit:contain;flex:none}.app-header-brand{padding:0;gap:var(--header-brand-gap,12px)}.app-header-brand strong{line-height:1.3}.memo-row .plan-number{margin-top:10px}.memo-row .plan-heading{align-items:center}.memo-row .memo-body{margin:0;line-height:1.65}.memo-row .plan-card{min-height:48px}.add-connection{margin:0 0 8px 38px;padding:2px 4px;font-size:11px;color:var(--muted)}.travel-leg .remove-connection{padding:4px;min-height:28px;width:28px;height:28px;background:transparent;border:0;color:var(--muted)}
+.single-date-calendar{display:flex;justify-content:center}.single-date-calendar .rdp-root{--rdp-accent-color:var(--green);--rdp-accent-background-color:var(--mint)}.single-date-calendar .rdp-day_button{width:38px;height:38px;border-radius:50%;color:var(--ink)}.single-date-calendar .rdp-selected .rdp-day_button{background:var(--green);color:var(--on-primary)}.single-date-calendar .rdp-weekday:first-child{color:var(--calendar-red)}.single-date-calendar .rdp-weekday:last-child{color:var(--calendar-blue)}.date-trigger{width:100%;min-height:40px;height:40px;display:flex;align-items:center;justify-content:center;gap:7px;border:0;background:var(--soft);border-radius:9px;font-size:13px;color:var(--ink)}.airport-leg-fields .form-grid{align-items:end}.booking-form .airport-leg-fields .time-trigger{height:40px;min-height:40px;width:100%;justify-content:center}.wizard-footer{border:0!important;box-shadow:none!important}.wizard-footer>.primary{width:100%;flex:1}.collection-grid .trip-cover-topline{inset:11px 11px auto}.collection-grid .trip-days{inset:auto 12px 12px auto;left:auto;letter-spacing:0;border-radius:9px;padding:5px 9px;border:1px solid #ffffff80;backdrop-filter:blur(8px);font-size:11px;line-height:1.4;font-weight:500;box-shadow:0 2px 8px #23372b0a}.login-provider{display:inline-block;margin-top:5px;color:var(--green);font-size:11px}
+@media(max-width:960px){.app-shell .app-header{height:calc(76px + env(safe-area-inset-top));min-height:calc(76px + env(safe-area-inset-top));padding:calc(8px + env(safe-area-inset-top)) 16px 8px}.app-shell .auth-card{margin:0;padding:24px 0;border:0;border-radius:0;box-shadow:none;background:transparent;min-height:calc(100dvh - var(--app-header-space) - var(--trip-nav-reserve) - 76px);display:flex;align-items:center}.account-page:has(.auth-card){background:var(--bg)}.collection-grid .trip-cover-topline{inset:10px 10px auto}.collection-grid .trip-days{font-size:10px;padding:5px 8px}.memo-row .plan-number{margin-top:10px}}
+
+@media(max-width:960px){.app-shell{position:relative}.app-install{position:absolute}.auth-card{flex-direction:column;justify-content:center}}
+
+.plan-number{display:grid;place-items:center;line-height:1;padding:0;aspect-ratio:1;font-family:Arial,sans-serif;font-variant-numeric:tabular-nums}.plan-number>svg{display:block;margin:0}.settings-page-heading h2{display:flex;align-items:baseline;gap:8px;margin:0;font-size:18px}.settings-page-heading h2>small{font-size:12px;font-weight:400;color:var(--muted)}.settings-page-heading>.back-link{padding:4px;min-width:30px;min-height:30px}.trip-settings-page .member-list{padding:0 12px;border-radius:12px}.trip-settings-page .member-list>article{padding:12px 0;gap:10px}.trip-settings-page .member-list h3{font-size:14px;font-weight:500}.trip-settings-page .member-list small{font-size:11px;overflow-wrap:anywhere}.trip-settings-page .invite-box{margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}.trip-settings-page .invite-box h3{font-size:14px;margin:0 0 10px}.trip-settings-page .invite-box>.inline{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}.trip-settings-page .invite-box .choice-field{min-height:36px;font-size:12px;padding:6px 9px}.trip-settings-page .invite-box .primary{font-size:12px;padding:6px 9px;min-height:36px}.trip-settings-page .invite-box .primary>svg{width:15px;height:15px}
+
+.expense-summary>span{color:var(--muted);font-weight:400}.confirm-message{margin:0 0 22px;font-size:14px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink)}.confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.confirm-actions>button{width:100%;min-height:40px;border-radius:10px;font-size:14px}.confirm-delete{background:var(--error-ink);color:var(--paper);border:0}.checklist-category-tabs{margin-bottom:14px}
+
+.expense-summary .expense-totals{column-gap:24px;row-gap:8px}.expense-summary .expense-totals>strong[data-kind=base]{color:var(--green)}.expense-summary .expense-totals>strong[data-kind=trip]{color:var(--ink)}.expense-summary .expense-totals>strong[data-kind=other]{color:var(--muted)}@media(max-width:960px){.expense-summary .expense-totals{column-gap:20px}}
+
+/* Empty screens and guest settings share the same unboxed surface. */
+.file-library{border:0;border-radius:0;background:transparent;padding:0}.guest-settings .account-signin{display:flex;flex-direction:column;justify-content:center;box-sizing:border-box;min-height:calc(100dvh - var(--app-header-space) - var(--trip-nav-reserve) - 64px);padding:clamp(56px,10dvh,96px) 0 32px}.guest-settings>.account-setting-list{width:100%;max-width:380px;margin:18px auto 0}.install-options{display:grid;gap:12px}.install-option{display:flex;align-items:center;gap:12px;padding:15px 12px;width:100%;text-align:left;min-width:0}.install-option>svg{flex:none;color:var(--green)}.install-option>span{flex:1;display:grid;gap:5px;min-width:0}.install-option strong{font-size:15px;font-weight:500}.install-option small{font-size:11px;color:var(--muted);line-height:1.6;white-space:nowrap;letter-spacing:-.2px}.install-apk,.install-web-help{display:grid;gap:16px;text-align:left}.install-apk>p,.install-web-help>p{font-size:14px;line-height:1.7;margin:0}.install-apk>small{font-size:12px;line-height:1.8;color:var(--muted)}.install-back{width:32px;min-height:32px;padding:5px;border:0;background:transparent}.apk-download{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;border-radius:11px;font-size:14px;color:var(--on-primary);text-decoration:none}.install-content .install-steps{margin:0}.install-option:disabled{opacity:.6}@media(max-width:350px){.install-option{gap:9px;padding:14px 9px}.install-option>svg{width:20px}.install-option small{font-size:10px;letter-spacing:-.3px}}
+
+/* The footer is owned by the dialog: it reaches the content edges without a second inset. */
+.dialog{--form-edge:20px}.dialog .wizard-footer{position:sticky;bottom:calc(-1 * var(--form-edge));flex:none;display:block;padding:0;margin:16px calc(-1 * var(--form-edge)) calc(-1 * var(--form-edge));width:calc(100% + 2 * var(--form-edge));border:0;box-shadow:none;background:var(--paper);z-index:3}.dialog .wizard-footer>.primary,.dialog form>.primary:last-child,.dialog .stack>.primary,.dialog .place-choice>.primary{display:flex;align-items:center;justify-content:center;min-height:60px;padding:18px 16px calc(18px + env(safe-area-inset-bottom));font-size:16px;line-height:24px;text-align:center}.dialog .wizard-footer>.primary,.dialog form>.primary:last-child{border-radius:0;box-shadow:none}.dialog .wizard-footer>.primary{width:100%;margin:0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}.dialog form>.primary:last-child{width:calc(100% + 2 * var(--form-edge));margin:16px calc(-1 * var(--form-edge)) calc(-1 * var(--form-edge));bottom:calc(-1 * var(--form-edge));padding:18px 16px calc(18px + env(safe-area-inset-bottom))}.dialog .settings-footer{margin:6px 0 0;padding:0;border:0}.account-withdraw{display:block;margin:22px auto 0;border:0;padding:4px;background:transparent;min-height:0;color:var(--muted);font-size:12px;text-decoration:underline;text-underline-offset:4px}.withdrawn-account{text-align:center;padding:32px 0;display:grid;justify-items:center;gap:16px}.withdrawn-account h2{font-size:20px}.withdrawn-account>.primary{width:100%;max-width:380px}@media(max-width:960px){.dialog{--form-edge:16px}.mobile-page-dialog .wizard-footer{margin-top:auto}}@media(min-width:961px){html:not(.native-app) .app-shell .preparation-tabs{display:none}html:not(.native-app) .app-shell .booking-files-tab{display:none}}
+
+@media(max-width:960px){.mobile-page-dialog form>.primary:last-child{margin-top:auto}}
+
+.dialog .wizard-footer>.settings-footer{padding:10px var(--form-edge);margin:0;background:var(--paper)}
+
+.expense-totals .currency-code{font-size:.6em;font-weight:500;letter-spacing:.03em;margin-right:4px}
+
+.place-picker>.search-empty{margin:20px 0 16px}
+
+/* Keep editable content selectable; branding is a navigation control. */
+.app-header-brand,.app-header-brand *,.sidebar .brand,.sidebar .brand *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-user-drag:none}
+.travel-leg .manual-time input{position:relative;top:1px}
+
+.map-add-card{flex:0 0 72px;min-height:94px;display:flex;align-items:center;justify-content:center;align-self:stretch;scroll-snap-align:end;border:1px solid var(--line);border-radius:16px;background:var(--paper);color:var(--green);padding:0;box-shadow:0 5px 20px #0001}.map-add-card:hover{background:var(--soft)}
+
+.map-card-carousel{scroll-padding-inline:max(24px,calc((100% - 604px)/2))}
+.map-schedule-card:has(+.map-add-card){flex-basis:min(calc(100% - 84px),520px);scroll-snap-align:start}
+
+.files{position:relative}.file-drop-hint{display:none}.file-upload-status{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;margin:10px 0}.file-upload-status>span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.file-drop-overlay{position:absolute;inset:0;z-index:25;border:2px dashed var(--green);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;pointer-events:none;background:var(--mint);color:var(--green);font-size:15px}.file-dragging{min-height:150px}@media(min-width:961px){html:not(.native-app) .file-drop-hint{display:flex;align-items:center;justify-content:center;gap:7px;min-height:36px;font-size:12px;color:var(--muted);margin:0 0 10px}html:not(.native-app) .file-library{min-height:max(240px,calc(100dvh - 240px))}}
+
+.file-library-controls{display:flex;align-items:center;gap:8px}.file-library-controls>.choice-field{width:120px;min-height:36px;padding:6px 10px;font-size:13px}.file-filter{position:relative;min-width:36px;min-height:36px}.file-filter>span{position:absolute;top:0;right:0;width:15px;height:15px;display:grid;place-items:center;border-radius:50%;background:var(--green);color:var(--on-primary);font-size:9px}.file-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}.file-tags>span{display:inline-flex;background:var(--soft);color:var(--green);padding:2px 7px;border-radius:6px;font-size:11px;line-height:1.5}.file-row>.record-body{min-width:0}.file-row .record-body strong{overflow-wrap:anywhere}.file-tag-choices{display:grid;gap:6px;max-height:50dvh;overflow:auto}.file-tag-choices>button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;text-align:left;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}.file-tag-choices>button[aria-pressed=true]{background:var(--soft);color:var(--green);border-color:var(--green)}.file-tag-check{display:grid;place-items:center;flex:none;width:20px;height:20px;border:1px solid var(--line);border-radius:6px}.file-tag-choices>button[aria-pressed=true] .file-tag-check{background:var(--green);color:var(--on-primary);border-color:var(--green)}@media(max-width:960px){.file-row{gap:8px}.file-row>.icon{flex:none;min-width:30px;width:30px}.file-row>.record-body small{font-size:11px;line-height:1.5}}
+
+/* The sidebar owns its entire scrollable content, including the install action. */
+.sidebar {gap:24px;overscroll-behavior:contain}
+.sidebar-navigation {display:flex;flex-direction:column;flex:none}
+.sidebar-footer {display:flex;flex-direction:column;align-items:center;gap:18px;margin-top:auto;flex:none;padding-top:6px}
+.sidebar-mascot {display:block;width:152px;height:152px;max-width:100%}
+.sidebar-footer .app-install {align-self:stretch}
+.sidebar .app-install .install-trigger {width:100%;padding:10px 15px;justify-content:flex-start}
+.header-logo {display:block;width:var(--header-logo-size,48px);height:var(--header-logo-size,48px)}
+.header-mascot {display:none;width:var(--header-mascot-size,56px);height:var(--header-mascot-size,56px)}
+.app-shell.guest-settings-screen {--app-header-space:0px}
+.native-app .header-mascot {display:block}
+@media(max-width:960px){
+  .sidebar {display:contents}
+  .sidebar-navigation,.sidebar-mascot {display:none}
+  .sidebar-footer {display:contents}
+  .header-mascot {display:block}
+  .app-header-actions {gap:6px}
+  .trip-header-link {min-width:0}
+  .app-shell.guest-settings-screen .app-install {display:none}
+}
+
+@media(min-width:961px){
+  .sidebar {padding-top:24px;padding-bottom:24px;gap:18px}
+  .sidebar .brand {margin-bottom:28px}
+  .sidebar .side-link {padding-block:10px;margin-bottom:3px}
+  .sidebar .side-divider {margin-block:18px}
+  .sidebar .sidebar-trip {margin-bottom:12px}
+}
+
+/* Dark mobile artwork has its own compact size and background spacing. */
+.native-app[data-theme="dark"] .app-header {
+  --header-logo-size:40px;
+  --header-mascot-size:46px;
+  --header-brand-gap:16px;
+  --mascot-backdrop-gap:3px;
+}
+@media(max-width:960px){
+  :root[data-theme="dark"] .app-header {
+    --header-logo-size:40px;
+    --header-mascot-size:46px;
+    --header-brand-gap:16px;
+    --mascot-backdrop-gap:3px;
+  }
+}

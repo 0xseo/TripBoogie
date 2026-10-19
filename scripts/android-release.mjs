@@ -1,0 +1,26 @@
+import {readFileSync,existsSync,copyFileSync,mkdirSync,writeFileSync} from 'node:fs';
+import {parseEnv} from 'node:util';
+import {spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+const env={...process.env,...parseEnv(readFileSync('.env.release.local','utf8'))};
+for(const name of ['TRIPBOOGIE_RELEASE_STORE_FILE','TRIPBOOGIE_RELEASE_STORE_PASSWORD','TRIPBOOGIE_RELEASE_KEY_ALIAS','TRIPBOOGIE_RELEASE_KEY_PASSWORD'])if(!env[name])throw new Error(`Missing ${name}`);
+if(!existsSync(env.TRIPBOOGIE_RELEASE_STORE_FILE))throw new Error('Signing store is unavailable');
+env.JAVA_HOME||='/Library/Java/JavaVirtualMachines/openjdk-21.jdk/Contents/Home';
+function run(command,args,options={}){const r=spawnSync(command,args,{env,encoding:'utf8',...options});if(r.error||r.status!==0)throw new Error(`Release validation failed: ${command}`);return r.stdout;}
+run('./gradlew',['--no-daemon','--max-workers=2',':app:assembleRelease',':app:lintRelease',':app:assembleDebug',':app:lintDebug'],{cwd:'android',stdio:'inherit'});
+const apk='android/app/build/outputs/apk/release/app-release.apk';
+const sdk='/Users/0xseo/Library/Android/sdk/build-tools/36.0.0/';
+const cert=run(sdk+'apksigner',['verify','--verbose','--print-certs',apk]);
+const expected=JSON.parse(readFileSync('.private/android-signing/certificate.json','utf8'));
+const digest=cert.match(/Signer #1 certificate SHA-256 digest: ([a-f0-9]+)/i)?.[1]?.toLowerCase();
+if(digest!==expected.sha256.replaceAll(':','').toLowerCase())throw new Error('Release signing certificate mismatch');
+const manifest=run(sdk+'aapt',['dump','badging',apk]);
+if(manifest.includes('application-debuggable'))throw new Error('Debuggable APK cannot be published');
+const info=manifest.match(/package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'/);
+if(info?.[1]!=='com.tripboogie.app')throw new Error('Wrong release package');
+const bytes=readFileSync(apk),sha256=createHash('sha256').update(bytes).digest('hex');
+mkdirSync('public/downloads',{recursive:true});
+copyFileSync(apk,'public/downloads/tripboogie.apk');
+const metadata={package:info[1],version:info[3],build:Number(info[2]),bytes:bytes.length,sha256,certificateSha256:expected.sha256,download:'/downloads/tripboogie.apk'};
+writeFileSync('public/downloads/release.json',JSON.stringify(metadata,null,2)+'\n');
+console.log('Verified signed, non-debuggable release:',JSON.stringify(metadata));

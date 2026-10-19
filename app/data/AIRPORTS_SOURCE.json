@@ -1,0 +1,9 @@
+{
+  "source": "https://github.com/mborsetti/airportsdata/blob/main/airportsdata/airports.csv",
+  "downloadedAt": "2026-10-19",
+  "sourceSha256": "516c57d9d999f7a3be28ca649d2badbe3b972f07e57dc6173ab973b72d51cf52",
+  "airports": 28298,
+  "koreanLabels": 1230,
+  "labelsSource": "https://www.wikidata.org/",
+  "license": "MIT; Korean labels CC0"
+}

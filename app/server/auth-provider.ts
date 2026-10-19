@@ -1,4 +1,3 @@
-import { env } from "cloudflare:workers";
 import type { CurrentUser } from "../types";
 
 /** Verify every bearer at the authentication boundary. */
@@ -10,12 +9,14 @@ export async function resolveRequestUser(request: Request): Promise<CurrentUser 
     authorization.length > 16384
   )
     return null;
-  if (!env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY)
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_PUBLISHABLE_KEY)
     throw new Error("Authentication is not configured");
-  const endpoint = new URL("/auth/v1/user", env.SUPABASE_URL);
+  const endpoint = new URL("/auth/v1/user", process.env.SUPABASE_URL);
   if (endpoint.protocol !== "https:") throw new Error("Authentication URL must use HTTPS");
   const response = await fetch(endpoint, {
-    headers: { authorization, apikey: env.SUPABASE_PUBLISHABLE_KEY },
+    cache: "no-store",
+    redirect: "manual",
+    headers: { authorization, apikey: process.env.SUPABASE_PUBLISHABLE_KEY },
     signal: AbortSignal.timeout(8000),
   });
   if (response.status === 401 || response.status === 403) return null;
@@ -23,12 +24,13 @@ export async function resolveRequestUser(request: Request): Promise<CurrentUser 
   const raw: unknown = await response.json();
   if (typeof raw !== "object" || raw === null || !("id" in raw) || typeof raw.id !== "string")
     throw new Error("Invalid authentication response");
-  const u = raw as { id: string; email?: unknown; user_metadata?: Record<string, unknown> };
+  const u = raw as { id: string; email?: unknown; app_metadata?:Record<string,unknown>; user_metadata?: Record<string, unknown> };
   const email = typeof u.email === "string" ? u.email : "";
   const display = u.user_metadata?.full_name ?? u.user_metadata?.name ?? u.user_metadata?.nickname;
   // User metadata is display-only; membership uses the verified stable user ID.
   return {
     id: u.id,
+    ...(["google","kakao","email"].includes(String(u.app_metadata?.provider)) ? {provider:u.app_metadata!.provider as CurrentUser["provider"]}:{}),
     email,
     name:
       typeof display === "string" && display.trim()

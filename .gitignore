@@ -57,3 +57,32 @@ next-env.d.ts
 /.codex/
 /outputs/
 /work/
+
+# Native build output and local public provider configuration
+/native-dist/
+/android/app/src/main/res/values/native_config.xml
+/ios/App/Config/Native.local.xcconfig
+
+.private/
+/public/downloads/
+*.jks
+*.keystore
+
+# Local hosting metadata and temporary UI verification routes
+/.openai/
+/app/qa-*/
+# Original design inputs; serving copies are in public/.
+/icon.png
+/map.png
+/splash.png
+/여행도구.png
+/준비.png
+/일정.png
+/홈.png
+/설정.png
+
+/여행도구.png
+/준비.png
+/일정.png
+/홈.png
+/설정.png

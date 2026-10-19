@@ -1,7 +1,5 @@
-import { env } from "cloudflare:workers";
+export const dynamic = "force-dynamic";
 export async function GET() {
-  return Response.json(
-    { browserKey: env.GOOGLE_MAPS_BROWSER_KEY ?? "", mapId: env.GOOGLE_MAPS_MAP_ID ?? "" },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  return Response.json({provider:"openfreemap", searchReady:Boolean(process.env.GEOAPIFY_API_KEY)},
+    {headers:{"Cache-Control":"no-store"}});
 }

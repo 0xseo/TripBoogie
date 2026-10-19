@@ -1,0 +1,68 @@
+/* Shared compact controls. Color tokens follow the companion LookBoogie app. */
+.spinner{animation:refresh-spin .8s linear infinite;flex:none}
+.trip-header-link{min-width:0;max-width:720px;display:grid;justify-content:start;text-align:left;gap:4px;background:transparent;border:0;padding:0}
+.trip-header-link:hover{background:transparent}
+.trip-header-link strong{font-size:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.5px}
+.trip-header-link span{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app-header:has(.trip-header-link) .app-header-caption{display:none}
+.settings-page-heading{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:16px}
+.settings-page-heading .back-link{flex-basis:100%;justify-content:flex-start}.settings-edit{margin-left:auto;min-height:40px;font-size:13px;padding:7px 12px}
+.daily-map{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:16px;background: var(--paper)}
+.map-expand{position:absolute;bottom:29px;right:10px;z-index:2;padding:8px 10px;min-height:38px;font-size:12px;border:0;background: var(--paper);box-shadow:0 2px 12px #1a1d1e22}
+.week-selector{margin:12px 0 18px;background: var(--paper);border:1px solid var(--line);border-radius:16px;padding:6px}
+.week-caption{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 0 4px;font-size:12px;color:var(--muted)}
+.week-caption .icon{width:38px;height:38px;min-height:38px;padding:0;border:0;background:transparent}
+.week-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.week-days button{display:flex;flex-direction:column;gap:4px;border:0;min-width:0;min-height:52px;padding:7px 0;border-radius:10px;background:transparent;white-space:nowrap}
+.week-days strong{font-size:12px}.week-days span{font-size:10px;color:var(--muted);letter-spacing:-.3px}.week-days button[aria-current="date"]{color:var(--on-primary);background:var(--green)}.week-days button[aria-current="date"] span{color:var(--on-primary)}.week-days button:disabled{opacity:.22}
+.full-screen-dialog{position:fixed;inset:0;margin:0!important;max-width:none!important;width:100%!important;max-height:none!important;height:100dvh!important;border:0;border-radius:0!important;overflow:hidden!important;padding:0!important}
+.full-screen-dialog .dialog-inner{height:100%;max-width:none;padding:0;display:flex;flex-direction:column}
+.full-screen-dialog .dialog-inner>header{padding:calc(10px + env(safe-area-inset-top)) 16px 8px;margin:0;min-height:54px;border-bottom:1px solid var(--line)}
+.full-screen-dialog header h2{font-size:18px}.full-screen-dialog header .icon{width:40px;min-height:40px;height:40px}
+.map-explorer{position:relative;display:flex;flex-direction:column;flex:1;min-height:0;isolation:isolate;background: var(--paper)}
+.map-explorer>.week-selector{margin:0;border:0;border-radius:0;z-index:2;padding:4px 12px 8px}
+.map-explorer>.map-frame{height:auto;flex:1;border:0;border-radius:0;min-height:0}
+.map-explorer>.map-frame .map-canvas{height:100%}
+.map-explorer .map-caption{top:20px;bottom:auto}
+.map-card-dock{position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:0;right:0;z-index:3;pointer-events:none}
+.map-card-count{display:flex;justify-content:center;align-items:center;gap:14px;margin:0 auto 6px;background: var(--paper);box-shadow:0 2px 12px #1a1d1e16;width:max-content;border-radius:30px;font-size:12px;pointer-events:auto}
+.map-card-count .icon{height:36px;width:36px;min-height:36px;border:0;background:transparent;padding:0}
+.map-card-carousel{position:relative;display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding:4px max(24px,calc((100% - 520px)/2)) 10px;pointer-events:auto;overscroll-behavior-x:contain;touch-action:pan-x}
+.map-card-carousel::-webkit-scrollbar{display:none}
+.map-schedule-card{position:relative;flex:0 0 min(86%,520px);min-width:0;min-height:150px;padding:16px;background: var(--paper);box-shadow:0 5px 20px #1a1d1e24;border-radius:16px;scroll-snap-align:center;border:2px solid transparent}
+.map-schedule-card[aria-current="true"]{border-color:var(--green)}.map-schedule-card>div{display:flex;align-items:center;gap:8px;margin-bottom:8px}.map-schedule-card small{font-size:12px;color:var(--muted)}.map-card-number{width:27px;height:27px;display:grid;place-items:center;background:var(--mint);border-radius:50%;color:var(--green);font-size:12px}.map-schedule-card h3{font-size:18px;line-height:1.4;padding-right:38px;margin:0 0 7px;letter-spacing:-.5px}.map-schedule-card p{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px}.map-schedule-card>.text-button{position:absolute;right:12px;top:12px;font-size:12px;min-height:36px}
+.compact-plan{display:flex;align-items:center;border:1px solid var(--line);min-height:72px;gap:8px;padding:8px;background: var(--paper);border-radius:12px;touch-action:pan-y}
+.compact-check{width:36px;flex:none;display:flex;flex-direction:column-reverse;align-items:center;justify-content:center;gap:4px;min-height:48px;cursor:pointer}
+.compact-check small{font-size:10px;color:var(--muted);line-height:1}.compact-check input{width:20px;height:20px;min-height:20px}
+.compact-plan-content{flex:1;min-width:0}.compact-plan-content strong{display:block;font-size:14px;line-height:1.45;overflow-wrap:anywhere;letter-spacing:-.3px}.compact-plan-content small{display:block;color:var(--muted);font-size:11px;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sort-control{position:relative;flex:none}.sort-handle{touch-action:none;cursor:grab;min-width:40px;min-height:44px;padding:8px;color:var(--muted);background:transparent;border:0}.sort-menu{position:absolute;top:100%;right:0;z-index:15;min-width:120px;padding:4px;border:1px solid var(--line);border-radius:12px;background: var(--paper);box-shadow:0 5px 20px #1a1d1e22}.sort-menu>button{display:block;width:100%;border:0;font-size:13px;min-height:40px}.drag-preview{box-shadow:0 12px 28px #1a1d1e30!important;border-color:var(--green)!important;opacity:.98!important}
+.schedule-tools{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;padding:12px;border:1px solid var(--line);background: var(--paper);border-radius:12px;margin-bottom:14px}.schedule-tools label{display:flex;align-items:center;gap:8px}.selection-count{margin-left:auto}.schedule-tools>.inline{font-size:13px;min-height:32px}.selection-count{font-size:12px;color:var(--green);font-weight:700}.bulk-actions{display:flex;flex-wrap:wrap;gap:6px;width:100%}.bulk-actions button{font-size:12px;padding:8px 10px;min-height:38px}
+.travel-tools{max-width:850px;display:grid;gap:14px}.tools-cities{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}.tools-cities button{padding:7px 13px;min-height:40px;white-space:nowrap;font-size:13px;border-radius:20px}.tools-cities button[aria-pressed="true"]{color:var(--on-primary);background:var(--green);border-color:var(--green)}
+.local-clock{display:flex;align-items:center;gap:12px;background: var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px}.clock-icon{width:42px;height:42px;display:grid;place-items:center;background:var(--mint);color:var(--green);border-radius:12px}.local-clock>div{display:grid;gap:4px;min-width:0}.local-clock>div>span{font-size:12px;color:var(--muted)}.local-clock strong{font-size:28px;line-height:1.1;letter-spacing:-1px;font-weight:700}.local-clock>small{margin-left:auto;font-size:12px;color:var(--muted)}
+.compact-weather{background: var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px;min-width:0}.compact-weather>header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:16px}.compact-weather>header>div{display:flex;align-items:center;gap:6px}.compact-weather h2{font-size:16px;letter-spacing:-.4px}.compact-weather>header>span{font-size:11px;color:var(--muted)}
+.compact-weather-days{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px}.compact-weather-days>div{display:flex;flex-direction:column;gap:6px;align-items:center;background: var(--bg);border-radius:12px;padding:12px 4px}.compact-weather-days small{font-size:10px;color:var(--muted);white-space:nowrap}.compact-weather-days strong{font-size:12px}.compact-weather-days span{font-size:12px;color:var(--muted)}.compact-weather-days b{color:var(--ink)}.compact-weather-days svg{color:var(--muted)}.compact-weather>footer{display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-top:14px;padding:0;font-size:10px;color:var(--muted)}.compact-weather>footer a{color:inherit}
+.weather-message,.tools-empty p{font-size:13px;color:var(--muted);line-height:1.7;margin:12px 0}.tools-empty{display:flex;align-items:center;flex-direction:column;padding:20px 0}.tools-empty .secondary{font-size:13px}.tools-loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:30px 0;font-size:13px;color:var(--muted)}.weather-outlook{margin-top:14px;font-size:12px}.weather-outlook summary{cursor:pointer;padding:8px 0}.weather-outlook p{font-size:11px;color:var(--muted);margin:8px 0}
+/* Equal inline/block dimensions own calendar circles, including native button minima. */
+.range-calendar .rdp-root{--calendar-dot-size:36px;--rdp-day-height:40px;--rdp-day_button-width:var(--calendar-dot-size);--rdp-day_button-height:var(--calendar-dot-size)}
+.range-calendar .rdp-day_button{inline-size:var(--calendar-dot-size);block-size:var(--calendar-dot-size);min-inline-size:var(--calendar-dot-size);min-block-size:var(--calendar-dot-size);max-inline-size:var(--calendar-dot-size);max-block-size:var(--calendar-dot-size);aspect-ratio:1;padding:0;border-radius:50%;margin:auto}
+@media(max-width:960px){
+ .in-trip .trip-heading{display:none}.in-trip .app-header{gap:8px;min-height:66px;padding:calc(8px + env(safe-area-inset-top)) 16px 8px}.trip-header-link{flex:1}.trip-header-link strong{font-size:19px}.trip-header-link span{font-size:11px}.in-trip .app-header-actions{margin-left:0}.in-trip .install-trigger{display:none}
+ .collection-heading .eyebrow{display:none}.app-shell .feature>.section-heading{justify-content:flex-end;margin-bottom:12px}.app-shell .feature>.section-heading .secondary{font-size:12px;min-height:38px;padding:7px 10px}.app-shell .preparation-tabs{margin-bottom:14px}
+ .app-shell .itinerary>.section-heading{margin:16px 0 12px}.app-shell .itinerary>.section-heading h2{font-size:18px}.app-shell .itinerary>.section-heading .eyebrow{font-size:11px;margin-bottom:4px}.itinerary>.section-heading .secondary{min-height:40px;padding:8px 12px;font-size:13px}
+ .add-fab,.collection-heading .collection-create{position:fixed;right:20px;bottom:calc(var(--trip-nav-reserve) + 16px);z-index:35;width:56px;height:56px;min-height:56px;min-width:56px;padding:0;border-radius:50%;background:var(--green);box-shadow:0 6px 18px #1a1d1e25}.add-fab>span,.collection-create>span{display:none}.add-fab svg,.collection-create svg{width:25px;height:25px}.dialog .add-fab{position:static;width:auto;min-width:0;height:44px;min-height:44px;padding:8px 12px;border-radius:12px;box-shadow:none}.dialog .add-fab>span{display:inline}
+ .daily-map .map-frame{height:230px;min-height:0}.daily-map .map-canvas{height:100%}.compact-plan>.icon{min-width:36px;width:36px;height:40px;min-height:40px;padding:7px}.compact-plan{gap:5px}.editing-timeline{gap:8px}.rate-banner{display:none}
+ .plan-row{gap:8px}.plan-card{padding:13px;border-radius:14px}.plan-card h3{font-size:17px}.plan-number{flex:none;inline-size:30px;block-size:30px;min-inline-size:30px;min-block-size:30px;aspect-ratio:1}.plan-card .preserve{font-size:13px}.travel-leg{font-size:12px;gap:6px}.travel-leg>small{font-size:10px}
+ .local-clock{padding:14px}.compact-weather{padding:14px}.compact-weather-days{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.compact-weather-days>div{padding:10px 2px;gap:5px}.compact-weather-days small{font-size:9px}.settings-menu>button{padding:16px}.settings-menu small{font-size:11px}.settings-menu strong{font-size:15px}
+ .range-calendar .rdp-root{--calendar-dot-size:34px}.trip-settings-page .settings-page-heading h2{font-size:19px}.settings-page-heading .back-link{font-size:13px;margin-bottom:0}.app-shell .empty{padding:28px 12px}.app-shell .empty h3{font-size:17px}.app-shell .empty p{font-size:13px}.app-shell .welcome-note{font-size:13px}.app-shell footer{font-size:11px}
+ .toast{max-width:calc(100vw - 32px);font-size:13px;padding:12px 16px;border-radius:12px}
+}
+.native-app .in-trip .trip-heading{display:none}.native-app .app-header-caption{display:none}
+@media(max-width:359px){.range-calendar .rdp-root{--calendar-dot-size:30px}.week-days span{font-size:9px}.week-days strong{font-size:11px}.trip-header-link strong{font-size:17px}.trip-header-link span{font-size:10px}.compact-check{width:30px}.compact-plan>.icon{display:none}}
+@media(prefers-reduced-motion:reduce){.marker-number{transition:none}.spinner{animation-duration:1.6s}}
+
+.compact-plan[data-selected="true"]{border-color:var(--green);background:var(--soft)}.compact-plan[data-focused="true"]{outline:2px solid #a3b18a;outline-offset:2px;scroll-margin-top:90px}
+
+
+.route-credit{display:block;font-size:10px;color:var(--muted);margin:6px 0 12px}.route-credit a{color:inherit}
+
+.map-card-carousel{user-select:none;cursor:grab}@media(max-width:359px){.workspace>.week-selector{margin-left:-10px;margin-right:-10px;padding:4px}.week-days strong{font-size:10px}}

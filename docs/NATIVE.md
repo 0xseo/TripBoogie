@@ -1,0 +1,180 @@
+# TripBoogie Android / iOS
+
+웹/PWA와 Android/iOS 앱은 `app/`의 여행 UI를 공유한다. Capacitor 앱은 빌드된 화면을 패키지에 포함하고, HTTPS 운영 API와 Supabase에 연결한다. 앱 표시 이름은 **트립부기**, 앱 식별자는 두 플랫폼 모두 `com.tripboogie.app`이다.
+
+## 구현과 검증
+
+- Android: Google Credential Manager, Kakao Android SDK. iOS: Google Sign-In, Kakao iOS SDK.
+- SDK의 ID 토큰 → nonce 검증을 포함한 Supabase `signInWithIdToken` → 서버에서 검증하는 Supabase JWT 순서로 로그인한다. 사용자 ID와 기존 여행 데이터는 같은 Supabase 프로젝트를 사용한다.
+- Android 세션은 Android Keystore의 AES-GCM 키로 암호화한다. iOS 세션은 기기 전용 Keychain에 보관한다. 네이티브 SDK 로그에서 토큰이 출력되지 않도록 Capacitor 로깅을 끈다.
+- 앱 복귀, 초대, 이메일 확인/비밀번호 재설정과 포그라운드 복귀 시 세션 갱신을 연결했다. JSON 백업·예약 파일 내려받기는 기기의 공유/파일 저장 화면을 사용한다.
+- Android 디버그 APK와 Android lint, iOS 시뮬레이터 빌드·실행을 확인했다. Android 실기기 Google/Kakao 로그인 성공은 사용자에게 확인받았다. Play/TestFlight 배포 검증은 별도다.
+- Capacitor 7.6.9는 설치된 Xcode 16.2와 호환되도록 고정했다. Android는 SDK 36, JDK 21, AGP 8.13.2를 사용한다. iOS 최소 버전은 15다. App Store 제출 시점의 Xcode/SDK 요구 조건은 별도로 맞춰야 한다.
+
+## 로그인 테스트와 오류 안내
+
+2026-10-19 사용자 실기기 테스트에서 Android Google 로그인 성공을 확인했다(사용자 보고). 카카오는 OpenID Connect가 OFF였음을 확인한 뒤 ON으로 변경했고, 실기기 로그인 성공을 확인했다(사용자 보고). 카카오 SDK에서 로그인이 완료되어도 OpenID Connect가 꺼져 있으면 ID 토큰이 없어 Supabase 로그인을 완료할 수 없다. 키 해시 등록과 OpenID Connect 활성화는 별도 설정이다.
+
+앱은 `ID_TOKEN_MISSING`일 때 카카오 OpenID Connect 설정을 안내한다. SDK 인증 실패, 서버 토큰 검증 실패, 세션 확인 실패와 취소도 구분한다. 화면에는 사전에 정의한 안내만 표시하고 SDK·서버의 원본 메시지나 토큰은 노출하지 않는다.
+
+## 설정 파일과 명령
+
+`.env.native.local`은 공개 네이티브 식별자의 로컬 원본이다. Google Android/iOS/Web Client ID와 Kakao 네이티브 앱 키를 기록한다. 현재 Web Client ID는 Google 네이티브 로그인에서도 서버용 수신 대상으로 사용한다. Client secret·Supabase 관리 토큰·서명 개인 키를 앱에 넣지 않는다.
+
+`native:build`는 필요한 식별자만 Android 리소스와 iOS xcconfig로 생성한다. 이 설정 파일, 환경 파일, 네이티브 빌드 출력은 Git/Vercel 업로드에서 제외한다. `native-dist`에는 서버 비밀이 아닌 공통 클라이언트 코드만 포함한다.
+
+```sh
+cd /Users/0xseo/Desktop/Dev/tripboogie
+npm ci
+npm run native:android:build
+npm run native:ios:build
+npm run native:android
+npm run native:ios
+```
+
+Android APK: `android/app/build/outputs/apk/debug/app-debug.apk`.
+iOS Xcode 프로젝트: `ios/App/App.xcodeproj`.
+시뮬레이터 앱: `.sites-runtime/work/ios-derived/Build/Products/Debug-iphonesimulator/App.app`.
+
+## Supabase 설정
+
+대상은 `faekdclvcieuksoxsrtw`다. `native:auth:check`로 확인하고 `native:auth:apply`로 필요한 네이티브 Client ID와 `tripboogie://auth/callback**`를 추가한다. 기존 Web/REST ID는 첫 번째 값으로 보존하며 Provider secret과 nonce 보안 옵션은 변경하지 않는다. 변경 전 설정은 `.sites-runtime/work/native-auth-backups/`에 권한 0600으로 보관한다.
+
+2026-10-19에 서버 설정 적용·재조회 검증을 완료했다. 관리 토큰에는 Auth Config와 Project Settings의 Read-write 권한이 필요하다. 다른 프로젝트의 Supabase 연결은 변경하지 않는다.
+
+## 사용자가 확인할 콘솔 항목
+
+1. Kakao Developers의 기존 TripBoogie 앱: 네이티브 앱 키의 Android 패키지명 및 iOS Bundle ID `com.tripboogie.app`, 카카오 로그인 및 **OpenID Connect 활성화**, 필요한 동의 항목을 확인한다. 앱 키에 Android 키 해시를 등록한다. iOS의 URL scheme과 KakaoTalk 실행 허용 목록은 코드에 반영했다.
+2. Google Cloud의 기존 프로젝트: 제공한 Android 클라이언트의 패키지명과 실제 APK 인증서 SHA-1이 일치해야 한다. 제공한 iOS 클라이언트의 Bundle ID도 동일해야 한다. 기존 Web Client는 유지한다. 각 인증서가 다른 빌드에는 패키지명+SHA-1 조합에 맞는 Android 클라이언트를 등록한다.
+3. Android 디버그 서명은 기존 `~/.android/debug.keystore`를 사용하며 실제 APK 인증서와 일치함을 확인했다. SHA-1은 `D9:20:9F:C6:98:BA:AB:71:34:C7:DC:C1:74:8D:65:FE:B5:FF:29:C8`, Kakao 키 해시는 `2SCfxpi6q3E0x9zBdI1l/rX/Kcg=`다.
+4. 릴리즈 키·Play App Signing은 아직 등록하지 않았다. 릴리즈 키의 Kakao 해시와 Google SHA-1, Play가 최종 배포하는 앱 서명 인증서의 값도 등록해야 한다. 업로드 인증서와 Play 앱 서명 인증서를 구분한다.
+5. iOS 기기 서명/배포는 Xcode에서 소유 팀을 선택한다. TestFlight/App Store에는 Apple Developer Program 계정이 필요하다. 소비자용 소셜 로그인 앱은 App Review 4.8에 따른 동등한 개인정보 보호 로그인 선택지의 적용을 검토한다. Apple 로그인은 아직 구현하지 않았다.
+
+Android 릴리즈 서명은 `TRIPBOOGIE_RELEASE_STORE_FILE`, `TRIPBOOGIE_RELEASE_STORE_PASSWORD`, `TRIPBOOGIE_RELEASE_KEY_ALIAS`, `TRIPBOOGIE_RELEASE_KEY_PASSWORD` 환경 변수를 사용한다. 키를 지정하지 않은 Release는 디버그 키로 서명하지 않는다. 키와 암호는 Git에 저장하지 않는다.
+
+실기기 테스트: Google/Kakao 로그인 성공·취소 → 여행 열기/저장 → 앱 종료·재실행 → 초대 링크 → 로그아웃 → 이메일 비밀번호 재설정. KakaoTalk 설치/미설치와 실제 Play 내부 테스트·TestFlight 앱도 확인한다.
+
+공식 문서: [Google Android](https://developer.android.com/identity/sign-in/credential-manager-siwg), [Google iOS](https://developers.google.com/identity/sign-in/ios/start-integrating), [Kakao Android](https://developers.kakao.com/docs/ko/kakaologin/android), [Kakao iOS](https://developers.kakao.com/docs/ko/kakaologin/ios), [Supabase Kakao ID 토큰](https://supabase.com/docs/guides/auth/social-login/auth-kakao), [Apple 로그인 심사](https://developer.apple.com/app-store/review/guidelines/#login-services).
+
+## 아이콘과 시작 화면
+
+원본 `icon.png`, `splash.png`, `map.png`는 프로젝트 루트에 보관한다. macOS에서 `npm run assets:generate`를 실행하면 웹/PWA 아이콘, Android의 밀도별·적응형 아이콘, 알파 없는 iOS 1024px 아이콘과 시작 화면 리소스를 다시 생성한다. 웹 메인·인증 화면은 `public/map-mascot.png`를 사용한다. 원본 그림을 다시 그리거나 자르지 않는다.
+
+iOS는 제공한 `splash.png`를 흰 배경 위에 비율을 유지해 표시한다. Android 시스템 시작 화면은 플랫폼 규격에 따라 앱 아이콘을 표시하고, 번들 화면 준비 중에는 같은 `splash.png`를 표시한다. 임의의 대기 시간은 추가하지 않는다. PWA는 설치 브라우저가 manifest의 아이콘과 흰 배경으로 시작 화면을 구성한다. 이미 설치한 PWA 아이콘이 유지되면 삭제 후 다시 설치한다.
+
+## 현재 화면 구성 (2026-10-19)
+
+- 하단 메뉴는 일정 / 준비 / 홈 / 여행도구 / 설정이다. 설정은 여행을 선택하지 않아도 열리는 계정·앱 설정이다. 프로필에는 룩부기와 같은 거북이 아이콘을 표시하고, 이름·국가·검색 언어·기준 통화·테마는 서버 프로필에 저장한다. 기준 통화 변경은 기존 경비를 재계산하지 않는다.
+- 여행 헤더 전체를 눌러 여행 정보 / 여행 동행 / JSON 백업을 연다. 준비 메뉴는 체크리스트 / 경비 / 예약 / 분류 설정이다. 예약의 자료함 하위 탭에서 전체 첨부파일을, 각 예약 카드에서 연결 파일을 관리한다.
+- 예약 분류는 숙소 / 항공 / 투어·티켓 / 기타가 기본이며 이름·순서·추가를 지원한다. 사용 중인 분류의 삭제·형식 변경은 서버가 거부한다. 숙소 자동 일정과 결제 경비의 원자적 저장은 유지한다.
+- 일요일로 시작하는 요일 줄을 날짜 상자 위에 두고, 상자 양옆 화살표로 주를 바꾼다. 웹에는 편집 옆 추가 버튼이 있고 모바일에는 플로팅 + 버튼을 둔다. 전체 지도에서 카드 선택은 해당 일정·마커로 이동하며 빈 카드는 현재 날짜의 일정 추가를 연다.
+- 일정 편집에서는 체크박스와 삭제를 카드 밖에 두고 가로선 드래그 핸들을 카드 안에 둔다. 메모는 본문만 입력하며 기존 메모의 제목·본문을 읽을 때 한 번 합친다.
+- 선택형 시계 입력, 크기 조절 없는 메모, visualViewport 높이·위치를 따르는 대화상자를 사용한다. Android 활동은 adjustResize를 명시한다. 시작 스플래시에는 스피너를 표시하지 않고 인증 bootstrap 완료 후 앱을 연다.
+- 도시 사진의 자동 검색 실패와 명시적인 사진 끄기를 구분한다. 도시 사진 조회는 Geoapify 장소 상세와 분리한다. 계정 설정은 거북이 아이콘을 사용한다. 기존 사진·소셜 사진은 여행 동행 사진에 보존하며 멤버 권한을 확인한 조회에서만 반환한다.
+- 여행 카드는 박·일을 표시한다. 저장된 항공 예약에서 확인되는 기내 숙박일을 중복 없이 제외하며 공항 시간대가 있으면 날짜 변경선을 반영한다. 시간대가 없으면 예약에 입력된 현지 날짜 차이를 사용하며, 날짜 변경선은 공항 시간대가 있어야 반영된다.
+
+### 검증 범위
+
+가상 여행에서 계정 테마, 단일 메모 입력, 선택형 시간 입력, 빈 전체지도에서 추가하기, 일정 카드 선택, 예약 분류와 첨부파일 통합을 확인했다. 390px 모바일, 1280px 웹과 높이 430px로 줄인 키보드 상황을 검증했다. 실제 키보드·실기기 인증 세션 재시작은 사용자 테스트가 필요하다. 테스트용 화면은 배포에서 제거한다.
+
+Supabase 보안 진단의 비공개 보조 테이블 RLS 무정책 정보 2건은 의도한 차단이며, 기존 유출 비밀번호 방지 비활성화 Auth 경고는 이번 UI 변경으로 수정하지 않았다. 새로운 공개 테이블·스토리지 버킷·권한은 추가하지 않았다.
+
+### 일정·입력·앱 정보 후속 수정 (2026-10-19)
+
+- 일정 제목을 위로 올리고 시간·장소를 한 줄로 표시한다. 시간이 없으면 연필 옆 시계 버튼을 둔다. 이동 시간은 자동 추정값을 입력칸에 표시하고 수동 수정할 수 있다. 이동 방식 변경은 이전 시간을 지우며, 늦게 도착한 다른 방식의 추정값을 사용하지 않는다. 지도는 계속 직선 연결이며 거리 값은 그대로 표시한다.
+- 긴 여행·일정·경비·예약 입력은 모바일에서 페이지 형태로 열고 입력 내용만 스크롤한다. visualViewport 변화에 맞춰 높이를 조절하며 하단 동작을 유지한다. 공통 대화상자는 body portal과 중첩 소유권을 사용해 바깥 클릭·뒤로 가기에서 가장 위 창만 닫는다.
+- 프로필 부분 수정은 변경한 항목과 버전만 보내며, 서버도 기존 클라이언트가 다시 보낸 동일한 소셜 사진을 쓰기 데이터로 저장하지 않는다. `20261019092846_profile_patch_updates` 적용 완료. 합성 Kakao 프로필·이전 클라이언트·CAS 충돌 회귀를 검증했다.
+- 앱 정보는 개발자 0xseo, 버전 0.0.1을 먼저 표시한 뒤 지도·장소·공개사진·날씨·환율을 텍스트로 나눈다. 이 화면에는 하이퍼링크가 없다. 지도 및 개별 사진의 필수 이용 조건 표시는 해당 화면에 유지한다.
+- 390×844 모바일, 1280×900 웹, 390×430 축소 뷰포트의 예약 입력을 검증했다. 축소 뷰포트는 키보드 상황 모의이며 실제 기기 키보드 검증을 대신하지 않는다. 중첩 통화창 바깥 클릭 후 부모 창 유지, 25분 입력 후 기차로 바꾸면 공란 초기화, 다음 주의 일요일 시작을 확인했다.
+- 라이트·다크 색상 쌍의 4.5:1 이상 대비 검사 2개를 추가했다. 실제 다크 일정 뷰포트의 텍스트 35개 표본은 최저 6.97:1이었다. 지도·사진·비활성 컨트롤과 모든 화면을 측정한 것은 아니다.
+
+최종 반영: Vercel `dpl_codoi7yTLnPEwY3Ye5uemb7xhpw3` READY. 서버 29 + 탐색 9 + 네이티브 6 + 대비 2 = 46개 통과. 웹 운영 빌드·Android assembleDebug/lintDebug·서명 없는 iOS 시뮬레이터 빌드 성공. 연결된 Android R5KL60EMT5J에 2026-10-19 18:50:19 KST 업데이트 설치(`install -r`, Success); APK SHA-256 `31082fc4c3764213dded90d1a76cf90e7c6b8e94a59e9d987fb342dc48085627`. APK의 index.html이 마지막 native-dist와 일치한다. 운영 비로그인 bootstrap은 빈 개인 데이터와 private/no-store를 반환하며 검증 페이지는 404다. 실제 계정·여행을 조작해 확인하지 않았다.
+
+### 네이티브 다크 문서 배경·웹 스플래시 (2026-10-19 후속)
+
+네이티브 시작 HTML에 있던 `html,body { background:#fff }`가 공유 CSS의 루트 다크 색상과 충돌했다. body는 흰색인데 자식 글씨는 밝은 ink를 상속해 카드 바깥 제목·본문이 보이지 않았다. 공유 theme.css가 문서 배경과 글씨를 함께 소유하도록 수정하고 네이티브 시작 HTML의 문서 배경 고정을 제거했다. 시작 이미지 컨테이너 자체의 흰 배경은 유지한다.
+
+실제 이전·수정 네이티브 번들 CSS를 로컬 가상 화면에 적용해 비교했다. 이전 dark는 본문 배경 #fff / 글씨 #edf2ee로 대비 1.13:1이었다. 수정 후 본문 배경 #141917, 글씨 #edf2ee이고 측정한 텍스트 표본 11개 최저 대비는 dark 8.74:1 / light 5.30:1이었다. Android WebView 실화면을 원격 캡처한 검증은 아니다.
+
+웹의 시작 화면은 LaunchScreen 컴포넌트와 CSS Module이 소유한다. 400px 크기 제한을 제거하고 컨테이너·이미지를 뷰포트 크기에 고정하되 원본 비율을 유지한다. 검증 크기는 1280×900, 390×844이며 각 크기에서 컨테이너와 이미지 박스가 화면 크기와 같고 스크롤이 생기지 않았다. 인증 지연을 흉내 내는 인위적인 대기 시간은 추가하지 않았다. 로컬 검증 경로는 배포 전 제거했다.
+
+후속 웹 배포 `dpl_2ugTSb8f58EPcdjAKcFc9dYHYC4B` READY. 린트·테마 대비 2개·웹 빌드·Android assembleDebug/lintDebug·iOS 시뮬레이터 빌드 성공. APK SHA-256 `8e0b226cc325818b6ae0e367bd7b39146df32ee072fd2b4749093771ceaa4aaa`. 이 APK의 네이티브 시작 HTML은 흰 body 고정이 없으며 최신 native-dist와 일치한다. 휴대폰 USB 연결이 끊겨 새 후속 APK 설치는 아직 대기 중이다. 앞선 18:50 설치본에는 이 후속 배경 수정이 없다.
+
+후속 설치 완료: 재연결된 Android `R5KL60EMT5J`에 다크 배경 수정 APK를 `adb install -r`로 업데이트했고 `Success`를 확인했다. 설치 버전 1.0, 기기 lastUpdateTime 2026-10-19 19:05:57 (Asia/Seoul). 설치 파일 SHA-256이 위 검증 APK와 일치함을 대조했다. 기존 앱 데이터는 삭제하지 않았다. 실제 앱 화면에서 다크 모드가 정상인지 사용자의 재실행 확인이 필요하다.
+
+### 항공 입력·홈 배열 후속 (2026-10-19)
+
+- 항공은 공항·현지 날짜·공통 시각 휠·편명을 먼저 입력하고 예약 상세로 진행한다. 표시 제목은 노선·편명으로 만들고 같은 값을 저장 및 결제 경비 초기값에 사용한다. 투어·기타 이름 placeholder는 이름이다. 모든 종류의 플랫폼·예약번호는 펼침 입력이며, 기존 값이 있는 수정 화면은 열려 있다.
+- 일정 00:00 선택을 스크롤 완료 전 09:00으로 덮어쓰던 휠 초기화·선택 경쟁을 제거했다. 가상 화면에서 09:00 → 00:00 적용·재열기를 확인했고 실제 PostgreSQL 일정 저장·워크스페이스 반환도 00:00을 보존한다.
+- 웹 사이드바는 나의 여행·설정을 구분선 위에 둔다. 홈에서는 여행 메뉴가 선택되지 않으며, 선택된 여행이 없으면 가장 가까운 출발 예정 여행 메타데이터로 메뉴를 준비한다. 일정 데이터는 메뉴 진입 시 서버에서 읽는다. 예정 여행이 없으면 두 전역 메뉴만 표시한다. 모바일은 여행 직접 선택 흐름을 유지한다.
+- 카드의 위치 오른쪽에 D-day를 표시하고 날짜 차이는 UTC 날짜 경계로 계산한다. 웹 3→2→1, 앱 및 좁은 화면 2→1 배열이다. 앱 버전은 Android versionCode 2/versionName 0.0.1, iOS build 2/marketing 0.0.1로 맞췄다.
+- 실제 공통 컴포넌트로 390×844, 390×480, 1280×900 가상 여행 화면을 확인했다. 항공편명 입력을 포커스했을 때 480px 화면에서도 입력칸 하단 397px, 버튼 상단 407px로 겹치지 않았다. 실제 기기 키보드나 사용자 여행을 변경하는 검증은 하지 않았다.
+- 서버 30개, 탐색·네이티브 인증·테마 21개 통과. 예약 분류 보호 마이그레이션 20261019103457 적용 후 합성 JSON으로 순서 변경 성공·기본 이름 변경 거절·anon/authenticated 보조 함수 실행 차단을 확인했다. 보안 진단은 기존 정보 2건·비밀번호 방지 경고 1건으로 같았다.
+
+최종 반영: Vercel `dpl_7Uxqe8RnjXjdBAg6LJwJByeDXEJg` READY, 운영 https://tripboogie.0xseo94.com HTTP 200. 운영 앱 정보 0.0.1·정상 로고·홈 헤더 숨김·나의 여행 아래 설정을 확인했다. 직접 배포 URL은 보호 화면으로 302 응답하여 URL 간 청크 대조는 사용할 수 없었다. 검증 경로 2개는 404, 비로그인 bootstrap은 빈 개인 데이터와 private/no-store를 반환한다. Android `R5KL60EMT5J`에 `install -r` Success, versionCode 2/versionName 0.0.1, lastUpdateTime 2026-10-19 19:45:58 KST. APK SHA-256 `1f3f5f079515bcb5e51d21494056c522f1a684b94d75ed661aac3202f17ed125`, APK 시작 HTML과 최종 native-dist 일치. iOS simulator build 2/version 0.0.1 성공. 실제 휴대폰 UI·키보드 확인은 사용자 테스트 범위다.
+
+### 진행 중 여행·입력·소셜 화면 후속 (2026-10-19)
+
+자동 선택은 도착일까지 포함하는 진행 중 여행을 우선한다. 여러 진행 여행은 출발일이 가장 최근인 여행을 고르고, 없으면 출발 예정 여행을 오름차순으로 고른다. 명시적으로 연 여행 선택은 유지한다. 진행 중 카드는 여행 중으로 표기하며 지난 여행 D+ 값은 유지한다.
+
+지도 그래프가 인접 일정 연결과 좌표 있는 선을 함께 소유한다. 메모는 건너뛰며, 장소가 없는 일정 앞뒤에는 이동을 명시적으로 추가·삭제할 수 있다. 기존 travelFromId·transportMode·travelMinutes 저장 경계를 사용하고 좌표·거리·지도 선은 만들지 않는다. 실제 PostgreSQL 경계로 저장·삭제를 확인했다. 일정 이동·복사는 기존대로 인접 연결을 초기화한다.
+
+공통 포커스 처리는 visualViewport·window resize와 focusin을 받아 현재 입력의 가림만큼 가장 가까운 스크롤 영역을 이동한다. 분류 편집은 모바일 페이지이며, 축소 높이 480px에서 분류 입력칸 하단 331px, 일정 이동 입력 하단 261px로 보였다. 실제 휴대폰 키보드 측정은 아니다. 헤더는 76px로 통일하고 문서와 함께 스크롤한다. 메모 표시 중심 차이는 가상 화면에서 1px이었다.
+
+카카오·구글 OAuth 및 네이티브 SDK 흐름은 유지하고 이메일 입력·가입·재설정 진입 UI를 제거했다. Supabase 계정의 검증된 app_metadata.provider는 표시 전용 DTO로 전달하며 권한 결정에 사용하지 않는다. 기존 계정·프로필·로그인 설정은 변경하지 않았다. 설치 방식은 아래 ‘APK 배포와 설치 선택’의 최신 정책을 따른다.
+
+주기적 8초 동기화는 background 활동으로 호출해 상단 요청 스피너를 늘리지 않는다. 사용자 요청은 기존 로딩 표시를 유지한다. 서버 33개, 탐색·네이티브·테마 22개 검사를 통과했다. 새 DB 마이그레이션은 없다.
+
+
+### 모바일 후속 조정 (2026-10-19)
+
+- 진행 중인 여행을 예정 여행보다 먼저 제안하며 진행 중 카드에는 ‘여행 중’을 표시한다. 로그인 UI는 카카오·구글만 노출하고 프로필에는 인증 제공자를 표시한다. 서버 이메일 인증 설정을 변경한 것은 아니다.
+- 주기적 동기화는 조용히 진행하고 직접 새로고침은 진행 상태를 표시한다. 포커스된 입력은 visualViewport와 가장 가까운 스크롤 컨테이너를 기준으로 키보드 위로 이동한다. 헤더는 스크롤과 함께 사라진다.
+- 장소 없는 일정 사이에도 선택적으로 이동 방식·시간을 저장/삭제할 수 있다. 지도 선과 거리 계산은 좌표가 있는 인접 일정에만 적용한다. 메모는 연결 순서에서 무시한다.
+- 항공 날짜는 공통 달력으로 선택하고 상세·결제를 한 단계로 합쳤다. 상단 단계로 이동하는 입력 화면의 하단 이전 버튼은 없애고 저장 버튼을 채웠다. 예약 자료함은 첫 세부 탭이다.
+- 활성 탭을 다시 누르면 화면 상태와 스크롤을 초기화한다. 준비는 체크리스트부터, 일정은 첫날부터, 설정은 계정 초기 화면부터 시작한다.
+- 동행 권한은 공통 선택창을 쓰며 여행 동행 제목 옆에 인원을 한 번만 표시한다. 삭제 확인은 앱 내 공통 모달이고 취소·뒤로가기·계정 변경은 대기 중 요청을 취소한다.
+- 체크리스트 분류는 세부 탭으로 필터링하고 선택한 분류를 새 항목의 기본값으로 사용한다. 사용금액 제목은 유지하며 기준·기본 통화 금액 사이 간격과 색을 구분한다.
+- 공개 설치 정책은 아래 최신 기록을 따른다. iPhone은 Safari 홈 화면 추가, 네이티브 iOS는 시뮬레이터 빌드 검증 범위다.
+
+검증·반영 결과: 서버 통합 33개와 클라이언트·네이티브·테마 23개 테스트 통과, 린트 경고 없음, Next 운영 빌드·Android assemble/lint·iOS simulator 빌드 성공. 가상 여행 브라우저에서 분류 필터/추가 기본값, 동행 권한 선택, 삭제 취소/확인, 30×30 번호 중앙 정렬을 확인했다. 실제 익명 로컬 화면에서 설정 재선택 시 로그인 화면에서 계정 초기 화면으로 복귀했다. 금액 간격은 모바일 20px, 웹 24px이며 기준 통화는 녹색, 여행 기본 통화는 본문색이다. 실제 계정의 삭제·초대·경비 쓰기 테스트는 하지 않았다.
+
+최종 배포 `dpl_45q8wYprL4o5T1Y1Y2H9TmB4e1bM` READY, 운영 주소 HTTP 200, 검증 페이지 2개 404, 익명 bootstrap의 user/profile은 null이고 trips는 빈 배열이며 private/no-store다. 운영 브라우저에서 정상 로고(간격 12px, radius 13px)를 확인했다. Android R5KL60EMT5J에 install -r Success, versionName 0.0.1/versionCode 4, lastUpdateTime 2026-10-19 20:45:02 KST. APK SHA-256 `51647150258ad6b98e33b5ea496ec1e14f9e26bf97927a55770a159aec423435`, APK 시작 HTML은 최종 native-dist와 일치한다. iOS는 version 0.0.1/build 4 시뮬레이터 빌드 성공, iPhone 설치는 미실행이다. 실제 휴대폰 UI·키보드는 사용자 확인 범위다.
+
+
+### APK 배포와 설치 선택 (0.0.1 / build 5)
+
+- Android 브라우저에서는 APK 앱과 웹앱을 선택한다. 웹앱은 자동 업데이트, APK는 직접 새 버전을 설치하는 방식으로 안내한다. 데스크톱은 Android 전용 APK 다운로드, iPhone/iPad는 Safari 홈 화면 추가 안내다. 좁은 PC 창과 데스크톱 모드 iPad를 운영체제 판별에 포함했다.
+- `node scripts/android-release.mjs`는 비공개 `.env.release.local`과 `.private/android-signing/`의 키로 서명하고 apksigner 인증서·패키지·디버깅 불가를 검증한 뒤 `public/downloads/tripboogie.apk`와 공개 해시 메타데이터를 만든다. 서명키·암호·인증 상태는 배포와 버전 관리에서 제외한다. 향후 APK 업데이트는 같은 키와 증가한 versionCode로 만든다.
+- 릴리스 인증서 SHA-1: `4D:40:95:9A:60:33:25:2F:DA:38:B2:32:E6:F9:DC:5D:6E:B0:90:5F`. 카카오 키 해시: `TUCVmmAzJS/aOLIy5vncXW6wkF8=`. 사용자가 카카오 등록을 확인했고 Google Android 릴리스 클라이언트 ID도 제공했다. Google SDK의 서버 audience는 기존 Web Client ID를 유지한다.
+- 기존 USB 설치본은 디버그 서명이다. 데이터 보존을 위해 디버그 빌드로 `adb install -r`한다. 다운로드 릴리스로 바꿀 때는 서명이 달라 기존 디버그 앱을 사용자가 제거해야 한다. 서버 여행 데이터는 유지되며 재로그인이 필요하다. 실제 릴리스 APK 소셜 로그인은 사용자 테스트가 남아 있다.
+- 비로그인 설정에는 로고·카카오·구글·앱 정보를 바로 표시한다. 여행 카드 제목 버튼의 44px 터치 높이를 카드 전체 터치 영역과 분리해 모바일 날짜→제목 2px, 제목→프로필 4px 간격을 확인했다.
+- 웹에서는 체크리스트·경비·예약·분류 설정의 중복 준비 탭을 숨기고 자료함을 큰 여행 메뉴에 표시한다. 앱은 기존 준비 탭과 예약의 자료함을 유지한다. 입력 페이지 저장·다음은 하단 전체 너비로 표시하고 여행 복사·삭제는 저장 바로 위에 둔다.
+- 계정 탈퇴는 사용자가 선택한 소프트 방식이다. 자신의 프로필에 탈퇴 시각을 기록하고 로그아웃하며 여행·파일은 보존한다. 기존 JWT에도 RPC와 Storage 접근을 막고, 재로그인 후 명시적인 복구로 다시 접근한다. 실제 사용자의 탈퇴는 검증을 위해 실행하지 않았다.
+- 도시 검색은 Geoapify 결과에 국가·시간대가 없을 때 Open-Meteo Geocoding의 도시 결과로 보완한다. 실제 ‘중국 항저우’와 ‘도쿄’ 검색을 확인했다. 장소 검색은 명확한 Wikipedia 제목·리다이렉트·언어 연결과 명시적 이중 언어 표기만 이용한다. API 식별 헤더를 넣고 ‘상하이역→上海站’과 ‘화항관어→花港觀魚’의 실제 Geoapify 장소·좌표 반환을 확인했다. 추천·일정 이름은 한글을 유지한다. 원문에 이름 연결이 없거나 지도 데이터가 없는 장소까지 보장하지는 않는다.
+
+최종 검증: 서버 36개·클라이언트 24개 통과, TypeScript/ESLint/Next 운영 빌드 성공, Android debug/release assemble·lint 성공(기존 경고는 유지), iOS simulator 0.0.1/build 5 성공. Vercel dpl_ErWAdYXfqQrjPdaQjX89qUV6JQ6p READY, 운영 HTTP 200, QA 3개 404, 익명 bootstrap private/no-store와 빈 데이터 확인. 공개 APK 9,158,484 bytes의 실제 다운로드 SHA-256은 28c98ea28cdd466e92098f65e70176ccd2fd44fe033a2e9275fb611c3c3e92d3로 검증했다. 연결 기기 SM_S948N에 debug build 5 install -r Success, 2026-10-19 21:45:55 KST. 실제 운영 모바일 브라우저에서 설정의 직접 소셜 로그인·앱 정보 표시를 확인했다. 릴리스 APK 로그인·실기기 키보드·iPhone 설치는 미검증이다.
+
+
+### 추가 동작과 화면 대비 (0.0.1 / build 6)
+
+경비·체크리스트 추가 버튼은 모바일에서 숨겨지는 예전 제목 div 안에 있어 함께 사라졌다. 공통 FeatureToolbar가 분류/기간과 AddButton을 소유하도록 바꾸고, 중복 제목/하단 버튼과 불필요한 CSS를 제거했다. 앱에서는 56×56 고정 FAB, 웹에서는 이름이 있는 상단 추가 버튼과 스크롤 고정 도구줄을 사용한다. 일정·예약·자료 추가도 같은 소유권을 사용한다.
+
+사용금액 합계에 통화 코드와 좁은 통화 기호를 병기한다(KRW ₩ / CNY ¥). 다른 금액 표시의 기존 형식과 저장 값은 유지한다. 메모 테두리와 메모 아이콘 테두리는 공통 테마 선 색을 사용하고 실제 지도 선택의 포커스 표시는 유지한다. 웹 날씨는 360px 최소 높이를 제거하고 필요한 그리드 행만 차지한다.
+
+가상 여행에서 모바일 경비·체크리스트 FAB의 위치(x314/y698, 390×844 viewport), 두 입력 화면 열기와 빈 경비 화면에서도 버튼 노출을 확인했다. 웹 경비 35개에서 1800px 스크롤 후 도구줄 y0/추가 버튼 y10을 확인했다. 다크 메모 선 색은 rgb(52,65,58)로 테마 --line과 같고 outline은 none이다. 날씨 응답이 없는 화면에서 카드 높이는 142px/min-height 0으로 확인했으며 실제 사용자 데이터 쓰기는 실행하지 않았다.
+
+최종 반영: 클라이언트 검사 24개, 타입·ESLint·Next 빌드, Android debug/release assemble·lint(오류 0, 기존 경고 34), iOS simulator build 6 성공. Vercel dpl_DMopZ35F2WvguRdUBhfH6DSynKZv READY, 운영 200·검증 화면 404·익명 데이터 보호와 공개 APK 실제 다운로드 해시 확인. 공개 APK SHA-256 45eb6f48b44c7cae9b3c18d3407de6a4b8ff76634200a6ff2949a251e6359cb3. 연결 기기 0.0.1/build 6, install -r Success, 2026-10-19 22:10:27 KST. 실제 휴대폰 화면·키보드 동작은 별도 사용자 확인 범위다.
+
+
+### 검색·직접 선택·아이폰 웹앱 (0.0.1 / build 7)
+
+장소 자동완성에 부분 일치 결과가 있으면 클라이언트가 본 검색을 건너뛰어 원어 이름 연결이 실행되지 않았다. 국가 코드는 캐시 키에만 반영되고 실제 검색 범위를 제한하지 않았다. 이제 서버의 공통 장소 디코더가 국가·좌표를 해석하고, 자동완성도 정확한 현지 결과가 없으면 언어 연결로 전체 장소 검색을 한다. 여행 국가 필터를 공급자 요청과 응답 양쪽에 적용하고, 원어 연결·정확한 이름·거리 순으로 정렬한다. 도시 검색은 전 세계 검색을 유지한다. 추가 검색의 관련 호텔 등은 원래 이름을 유지한다. 실제 상하이역 자동완성은 국가 지정/미지정 두 조건에서 중국 역 좌표를 첫 결과로 반환했다. 테스트 회귀는 한국 상점·중국 부분 일치 상점이 있어도 실제 역이 우선되고 외국 결과가 제외되며 정확한 현지 결과는 불필요한 재검색을 하지 않는지 검증한다.
+
+직접 선택은 전체화면 Dialog 안의 별도 지도다. 위치를 누르고 이름을 입력해야 확인할 수 있으며 취소는 기존 선택을 보존한다. 기존 위치 검색 화면의 확인 흐름으로 돌아온다. 실제 가상 여행 UI에서 390×844 전체 화면, 390×480 축소 화면의 확인 버튼 하단 480px·입력 하단 409px, 선택 후 일정 이름 전달을 확인했다. 실제 iPhone 키보드·당김 제스처는 아직 실기기 검증하지 않았다.
+
+웹 추가 버튼은 세부탭이 있는 경우 탭 아래 오른쪽에 두고 스크롤 고정을 유지한다. 모바일 FAB는 56×56/x314/y698을 유지한다. 웹 날씨는 시계·환율이 차지하는 그리드 행을 채워 환율 카드와 하단 차이 0px을 확인했다. 이동 시간 숫자는 옆의 단위에 맞춰 1px 낮췄다.
+
+브랜드 버튼에만 WebKit user-select/touch-callout/drag 방지를 적용한다. 본문 복사는 유지한다. 당김 시작 영역을 콘텐츠만에서 main(헤더 포함)으로 넓히고 중첩 스크롤이 실제로 내려간 경우에만 제스처를 막는다. 설정 → 앱 정보 → 화면 새로고침은 문서를 재로드해 새 웹 코드를 불러온다. 기존 당김은 서버 데이터 새로고침이다. 설치 앱을 삭제하거나 브라우저 데이터를 지우지 않는다.
+
+최종 반영: 서버 37·클라이언트 24 검사, TypeScript/ESLint/Next 빌드, Android debug/release assemble·lint(오류 0, 기존 경고 34), iOS simulator build 7 성공. 운영 dpl_CNXmSmsBxTmVdKFhcfWr8CwkGHCe READY, 첫 화면 200, QA 경로 404, 익명 bootstrap private/no-store·빈 데이터 및 공개 APK 실제 다운로드 SHA-256 9f874412fbdab33378b1761b62a57b0d4539d022a2887927bab8494c7748ab3b 확인. 기기 0.0.1/build 7 install -r Success, 2026-10-19 22:31:46 KST. 운영 모바일 뷰에서 브랜드 user-select none, 앱 정보의 화면 새로고침 버튼과 재로드를 확인했다. 실제 iPhone 선택·당김·키보드와 네이티브 iOS 설치는 미검증이다.

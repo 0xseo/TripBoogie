@@ -1,0 +1,178 @@
+/* App navigation owns safe-area spacing. Native Android system bars are inset by Capacitor. */
+:root { --app-header-space:76px; --trip-nav-display: none; --trip-desktop-display: flex; --trip-nav-reserve: 0px; }
+.native-app { --trip-nav-display: grid; --trip-desktop-display: none; --trip-nav-reserve: calc(74px + env(safe-area-inset-bottom)); }
+.app-header { min-height:76px; padding:12px 32px; display:flex; align-items:center; gap:18px; background:var(--paper); border-bottom:1px solid var(--line); position:relative; z-index:30; }
+.app-header-brand { display:none; align-items:center; gap:8px; border:0; padding:0; background:transparent; white-space:nowrap; flex:none; }
+.app-header-brand img { width:34px; height:34px; border-radius:10px; }
+.app-header-brand strong { font-size:20px; letter-spacing:-.8px; }
+.app-header-caption { font-size:14px; color:var(--muted); }
+.app-header-actions { margin-left:auto; display:flex; align-items:center; gap:14px; flex:none; }
+.account-trigger { border:0; background:transparent; padding:4px; gap:9px; min-height:44px; max-width:220px; }
+.account-trigger .avatar { width:36px; height:36px; font-size:15px; }
+.account-trigger-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:15px; }
+.header-login { min-height:44px; padding:9px 14px; white-space:nowrap; font-size:15px; }
+.app-shell .workspace-tabs { display:var(--trip-desktop-display); }
+.mobile-trip-nav { display:var(--trip-nav-display); grid-template-columns:repeat(5,minmax(0,1fr)); position:fixed; z-index:50; bottom:0; left:0; right:0; padding:6px 8px max(8px,env(safe-area-inset-bottom)); background:#fffffff5; backdrop-filter:blur(14px); border-top:1px solid var(--line); box-shadow:0 -3px 20px #263e3705; }
+.mobile-trip-nav button { display:flex; flex-direction:column; gap:3px; min-width:0; min-height:54px; padding:6px 2px; border:0; border-radius:14px; background:transparent; color:var(--muted); }
+.mobile-trip-nav button span { font-size:12px; line-height:1.25; white-space:nowrap; }
+.mobile-trip-nav button[aria-current="page"] { color:var(--green); background:transparent; font-weight:750; }
+.mobile-trip-nav button:nth-child(3) svg { width:27px; height:27px; }
+.app-shell.with-trip-nav .main { padding-bottom:var(--trip-nav-reserve); }
+.account-page { max-width:720px; margin:0 auto; padding:30px 32px 56px; }
+.account-back { margin-bottom:24px; min-height:44px; }
+.account-page-heading h1 { font-size:28px; margin:0 0 9px; letter-spacing:-1px; }
+.account-page-heading p { font-size:15px; color:var(--muted); line-height:1.7; margin:0 0 22px; }
+.account-card,.account-summary { border:1px solid var(--line); background: var(--paper); padding:26px; border-radius:22px; margin-bottom:18px; min-width:0; }
+.account-summary { display:flex; align-items:center; gap:16px; }
+.account-summary > .avatar { width:58px; height:58px; font-size:23px; }
+.account-summary > div { min-width:0; }
+.account-summary h2 { font-size:22px; margin:0 0 6px; overflow-wrap:anywhere; }
+.account-summary p { font-size:14px; color:var(--muted); overflow-wrap:anywhere; margin:0; line-height:1.6; }
+.account-page .profile-form { gap:20px; }
+.account-page .field { min-width:0; }
+.account-page .field > span { font-size:14px; }
+.account-page :is(input,select) { width:100%; min-width:0; min-height:48px; font-size:16px; }
+.account-page .field small { font-size:13px; line-height:1.65; color:var(--muted); }
+.account-page .info { font-size:13px; line-height:1.8; }
+.account-page .profile-form > .primary { min-height:48px; }
+.account-backup h2 { font-size:19px; margin:0 0 9px; }
+.account-backup p { color:var(--muted); font-size:14px; line-height:1.7; }
+.account-backup .secondary { width:100%; min-height:46px; }
+.account-logout { width:100%; min-height:50px; border-color:#e6d7d2; color:var(--danger); background: var(--paper); margin-top:8px; }
+.auth-card { padding:28px; }
+.trip-settings-page { max-width:850px; }
+.settings-page-heading { margin-bottom:22px; }
+.settings-page-heading h2 { font-size:20px; margin:0; letter-spacing:-.7px; }
+.settings-page-heading p { font-size:15px; color:var(--muted); line-height:1.8; margin:0; }
+.settings-page-heading .back-link { min-height:40px; margin-bottom:10px; }
+.settings-card { background: var(--paper); border:1px solid var(--line); border-radius:20px; padding:24px; }
+.settings-card h3 { margin:0 0 10px; font-size:20px; overflow-wrap:anywhere; }
+.settings-card p { margin:8px 0; color:var(--muted); line-height:1.8; font-size:14px; }
+.settings-menu { display:grid; border:1px solid var(--line); background: var(--paper); border-radius:20px; overflow:hidden; }
+.settings-menu > button { width:100%; border:0; border-radius:0; justify-content:flex-start; gap:16px; padding:17px; text-align:left; }
+.settings-menu > button + button { border-top:1px solid var(--line); }
+.settings-menu > button > svg:first-child { flex:none; color:var(--green); }
+.settings-menu > button > svg:last-child { flex:none; margin-left:auto; }
+.settings-menu > button > span { min-width:0; display:grid; gap:7px; }
+.settings-menu strong { font-size:16px; }
+.settings-menu small { font-size:13px; line-height:1.7; color:var(--muted); }
+.backup-settings { display:grid; gap:8px; }
+.backup-settings > svg { color:var(--green); margin:5px 0; }
+.backup-settings > button { width:100%; min-height:48px; }
+.backup-settings hr { width:100%; border:0; border-top:1px solid var(--line); margin:18px 0; }
+.trip-settings-page .member-list { padding:4px 17px; }
+.trip-settings-page .member-list .record-body { min-width:0; }
+.trip-settings-page .member-list :is(h3,small) { overflow-wrap:anywhere; }
+.collection-heading .collection-create { min-height:46px; flex:none; }
+.collection-controls { display:flex; align-items:center; gap:12px; margin:20px 0 10px; min-width:0; }
+.collection-search { display:flex; align-items:center; gap:10px; background: var(--paper); border:1px solid var(--line); border-radius:15px; padding:0 14px; min-width:0; flex:1; min-height:52px; }
+.collection-search > svg { flex:none; color:var(--muted); }
+.collection-search input { min-width:0; width:100%; height:48px; padding:0; border:0; outline:0; background:transparent; font-size:16px; }
+.collection-search:focus-within { outline:2px solid #8abda4; outline-offset:2px; }
+.collection-search .icon { padding:0; min-width:24px; width:24px; height:32px; min-height:32px; }
+.collection-view-controls { display:flex; gap:8px; flex:none; }
+.view-control { width:52px; height:52px; flex:none; border-radius:15px; position:relative; padding:0; color:var(--green); }
+.control-count { position:absolute; bottom:7px; right:7px; background: var(--paper); padding:0 1px; font-size:12px; font-weight:750; line-height:1; }
+.filter-count { position:absolute; top:-5px; right:-4px; display:grid; place-items:center; min-width:20px; height:20px; padding:0 4px; color:var(--on-primary); background:var(--green); border-radius:20px; font-size:11px; }
+.collection-sort-label { margin:0 0 22px; font-size:12px; color:var(--muted); }
+.collection-grid[data-columns] { grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
+.collection-grid[data-columns="2"] { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.collection-grid[data-columns="1"] { grid-template-columns:minmax(0,1fr); }
+.collection-grid[data-columns="1"] .trip-cover { height:240px; }
+
+.collection-grid .trip-card { min-width:0; }
+.collection-empty { grid-column:1 / -1; padding:50px 20px; text-align:center; border:1px dashed #c9d8c8; border-radius:20px; color:var(--muted); }
+.collection-empty > svg { color:var(--muted); }
+.collection-empty h3 { font-size:19px; color:var(--ink); margin:15px 0 8px; }
+.collection-empty p { font-size:14px; line-height:1.8; }
+.filter-actions { display:grid; grid-template-columns:1fr 2fr; gap:10px; }
+.app-shell { --screen-nav-reserve:0px; }
+.app-shell.with-trip-nav { --screen-nav-reserve:var(--trip-nav-reserve); }
+.pull-refresh-root { min-height:calc(100dvh - var(--app-header-space) - var(--screen-nav-reserve)); }
+.pull-indicator { position:fixed;top:calc(8px + env(safe-area-inset-top));left:0;right:0;z-index:85;overflow:hidden;display:grid;place-items:center;pointer-events:none;transition:height .18s ease;color:var(--green); }
+.pull-indicator > span { display:flex;align-items:center;gap:8px;font-size:13px;border-radius:24px;background:var(--paper);padding:10px 16px;box-shadow:0 3px 15px #0002; }
+.refresh-accessible { position:absolute; width:1px; height:1px; padding:0; border:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.refresh-accessible:focus-visible { position:fixed; top:80px; left:20px; width:auto; height:auto; padding:14px; clip-path:none; z-index:80; }
+.native-app .sidebar { display:none; }
+.native-app .main { width:100%; margin-left:0; }
+.native-app .app-header-brand { display:flex; }
+.native-app .app-header-caption { display:none; }
+.native-app .home-hero { display:none; }
+.native-app .home .trip-section { margin-top:0; }
+.native-app .trip-back { display:none; }
+@media(max-width:960px) {
+  :root { --app-header-space:calc(66px + env(safe-area-inset-top)); --trip-nav-display:grid; --trip-desktop-display:none; --trip-nav-reserve:calc(74px + env(safe-area-inset-bottom)); }
+  html { overscroll-behavior-y:contain; }
+  .app-header { padding:calc(10px + env(safe-area-inset-top)) 18px 10px; min-height:calc(66px + env(safe-area-inset-top)); position:sticky; top:0; gap:10px; }
+  .app-header-brand { display:flex; }
+  .app-header-caption,.account-trigger-name { display:none; }
+  .app-header-actions { gap:10px; }
+  .app-header-actions .install-trigger { font-size:12px; gap:5px; padding:8px 0; min-height:44px; }
+  .account-trigger { padding:2px; min-width:44px; width:44px; min-height:44px; }
+  .account-trigger .avatar { width:36px; height:36px; }
+  .header-login { gap:5px; padding:9px 10px; font-size:14px; }
+  .app-shell .home-hero { display:none; }
+  .app-shell .home { padding:20px 16px 90px; }
+  .app-shell .home .trip-section { margin-top:0; }
+  .collection-heading { margin-bottom:14px; }
+  .collection-heading .eyebrow { font-size:10px; margin-bottom:10px; }
+  .collection-heading h2 { font-size:22px; line-height:1.45; letter-spacing:-1px; }
+  .collection-heading .collection-create { position:fixed; z-index:35; right:22px; bottom:calc(var(--trip-nav-reserve) + 16px); width:58px; min-height:58px; height:58px; border-radius:21px; padding:0; box-shadow:0 8px 22px #174f3d26; }
+  .collection-heading .collection-create svg { width:26px; height:26px; }
+  .collection-heading .collection-create span { display:none; }
+  .collection-controls { gap:8px; margin:12px 0 10px; }
+  .collection-search { min-height:46px; padding:0 10px; gap:7px; border-radius:13px; }
+  .collection-search input { font-size:14px; height:44px; }
+  .collection-search > svg { width:18px; height:18px; }
+  .collection-view-controls { gap:6px; }
+  .view-control { width:44px; height:46px; border-radius:13px; }
+  .view-control > svg { width:21px; height:21px; }
+  .collection-sort-label { margin-bottom:17px; font-size:12px; }
+  .collection-grid[data-columns] { gap:11px; }
+  .collection-grid[data-columns="3"] .trip-cover { height:108px; }
+  .collection-grid[data-columns="3"] .trip-destination { left:7px; right:7px; top:8px; max-width:calc(100% - 14px); padding:4px; font-size:9px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; gap:3px; }
+  .collection-grid[data-columns="3"] .trip-destination svg { width:10px; height:10px; }
+  .collection-grid[data-columns="3"] :is(.trip-days,.cover-symbol,.trip-card-period) { display:none; }
+  .collection-grid[data-columns="2"] .trip-cover { height:155px; }
+  .collection-grid[data-columns="1"] .trip-cover { height:210px; }
+  .app-shell .workspace { padding:12px 16px 90px; }
+  .app-shell .trip-back { display:none; }
+  .app-shell .trip-heading { gap:12px; align-items:flex-start; margin-bottom:23px; }
+  .app-shell .trip-heading > div:first-child { min-width:0; }
+  .app-shell .trip-heading h1 { font-size:25px; letter-spacing:-1px; overflow-wrap:anywhere; line-height:1.5; }
+  .app-shell .trip-heading .eyebrow { font-size:12px; margin-bottom:6px; }
+  .app-shell .trip-meta { gap:6px; flex-wrap:wrap; margin-top:8px; font-size:12px; line-height:1.7; }
+  .app-shell .trip-meta > span { gap:4px; }
+  .app-shell .trip-meta svg { width:14px; height:14px; }
+  .trip-heading-actions .icon { min-width:44px; width:44px; height:44px; }
+  .account-page { padding:20px 18px 45px; }
+  .account-card { padding:21px 18px; border-radius:19px; }
+  .account-summary { padding:20px; border-radius:19px; }
+  .auth-card { padding:26px 20px; }
+  .account-page-heading h1 { font-size:25px; }
+  .account-page-heading p { font-size:14px; }
+  .settings-card { padding:20px 17px; }
+  .settings-menu > button { padding:19px 16px; gap:12px; }
+  .settings-menu strong { font-size:16px; }
+  .settings-menu small { font-size:12px; }
+  .app-shell.with-trip-nav .toast { bottom:calc(var(--trip-nav-reserve) + 16px); }
+}
+@media(max-width:359px) {
+  .app-header { padding-left:12px; padding-right:12px; gap:6px; }
+  .app-header-brand { gap:6px; }
+  .app-header-brand strong { font-size:18px; }
+  .app-header-actions { gap:5px; }
+  .collection-controls { flex-wrap:wrap; }
+  .collection-search { flex-basis:100%; }
+  .collection-view-controls { margin-left:auto; }
+  .collection-grid[data-columns] { gap:8px; }
+  .collection-grid[data-columns="3"] .trip-cover { height:85px; }
+}
+@media(prefers-reduced-motion:reduce) { .pull-indicator { transition:none; } .pull-indicator.refreshing svg { animation:none; } }
+
+.trip-card-period-compact { display:none; }
+@media(max-width:960px) { .collection-grid[data-columns="3"] .trip-card-period-compact { display:block; font-size:10px; letter-spacing:-.3px; line-height:1.6; margin:0 0 6px; } }
+/* Card visuals belong to the card renderer, including its article root. */
+.collection-grid .trip-card { background: var(--paper); border:1px solid var(--line); }
+.collection-grid .trip-destination { position:absolute; top:12px; left:12px; }
+@media(max-width:960px) { .collection-grid[data-columns="3"] .trip-destination { top:8px; left:7px; } }

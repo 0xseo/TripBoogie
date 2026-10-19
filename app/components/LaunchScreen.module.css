@@ -1,0 +1,12 @@
+/* The supplied portrait artwork keeps its aspect ratio across the whole viewport. */
+.screen{position:fixed;inset:0;inline-size:100vw;block-size:100dvh;display:block;overflow:hidden;margin:0;padding:0;background:#fff;z-index:100}
+.art{position:absolute;inset:0;display:block;min-inline-size:0;min-block-size:0;inline-size:100%;block-size:100%;max-inline-size:none;max-block-size:none;object-fit:contain;object-position:center}
+
+.brand {position:absolute;inset:0}
+.refresh {display:none;position:absolute;inset:0;place-items:center;color:var(--muted)}
+.refresh svg {animation:startup-spin .85s linear infinite}
+:global(html[data-startup="reload"]) .screen {background:var(--bg)}
+:global(html[data-startup="reload"]) .brand {display:none}
+:global(html[data-startup="reload"]) .refresh {display:grid}
+@keyframes startup-spin {to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.refresh svg{animation:none}}

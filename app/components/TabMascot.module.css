@@ -1,0 +1,13 @@
+.frame {position:relative;flex:none;isolation:isolate;pointer-events:none;user-select:none;-webkit-user-select:none}
+.artwork {display:block;position:absolute;inset:0;overflow:hidden;border-radius:18%}
+.artwork img {position:absolute;max-width:none!important;height:auto!important;border-radius:0!important;object-fit:contain;pointer-events:none;visibility:hidden}
+.artwork img[data-active="true"] {visibility:visible}
+/* Keep every asset mounted and decoded; tab changes only switch visibility. */
+.plan {width:140%!important;left:-20%;top:-22%}
+.prepare {width:140%!important;left:-20%;top:-20%}
+.tools {width:125%!important;left:-15%;top:-5%}
+.home,.settings {width:100%!important;height:100%!important;inset:0;object-fit:contain}
+:global([data-theme="dark"]) .frame::before {content:"";position:absolute;inset:calc(-1 * var(--mascot-backdrop-gap,6px));border-radius:calc(18% + var(--mascot-backdrop-gap,6px));background:#edf2e8;z-index:-1}
+
+/* Full-background photos already provide their own surface on every platform. */
+.frame:is([data-mascot="home"],[data-mascot="settings"]) {--mascot-backdrop-gap:0px}

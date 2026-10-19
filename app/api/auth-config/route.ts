@@ -1,7 +1,7 @@
-import { env } from "cloudflare:workers";
+export const dynamic = "force-dynamic";
 export async function GET() {
-  const url = env.SUPABASE_URL ?? "";
-  const publishableKey = env.SUPABASE_PUBLISHABLE_KEY ?? "";
+  const url = process.env.SUPABASE_URL ?? "";
+  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
   let providers = { email: false, google: false, kakao: false };
   if (url && publishableKey) {
     try {

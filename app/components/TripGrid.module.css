@@ -1,0 +1,7 @@
+.info {display:grid;align-content:start;gap:0;min-width:0;padding:14px 16px;color:var(--ink)}
+.period {display:block;font-size:11px;line-height:1.4;color:var(--muted);letter-spacing:0;margin:0}
+.title {font-size:20px;line-height:1.4;font-weight:600;margin:3px 0 5px;min-width:0}
+.open {display:block;width:100%;min-height:0;height:auto;margin:0;padding:0;border:0;background:none;border-radius:0;text-align:left;color:inherit;font:inherit;line-height:inherit;overflow-wrap:anywhere;word-break:keep-all}
+.open:hover {background:none;border:0}
+.members {display:flex;align-items:center;min-height:26px;margin:0;padding:0;color:var(--muted)}
+@media(max-width:960px){.info{padding:10px 12px 12px}.period{font-size:10px}.title{font-size:17px;margin:2px 0 4px;line-height:1.35}}

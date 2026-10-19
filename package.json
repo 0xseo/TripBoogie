@@ -1,5 +1,5 @@
 {
-  "name": "site-creator-vinext-starter",
+  "name": "tripboogie",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -7,14 +7,34 @@
   },
   "scripts": {
     "install:ci": "node scripts/install-ci.mjs",
-    "dev": "node scripts/run-framework.mjs dev",
-    "build": "node scripts/run-framework.mjs build",
-    "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
+    "dev": "next dev --hostname 127.0.0.1 --port 5173",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 5173",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "test": "node --test app/server/integration.test.mjs",
+    "native:build": "node scripts/native-prepare.mjs && vite build --config native/vite.config.ts",
+    "native:sync": "npm run native:build && cap sync",
+    "native:android": "cap open android",
+    "native:ios": "cap open ios",
+    "test:native": "node --test native/native.test.mjs",
+    "native:android:build": "node scripts/native-build.mjs android",
+    "native:ios:build": "node scripts/native-build.mjs ios",
+    "native:auth:check": "node scripts/native-auth-config.mjs --check",
+    "native:auth:apply": "node scripts/native-auth-config.mjs --apply",
+    "assets:generate": "swift scripts/native-assets.swift",
+    "test:navigation": "node --test app/navigation.test.mjs",
+    "test:theme": "node --test app/theme.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
+    "@capacitor/android": "7.6.9",
+    "@capacitor/app": "7.1.2",
+    "@capacitor/cli": "7.6.9",
+    "@capacitor/core": "7.6.9",
+    "@capacitor/filesystem": "7.1.9",
+    "@capacitor/ios": "7.6.9",
+    "@capacitor/share": "7.0.4",
     "@hookform/resolvers": "^5.7.1",
     "@shadcn/react": "^0.3.0",
     "@supabase/supabase-js": "2.118.0",
@@ -26,6 +46,7 @@
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^1.31.0",
+    "maplibre-gl": "6.14.0",
     "next": "16.3.4",
     "next-themes": "^0.4.6",
     "radix-ui": "^1.6.7",
@@ -43,6 +64,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
     "@cloudflare/workers-types": "4.20260515.1",
+    "@electric-sql/pglite": "0.5.10",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
@@ -60,8 +82,7 @@
     "typescript": "5.9.3",
     "vinext": "1.0.0-beta.5",
     "vite": "8.0.13",
-    "wrangler": "4.92.0",
-    "@electric-sql/pglite": "0.5.10"
+    "wrangler": "4.92.0"
   },
   "type": "module",
   "overrides": {

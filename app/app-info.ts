@@ -1,0 +1,23 @@
+export const appInfo = {
+  developer: "0xseo94@gmail.com",
+  version: "0.1.0",
+} as const;
+export const openSources = [
+  {
+    label: "지도",
+    name: "MapLibre GL JS · OpenFreeMap · OpenStreetMap",
+    detail: "지도 데이터 © OpenStreetMap 기여자 · ODbL",
+  },
+  { label: "장소", name: "Geoapify · Open-Meteo Geocoding", detail: "장소·도시 검색 · GeoNames CC BY 4.0 · 이동 시간" },
+  {
+    label: "공개사진",
+    name: "Wikimedia Commons",
+    detail: "저작자·라이선스는 각 사진에 표시",
+  },
+  { label: "날씨", name: "Open-Meteo", detail: "CC BY 4.0" },
+  {
+    label: "환율",
+    name: "Frankfurter · 유럽중앙은행",
+    detail: "참고용 중간 환율",
+  },
+] as const;
