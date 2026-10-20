@@ -41,3 +41,11 @@ test('a newer confirmed revision wins over a late successful mutation response',
  request.resolve({...profile,name:'편집',version:4});await saved;
  assert.equal(state.getSnapshot().name,'더 최신 이름');assert.equal(state.getSnapshot().version,5);
 });
+test('map resizing uses a preference-only patch and survives background profile reads',async()=>{
+ const state=new ProfileState({...profile,mapHeightScale:1}),request=deferred();let payload;
+ const saved=state.save({mapHeightScale:1.25},data=>{payload=data;return request.promise;});
+ assert.deepEqual(payload,{version:3,mapHeightScale:1.25});
+ state.receive({...profile,mapHeightScale:1});assert.equal(state.getSnapshot().mapHeightScale,1.25);
+ request.resolve({...profile,mapHeightScale:1.25,version:4});await saved;
+ assert.equal(state.getSnapshot().mapHeightScale,1.25);
+});

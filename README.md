@@ -3,7 +3,8 @@
 친구와 함께 여행 일정·지도·경비·준비물을 정리하는 웹앱입니다. PC·모바일 브라우저, iOS 홈 화면 웹앱, Android 앱을 지원합니다.
 
 - 서비스: https://tripboogie.0xseo94.com
-- 현재 버전: **0.1.2**
+- 현재 버전: **0.1.3**
+- 릴리즈 APK 파일명: **TripBoogie_버전.apk** (예: `TripBoogie_0.1.3.apk`).
 - Android/iOS 앱 식별자: `com.tripboogie.app`
 
 ## 기능

@@ -6,7 +6,7 @@ import { Dialog, Field, Empty, text } from "./ui";
 import ChoiceField from "./ChoiceField";
 import AddButton from "./AddButton";
 import FeatureToolbar from "./FeatureToolbar";
-import {checklistState, compareChecklist} from "../checklist";
+import {checklistEntries, compareChecklist, mergeChecklistOrder} from "../checklist";
 import SortHandle from "./SortHandle";
 import styles from "./Checklist.module.css";
 export default function Checklist({
@@ -28,6 +28,8 @@ export default function Checklist({
 }) {
   const [editing, setEditing] = useState<ItemRecord | "new" | null>(null),
     [categoryId, setCategoryId] = useState<string | null>(null),
+    [hideCompleted, setHideCompleted] = useState(false),
+    [orderingCategory, setOrderingCategory] = useState<string | null>(null),
     [error, setError] = useState("");
   const rows = workspace.records.filter((r) => r.kind === "checklist"),
     categories = workspace.trip.settings.checklistCategories;
@@ -49,11 +51,15 @@ export default function Checklist({
   function selectCategory(id: string | null) {
     setCategoryId(id);
     setEditing(null);
+    setOrderingCategory(null);
     window.scrollTo({ top: 0, behavior: "instant" });
   }
   return (
     <section className="feature">
-      <FeatureToolbar tabs action={<AddButton label="할 일 추가" disabled={readOnly} onClick={() => setEditing("new")} />}>
+      <FeatureToolbar tabs className={styles.toolbar} action={<>
+        <label className={styles.hideCompleted}><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)}/>완료된 항목 보지 않기</label>
+        <AddButton label="할 일 추가" disabled={readOnly} onClick={() => setEditing("new")} />
+      </>}>
       <nav
         className="booking-category-tabs checklist-category-tabs"
         aria-label="체크리스트 분류"
@@ -80,12 +86,13 @@ export default function Checklist({
       {error && <p className="error">{error}</p>}
       <div className={styles.grid}>
         {shownGroups.map(({ id, rows: group }) => {
-          const entries=group.map(record=>({record,...checklistState(record.data,userId)}));
-          const completedCount=entries.filter(entry=>entry.done).length;
+          const allEntries=checklistEntries(group,userId), entries=checklistEntries(group,userId,hideCompleted);
+          const completedCount=allEntries.filter(entry=>entry.done).length, ordering=orderingCategory===id;
           return (
             <section className={styles.group} key={id}>
               <header className={styles.groupHeader}>
                 <h3>{categories.find((c) => c.id === id)?.label || id || "미분류"}</h3>
+                {!readOnly && <button type="button" className={styles.orderButton} aria-pressed={ordering} onClick={()=>setOrderingCategory(ordering?null:id)}>{ordering?"완료":"순서 조정"}</button>}
                 <span className={styles.progress} data-complete={completedCount===group.length} aria-label={`완료 ${completedCount}개, 전체 ${group.length}개`}>{completedCount}/{group.length}</span>
               </header>
               {entries.map(({record:r,done,checks}) => {
@@ -96,8 +103,8 @@ export default function Checklist({
                     workspace.members.find((m) => m.id === r.createdBy)?.name ||
                     "이전 작성자";
                 return (
-                  <article className={styles.row} data-done={done} key={r.id} data-sort-id={r.id} data-sort-group={`checklist-${id}`}>
-                    <button
+                  <article className={styles.row} data-done={done} data-ordering={ordering} key={r.id} data-sort-id={r.id} data-sort-group={`checklist-${id}-${done}`}>
+                    {ordering ? <SortHandle id={r.id} group={`checklist-${id}-${done}`} ids={entries.filter(entry=>entry.done===done).map(entry=>entry.record.id)} label={text(r.data.title)} onReorder={ids=>{void onReorder(id,mergeChecklistOrder(group,ids)).catch(e=>setError((e as Error).message));}}/> : <button
                       className={styles.toggle}
                       type="button"
                       aria-label={`${text(r.data.title)} ${
@@ -115,7 +122,7 @@ export default function Checklist({
                       }}
                     >
                       <span className={styles.indicator}>{done?<Check size={14}/>:null}</span>
-                    </button>
+                    </button>}
                     <div className={styles.body}>
                       <strong>{text(r.data.title)}</strong>
                       <small>
@@ -142,7 +149,6 @@ export default function Checklist({
                       )}
                     </div>
                     <div className={styles.actions}>
-                    <SortHandle id={r.id} group={`checklist-${id}`} ids={group.map(row=>row.id)} label={text(r.data.title)} disabled={readOnly} onReorder={ids=>{void onReorder(id,ids).catch(e=>setError((e as Error).message));}}/>
                     <button
                       className={styles.action}
                       type="button"
@@ -164,6 +170,7 @@ export default function Checklist({
                   </article>
                 );
               })}
+              {!entries.length && <p className={styles.allDone}>모든 할 일을 완료했어요.</p>}
             </section>
           );
         })}

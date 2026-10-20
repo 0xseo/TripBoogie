@@ -3,6 +3,7 @@ import { useConfirm } from "./components/Confirmation";
 import ChoiceField from "./components/ChoiceField";
 import TimeField from "./components/TimeField";
 import { memoText } from "./memo";
+import { itineraryTitle } from "./booking-display";
 import { PlaceMedia } from "./components/Media";
 import SortHandle from "./components/SortHandle";
 import { useEffect, useRef, useState } from "react";
@@ -417,6 +418,7 @@ export default function ItineraryEditor({
         {plans.map((r) => {
           const memo = r.data.entryType === "memo",
             booking = workspace.records.find((b) => b.kind === "booking" && b.id === r.data.bookingId),
+            title = itineraryTitle(r, booking),
             place = places.find((p) => p.id === r.data.placeId),
             connection = connections.find((c) => c.to.id === r.id);
           if (!memo) number++;
@@ -435,7 +437,7 @@ export default function ItineraryEditor({
                 <label className="compact-check">
                   <input
                     type="checkbox"
-                    aria-label={`${text(r.data.title)} 일정 선택`}
+                    aria-label={`${title} 일정 선택`}
                     checked={selection.includes(r.id)}
                     disabled={disabled}
                     onChange={(e) =>
@@ -452,12 +454,12 @@ export default function ItineraryEditor({
                     id={r.id}
                     group="itinerary"
                     ids={plans.map((p) => p.id)}
-                    label={text(r.data.title)}
+                    label={title}
                     disabled={disabled}
                     onReorder={(ids) => void reorder(ids)}
                   />
                   <div className="compact-plan-content">
-                    <span>{memo ? memoText(r.data) : text(r.data.title)}</span>
+                    <span>{memo ? memoText(r.data) : title}</span>
                     <small>
                       {memo
                         ? "메모"
@@ -472,7 +474,7 @@ export default function ItineraryEditor({
                 </div>
                 <button
                   className="icon edit-delete"
-                  aria-label={`${text(r.data.title)} 삭제`}
+                  aria-label={`${title} 삭제`}
                   disabled={disabled}
                   onClick={() => onRemove(r)}
                 >
@@ -519,14 +521,14 @@ export default function ItineraryEditor({
                 <div className="plan-number">
                   {memo ? <StickyNote size={18} /> : number}
                 </div>
-                <div className="plan-card" data-booking-linked={!!booking} role={booking ? "link" : undefined} tabIndex={booking ? 0 : undefined} aria-label={booking ? `${text(r.data.title)} 예약 열기` : undefined}
+                <div className="plan-card" data-booking-linked={!!booking} data-flight-linked={booking?.data.type === "flight"} role={booking ? "link" : undefined} tabIndex={booking ? 0 : undefined} aria-label={booking ? `${title} 예약 열기` : undefined}
                   onClick={booking ? (e) => { if (!(e.target as HTMLElement).closest("button,a,input,textarea")) onBooking(booking.id); } : undefined}
                   onKeyDown={booking ? (e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onBooking(booking.id); } } : undefined}>
                   <div className="plan-heading">
                     {memo ? (
                       <p className="preserve memo-body">{memoText(r.data)}</p>
                     ) : (
-                      <h3>{text(r.data.title)}</h3>
+                      <h3>{title}</h3>
                     )}
                     <div className="row-actions">
                       {!memo && !booking && !text(r.data.time) && (
@@ -543,7 +545,7 @@ export default function ItineraryEditor({
                       <button
                         className="icon"
                         disabled={booking ? false : disabled}
-                        aria-label={`${text(r.data.title)} ${booking ? "예약 열기" : "수정"}`}
+                        aria-label={`${title} ${booking ? "예약 열기" : "수정"}`}
                         onClick={() => booking ? onBooking(booking.id) : onEdit(r)}
                       >
                         {booking ? <Ticket size={17}/> : <Pencil size={17} />}
@@ -551,7 +553,7 @@ export default function ItineraryEditor({
                       <button
                         className="icon"
                         disabled={disabled}
-                        aria-label={`${text(r.data.title)} 삭제`}
+                        aria-label={`${title} 삭제`}
                         onClick={() => onRemove(r)}
                       >
                         <Trash2 size={17} />

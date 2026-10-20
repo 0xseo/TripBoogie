@@ -2072,6 +2072,14 @@ textarea {
 .booking-plan-links .text-button{min-height:28px;padding:3px 0;gap:5px;line-height:1.4}
 .plan-card[data-booking-linked="true"]{cursor:pointer}
 .plan-card[data-booking-linked="true"]:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.plan-card[data-flight-linked="true"] .plan-note{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:12px;line-height:1.5;margin-top:4px}
+.resizable-map{--map-base-height:390px;--map-screen-limit:66.666dvh;--map-height:clamp(min(var(--map-base-height),var(--map-screen-limit)),calc(var(--map-base-height)*var(--map-height-scale,1)),min(calc(var(--map-base-height)*1.5),var(--map-screen-limit)))}
+.resizable-map .map-frame{height:var(--map-height);min-height:0}
+.map-resize-handle{position:absolute;bottom:0;left:50%;transform:translateX(-50%);z-index:3;width:100px;height:24px;min-height:24px;padding:0;border:0;border-radius:12px 12px 0 0;background:var(--paper);touch-action:none;cursor:ns-resize;box-shadow:0 -1px 5px #0002}
+.map-resize-handle>span{width:36px;height:4px;border-radius:3px;background:var(--muted);pointer-events:none}
+.map-resize-handle[aria-disabled="true"]{cursor:default}
+@media(max-width:960px){.resizable-map{--map-base-height:230px;--map-screen-limit:50dvh}}
+html.native-app .resizable-map{--map-base-height:230px;--map-screen-limit:50dvh}
 .booking-plan-time{display:inline-flex;align-items:center;gap:5px;color:var(--ink);font-size:12px}
 .workspace-loading{min-height:45dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);font-size:13px}
 .workspace-loading svg{color:var(--green)}

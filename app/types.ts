@@ -69,6 +69,7 @@ export interface Profile extends CurrentUser {
   withdrawnAt?:string|null;
   avatar?: string;
   theme?: "system" | "light" | "dark";
+  mapHeightScale?: number;
   baseCurrency: string;
   holidayCountry?: string;
   searchLanguage?: string;

@@ -784,6 +784,21 @@ test("profile patches save themes without echoing display-only social photos and
  }finally{await db.close();}
 });
 
+test("map height preferences persist per account with validation, revision checks and old-client compatibility",async()=>{
+ const {db,rpc,asUser}=await fixture();try{
+  let profile=await rpc('owner','profile');assert.equal(profile.mapHeightScale,1);
+  profile=await rpc('owner','update-profile',null,{version:profile.version,mapHeightScale:1.375});
+  assert.equal(profile.mapHeightScale,1.375);assert.equal((await rpc('owner','profile')).mapHeightScale,1.375);
+  assert.equal((await rpc('editor','profile')).mapHeightScale,1);
+  profile=await rpc('owner','update-profile',null,{version:profile.version,theme:'dark'});
+  assert.equal(profile.mapHeightScale,1.375);assert.equal(profile.theme,'dark');
+  for(const value of [null,'1.2',false,{},[],0,1.501,2])await assert.rejects(rpc('owner','update-profile',null,{version:profile.version,mapHeightScale:value}),e=>e.code==='PT400');
+  await assert.rejects(rpc('owner','update-profile',null,{version:profile.version-1,mapHeightScale:1.1}),e=>e.code==='PT409');
+  await asUser('editor',tx=>assert.rejects(tx.query('update public.profiles set map_height_scale=1.5 where id=$1',[users.owner.id]),/permission denied/));
+  assert.equal((await rpc('owner','profile')).mapHeightScale,1.375);
+ }finally{await db.close();}
+});
+
 test("built-in reservation categories only reorder, legacy labels survive import, and midnight stays midnight",async()=>{
  const {db,rpc}=await fixture();
  try{

@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import ts from 'typescript';
 async function load(name){
- const source=await readFile(new URL(`./${name}.ts`,import.meta.url),'utf8');
+ let source=await readFile(new URL(`./${name}.ts`,import.meta.url),'utf8');
+ if(name==='booking-display')source=source.replace('import localizedAirportNames from "./data/airport-labels.json";',`const localizedAirportNames=${await readFile(new URL('./data/airport-labels.json',import.meta.url),'utf8')};`);
  return import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText).toString('base64'));
 }
 const {WorkspaceMutations}=await load('workspace-mutations');
-const {airportCode,bookingTitle,compareBookings}=await load('booking-display');
+const {airportCode,airportLabel,bookingTitle,itineraryTitle,compareBookings}=await load('booking-display');
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});return{promise,resolve,reject}};
 const initial=()=>({trip:{id:'trip'},records:[{id:'a',data:{done:false,title:'original'},version:1},{id:'b',data:{done:false},version:1}],revision:1});
 const edit=(id,data)=>w=>({...w,records:w.records.map(r=>r.id===id?{...r,data:{...r.data,...data}}:r)});
@@ -53,4 +54,18 @@ test('airport abbreviations preserve IATA, ICAO and legacy typed airports',()=>{
 test('bookings sort by date then time, with unknown times last',()=>{
  const rows=[['late','2026-11-02','08:00'],['unknown','2026-11-01',''],['afternoon','2026-11-01','15:00'],['midnight','2026-11-01','00:00']].map(([id,startDate,startTime])=>({id,data:{startDate,startTime}}));
  assert.deepEqual(rows.sort(compareBookings).map(r=>r.id),['midnight','afternoon','unknown','late']);
+});
+test('flight events show the route, local event and flight number independently of the trip role',()=>{
+ const booking={data:{type:'flight',departureAirport:{icao:'RKSI',iata:'ICN',name:'Incheon International Airport'},arrivalAirport:{icao:'NZAA',iata:'AKL',name:'Auckland International Airport'},flightRole:'outbound',flightNumber:'KE411'}};
+ for(const role of ['outbound','transit','return']){
+  booking.data.flightRole=role;
+  assert.equal(itineraryTitle({data:{title:'ICN · 출발',bookingEvent:'departure'}},booking),'인천(ICN) → 오클랜드(AKL) · 출발 · KE411');
+  assert.equal(itineraryTitle({data:{bookingEvent:'arrival'}},booking),'인천(ICN) → 오클랜드(AKL) · 도착 · KE411');
+ }
+ booking.data.flightNumber='';
+ assert.equal(itineraryTitle({data:{bookingEvent:'departure'}},booking),'인천(ICN) → 오클랜드(AKL) · 출발');
+ assert.equal(itineraryTitle({data:{title:'식사'}}),'식사');
+ assert.equal(airportLabel(null,'ICN'),'인천(ICN)');
+ assert.equal(airportLabel(null,'직접 입력한 공항'),'직접 입력한 공항');
+ assert.equal(airportLabel({icao:'ZZZZ',iata:'ZZZ',name:'Example International Airport'}),'Example(ZZZ)');
 });

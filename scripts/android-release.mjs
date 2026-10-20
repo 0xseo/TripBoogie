@@ -1,4 +1,4 @@
-import {readFileSync,existsSync,copyFileSync,mkdirSync,writeFileSync} from 'node:fs';
+import {readFileSync,existsSync,mkdirSync,writeFileSync,renameSync} from 'node:fs';
 import {parseEnv} from 'node:util';
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -19,8 +19,12 @@ if(manifest.includes('application-debuggable'))throw new Error('Debuggable APK c
 const info=manifest.match(/package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'/);
 if(info?.[1]!=='com.tripboogie.app')throw new Error('Wrong release package');
 const bytes=readFileSync(apk),sha256=createHash('sha256').update(bytes).digest('hex');
+const fileName=`TripBoogie_${info[3]}.apk`;
+renameSync(apk,`android/app/build/outputs/apk/release/${fileName}`);
 mkdirSync('public/downloads',{recursive:true});
-copyFileSync(apk,'public/downloads/tripboogie.apk');
-const metadata={package:info[1],version:info[3],build:Number(info[2]),bytes:bytes.length,sha256,certificateSha256:expected.sha256,download:'/downloads/tripboogie.apk'};
+writeFileSync(`public/downloads/${fileName}`,bytes);
+// Preserve the existing install URL; the download header also uses the versioned name.
+writeFileSync('public/downloads/tripboogie.apk',bytes);
+const metadata={package:info[1],version:info[3],build:Number(info[2]),bytes:bytes.length,sha256,certificateSha256:expected.sha256,download:`/downloads/${fileName}`};
 writeFileSync('public/downloads/release.json',JSON.stringify(metadata,null,2)+'\n');
 console.log('Verified signed, non-debuggable release:',JSON.stringify(metadata));

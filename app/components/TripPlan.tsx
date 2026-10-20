@@ -1,5 +1,6 @@
 "use client";
 import { memoText } from "../memo";
+import { itineraryTitle } from "../booking-display";
 import { useEffect, useRef, useState } from "react";
 import {
   Maximize2,
@@ -14,6 +15,7 @@ import type { ItemRecord, Workspace } from "../types";
 import { travelContext } from "../travel-context";
 import { dayGraph } from "../route-graph";
 import MapPanel from "../MapPanel";
+import ResizableMap from "./ResizableMap";
 import ItineraryEditor from "../ItineraryEditor";
 import { Dialog, text } from "./ui";
 import WeekDays from "./WeekDays";
@@ -34,6 +36,8 @@ export default function TripPlan({
   onError,
   onSave,
   onBooking,
+  mapHeightScale,
+  onMapHeight,
 }: {
   workspace: Workspace;
   date: string;
@@ -51,6 +55,8 @@ export default function TripPlan({
   onError: (message: string) => void;
   onSave: (r: ItemRecord, data: Record<string, unknown>) => Promise<void>;
   onBooking: (id: string) => void;
+  mapHeightScale?: number;
+  onMapHeight?: (scale: number) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
@@ -72,7 +78,7 @@ export default function TripPlan({
   }
   return (
     <>
-      <aside className="daily-map">
+      <ResizableMap scale={mapHeightScale} onChange={onMapHeight} onError={onError}>
         <MapPanel
           points={graph.points}
           legs={graph.legs}
@@ -89,7 +95,7 @@ export default function TripPlan({
           <Maximize2 size={18} />
           <span>전체 지도</span>
         </button>
-      </aside>
+      </ResizableMap>
       <WeekDays
         days={days}
         date={date}
@@ -325,7 +331,7 @@ function MapCards({
         }}
       >
         {plans.map((r, i) => {
-          const place = places.find((p) => p.id === r.data.placeId), booking = bookings.find(b=>b.id===r.data.bookingId);
+          const place = places.find((p) => p.id === r.data.placeId), booking = bookings.find(b=>b.id===r.data.bookingId), title = itineraryTitle(r, booking);
           return (
             <article
               className="map-schedule-card"
@@ -333,7 +339,7 @@ function MapCards({
               key={r.id}
               role="button"
               tabIndex={0}
-              aria-label={`${text(r.data.title)} ${booking ? "예약 열기" : "장소 보기"}`}
+              aria-label={`${title} ${booking ? "예약 열기" : "장소 보기"}`}
               onClick={(e) => {
                 if (
                   !suppressClick.current &&
@@ -365,7 +371,7 @@ function MapCards({
                 {r.data.entryType === "memo" ? (
                   <p className="map-memo-body">{memoText(r.data)}</p>
                 ) : (
-                  <h3>{text(r.data.title)}</h3>
+                  <h3>{title}</h3>
                 )}
                 <button
                   type="button"

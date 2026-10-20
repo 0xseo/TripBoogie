@@ -1137,6 +1137,11 @@ function TripAppContent({
                   {tab === "plan" && (
                     <>
                       <TripPlan
+                        mapHeightScale={myProfile?.mapHeightScale}
+                        onMapHeight={myProfile ? async (mapHeightScale) => {
+                          if (profileState.getSnapshot()?.id !== myProfile.id) throw new Error("계정이 바뀌었습니다.");
+                          await profileState.save({mapHeightScale}, payload=>api<Profile>("/api/profile",jsonRequest(payload)));
+                        } : undefined}
                         onBooking={(id) => { setBookingFocus(id); goTab("bookings"); }}
                         workspace={workspace}
                         date={currentDate}

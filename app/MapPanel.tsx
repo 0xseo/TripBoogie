@@ -52,7 +52,7 @@ export default function MapPanel({
           style: "https://tiles.openfreemap.org/styles/liberty",
           center: [126.978, 37.5665],
           zoom: 9,
-          cooperativeGestures: !interactive,
+          cooperativeGestures: false,
           attributionControl:{customAttribution:""},
         });
         map.current = m;
