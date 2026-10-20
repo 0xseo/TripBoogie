@@ -1,4 +1,16 @@
-import type { ItemRecord } from "./types";
+import type { ItemRecord, Trip } from "./types";
+/** Saved flights may depart before the trip or land after it. Never hide their dates. */
+export function itineraryDays(trip: Pick<Trip, "startDate" | "endDate">, records: ItemRecord[]) {
+  const dates = new Set<string>();
+  const start = Date.parse(`${trip.startDate}T12:00:00Z`), end = Date.parse(`${trip.endDate}T12:00:00Z`);
+  for (let stamp = start; stamp <= end && dates.size < 365; stamp += 86400000) dates.add(new Date(stamp).toISOString().slice(0, 10));
+  const flights = new Set(records.filter(r => r.kind === "booking" && r.data.type === "flight").map(r => r.id));
+  for (const record of records) {
+    const date = record.data.date;
+    if (record.kind === "plan" && flights.has(String(record.data.bookingId)) && typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(`${date}T12:00:00Z`))) dates.add(date);
+  }
+  return [...dates].sort();
+}
 export function comparePlans(a:ItemRecord,b:ItemRecord) {
   const x=typeof a.data.position==="number"?a.data.position:Number.MAX_SAFE_INTEGER;
   const y=typeof b.data.position==="number"?b.data.position:Number.MAX_SAFE_INTEGER;

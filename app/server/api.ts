@@ -70,6 +70,7 @@ export function createApiHandler(deps: Dependencies) {
           "save-booking",
           "update-settings",
           "checklist-toggle",
+          "reorder-checklist",
           "prepare-file",
           "set-file-tags",
           "finish-file",
@@ -81,7 +82,7 @@ export function createApiHandler(deps: Dependencies) {
           await repository.command(
             segments[1],
             segments[3],
-            await readJson(request),
+            await readJson(request, segments[3] === "reorder-checklist" ? 262144 : 65536),
           ),
         );
       if (segments.length === 1 && segments[0] === "trips") {

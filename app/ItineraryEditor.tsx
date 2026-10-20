@@ -15,6 +15,7 @@ import {
   SlidersHorizontal,
   LoaderCircle,
   Ticket,
+  Clock,
 } from "lucide-react";
 import type { Workspace, ItemRecord } from "./types";
 import type { Leg, Connection } from "./route-graph";
@@ -415,6 +416,7 @@ export default function ItineraryEditor({
       <div className={`timeline ${advanced ? "editing-timeline" : ""}`}>
         {plans.map((r) => {
           const memo = r.data.entryType === "memo",
+            booking = workspace.records.find((b) => b.kind === "booking" && b.id === r.data.bookingId),
             place = places.find((p) => p.id === r.data.placeId),
             connection = connections.find((c) => c.to.id === r.id);
           if (!memo) number++;
@@ -517,7 +519,9 @@ export default function ItineraryEditor({
                 <div className="plan-number">
                   {memo ? <StickyNote size={18} /> : number}
                 </div>
-                <div className="plan-card">
+                <div className="plan-card" data-booking-linked={!!booking} role={booking ? "link" : undefined} tabIndex={booking ? 0 : undefined} aria-label={booking ? `${text(r.data.title)} 예약 열기` : undefined}
+                  onClick={booking ? (e) => { if (!(e.target as HTMLElement).closest("button,a,input,textarea")) onBooking(booking.id); } : undefined}
+                  onKeyDown={booking ? (e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onBooking(booking.id); } } : undefined}>
                   <div className="plan-heading">
                     {memo ? (
                       <p className="preserve memo-body">{memoText(r.data)}</p>
@@ -525,7 +529,7 @@ export default function ItineraryEditor({
                       <h3>{text(r.data.title)}</h3>
                     )}
                     <div className="row-actions">
-                      {!memo && !text(r.data.time) && (
+                      {!memo && !booking && !text(r.data.time) && (
                         <TimeField
                           value=""
                           disabled={disabled}
@@ -538,11 +542,11 @@ export default function ItineraryEditor({
                       )}
                       <button
                         className="icon"
-                        disabled={disabled}
-                        aria-label={`${text(r.data.title)} 수정`}
-                        onClick={() => onEdit(r)}
+                        disabled={booking ? false : disabled}
+                        aria-label={`${text(r.data.title)} ${booking ? "예약 열기" : "수정"}`}
+                        onClick={() => booking ? onBooking(booking.id) : onEdit(r)}
                       >
-                        <Pencil size={17} />
+                        {booking ? <Ticket size={17}/> : <Pencil size={17} />}
                       </button>
                       <button
                         className="icon"
@@ -556,12 +560,9 @@ export default function ItineraryEditor({
                   </div>
                   {!memo && (
                     <div className="plan-content">
-                      {workspace.records.some((b) => b.kind === "booking" && b.id === r.data.bookingId) && (
-                        <button type="button" className="text-button plan-booking-link" onClick={() => onBooking(String(r.data.bookingId))}><Ticket size={15}/>예약 보기</button>
-                      )}
                       <div className="plan-details">
                         <div className="plan-meta">
-                          {text(r.data.time) && (
+                          {booking && text(r.data.time) ? <span className="booking-plan-time"><Clock size={14}/>{text(r.data.time)}</span> : text(r.data.time) && (
                             <TimeField
                               value={text(r.data.time)}
                               disabled={disabled}
@@ -573,7 +574,7 @@ export default function ItineraryEditor({
                               }}
                             />
                           )}
-                          {place ? (
+                          {place && booking ? <span className="plan-place"><MapPin size={13}/><span>{text(place.data.name)}</span></span> : place ? (
                             <a
                               className="plan-place"
                               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(

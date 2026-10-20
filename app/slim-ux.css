@@ -2065,3 +2065,13 @@ textarea {
 .collection-grid .trip-cover{background:#e3ead6}
 .collection-grid .cover-symbol{top:50%;right:22px;transform:translateY(-40%) rotate(-12deg);color:#8eaa78}
 @media(max-width:960px){.dialog.mobile-page-dialog .memo-composer{min-height:0}.dialog.mobile-page-dialog .memo-composer .memo-editor-field{min-height:180px}.collection-grid .cover-symbol svg{width:54px;height:54px}}
+
+.booking-kind{display:flex;align-items:flex-end;gap:6px;min-width:0}
+.booking-kind .flight-tag{margin-bottom:2px;white-space:nowrap}
+.booking-plan-links{gap:0;margin-top:8px}
+.booking-plan-links .text-button{min-height:28px;padding:3px 0;gap:5px;line-height:1.4}
+.plan-card[data-booking-linked="true"]{cursor:pointer}
+.plan-card[data-booking-linked="true"]:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.booking-plan-time{display:inline-flex;align-items:center;gap:5px;color:var(--ink);font-size:12px}
+.workspace-loading{min-height:45dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);font-size:13px}
+.workspace-loading svg{color:var(--green)}

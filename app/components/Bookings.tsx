@@ -8,7 +8,7 @@ import TurtleIcon from "./TurtleIcon";
 import TimeField from "./TimeField";
 import { bookingCategories } from "../booking-categories";
 import { useEffect, useState } from "react";
-import { airportCode, flightRoute, bookingTitle as displayBookingTitle, compareBookings } from "../booking-display";
+import { airportCode, bookingTitle as displayBookingTitle, compareBookings } from "../booking-display";
 import Files, { type FileCommand } from "./Files";
 import {
   Plus,
@@ -128,6 +128,7 @@ export default function Bookings({
           {rows.map((r) => (
             <article className="booking-card" key={r.id} id={`booking-${r.id}`} data-focused={focused === r.id}>
               <div className="inline">
+                <div className="booking-kind">
                 <span className="booking-type">
                   {selectedCategory.kind === "hotel" ? (
                     <Hotel />
@@ -139,6 +140,23 @@ export default function Bookings({
                     <TurtleIcon />
                   )}
                 </span>
+              {r.data.type === "flight" && (
+                <span className="flight-tag">
+                  {
+                    {
+                      outbound: "출발",
+                      inbound: "도착",
+                      transfer: "여행 중 이동",
+                    }[
+                      text(r.data.flightRole, "outbound") as
+                        | "outbound"
+                        | "inbound"
+                        | "transfer"
+                    ]
+                  }
+                </span>
+              )}
+                </div>
                 <div className="row-actions">
                   <button
                     className="icon"
@@ -161,41 +179,18 @@ export default function Bookings({
                   </button>
                 </div>
               </div>
-              {r.data.type === "flight" && (
-                <span className="flight-tag">
-                  {
-                    {
-                      outbound: "출발",
-                      inbound: "도착",
-                      transfer: "여행 중 이동",
-                    }[
-                      text(r.data.flightRole, "outbound") as
-                        | "outbound"
-                        | "inbound"
-                        | "transfer"
-                    ]
-                  }
-                </span>
-              )}
               <h3>{displayBookingTitle(r.data)}</h3>
-              {Boolean(r.data.flightNumber) && (
-                <strong className="flight-number">
-                  {text(r.data.flightNumber)}
-                </strong>
-              )}
               <p>
                 {dateLabel(text(r.data.startDate))} {text(r.data.startTime)} →{" "}
                 {dateLabel(text(r.data.endDate))} {text(r.data.endTime)}
               </p>
-              {Boolean(r.data.departure) && (
-                <p>
-                  {flightRoute(r.data)}
-                </p>
-              )}
               {Boolean(r.data.platform) && (
                 <p className="booking-platform">
                   예약 플랫폼 · {text(r.data.platform)}
                 </p>
+              )}
+              {Boolean(r.data.reference) && (
+                <p className="muted">예약번호 {text(r.data.reference)}</p>
               )}
               {r.data.moneyAmount !== null &&
                 r.data.moneyAmount !== undefined && (
@@ -222,9 +217,6 @@ export default function Bookings({
                 >
                   연결 경비 수정
                 </button>
-              )}
-              {Boolean(r.data.reference) && (
-                <p className="muted">예약번호 {text(r.data.reference)}</p>
               )}
               {Boolean(r.data.note) && (
                 <p className="preserve">{text(r.data.note)}</p>

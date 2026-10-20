@@ -6,7 +6,8 @@ import { Dialog, Field, Empty, text } from "./ui";
 import ChoiceField from "./ChoiceField";
 import AddButton from "./AddButton";
 import FeatureToolbar from "./FeatureToolbar";
-import {checklistState} from "../checklist";
+import {checklistState, compareChecklist} from "../checklist";
+import SortHandle from "./SortHandle";
 import styles from "./Checklist.module.css";
 export default function Checklist({
   workspace,
@@ -15,6 +16,7 @@ export default function Checklist({
   onSave,
   onDelete,
   onToggle,
+  onReorder,
 }: {
   workspace: Workspace;
   userId: string;
@@ -22,6 +24,7 @@ export default function Checklist({
   onSave: (d: Record<string, unknown>, r?: ItemRecord) => Promise<void>;
   onDelete: (r: ItemRecord) => void;
   onToggle: (r: ItemRecord, done: boolean) => Promise<void>;
+  onReorder: (category: string, ids: string[]) => Promise<void>;
 }) {
   const [editing, setEditing] = useState<ItemRecord | "new" | null>(null),
     [categoryId, setCategoryId] = useState<string | null>(null),
@@ -40,7 +43,7 @@ export default function Checklist({
     .filter((id) => activeCategory === null || activeCategory === id)
     .map((id) => ({
       id,
-      rows: rows.filter((r) => text(r.data.category) === id),
+      rows: rows.filter((r) => text(r.data.category) === id).sort(compareChecklist),
     }))
     .filter((group) => group.rows.length > 0);
   function selectCategory(id: string | null) {
@@ -93,7 +96,7 @@ export default function Checklist({
                     workspace.members.find((m) => m.id === r.createdBy)?.name ||
                     "이전 작성자";
                 return (
-                  <article className={styles.row} data-done={done} key={r.id}>
+                  <article className={styles.row} data-done={done} key={r.id} data-sort-id={r.id} data-sort-group={`checklist-${id}`}>
                     <button
                       className={styles.toggle}
                       type="button"
@@ -138,7 +141,9 @@ export default function Checklist({
                         </div>
                       )}
                     </div>
-                    <div className={styles.actions}><button
+                    <div className={styles.actions}>
+                    <SortHandle id={r.id} group={`checklist-${id}`} ids={group.map(row=>row.id)} label={text(r.data.title)} disabled={readOnly} onReorder={ids=>{void onReorder(id,ids).catch(e=>setError((e as Error).message));}}/>
+                    <button
                       className={styles.action}
                       type="button"
                       aria-label="체크 항목 수정"

@@ -20,7 +20,7 @@ import Members from "./components/Members";
 import KeyboardFocus from "./components/KeyboardFocus";
 import TripGrid from "./components/TripGrid";
 import { saveDownload } from "./download";
-import { Plus, Users, RefreshCw, Check } from "lucide-react";
+import { Plus, Users, RefreshCw, Check, LoaderCircle } from "lucide-react";
 import type {
   CurrentUser,
   Trip,
@@ -49,10 +49,10 @@ import Checklist from "./components/Checklist";
 import Bookings from "./components/Bookings";
 import Files, { removeFile, type FileCommand } from "./components/Files";
 import Tools from "./components/Tools";
-import { Dialog, CalendarCountry, text, days } from "./components/ui";
+import { Dialog, CalendarCountry, text } from "./components/ui";
 import { SearchLanguage } from "./components/SearchLanguage";
 import { profileSearchLanguage } from "./search-language";
-import { comparePlans } from "./planning";
+import { comparePlans, itineraryDays } from "./planning";
 import { WorkspaceMutations } from "./workspace-mutations";
 import { isNativeApp } from "./runtime";
 import {
@@ -545,7 +545,7 @@ function TripAppContent({
       if (identity.current !== uid) throw new Error("계정이 바뀌었습니다. 다시 열어 주세요.");
       const latest = confirmed.records.find((r) => r.id === payload.id);
       const rebased = { ...payload, ...(latest && mayRebaseVersion ? { version: latest.version } : {}),
-        ...(operation === "update-settings" ? { revision: confirmed.revision } : {}) };
+        ...(["update-settings", "reorder-checklist"].includes(operation || "") ? { revision: confirmed.revision } : {}) };
       return run<Workspace>(`/api/trips/${current.trip.id}${operation === "schedule" ? "/schedule" : operation ? `/actions/${operation}` : ""}`,
         operation === "schedule" ? { ...rebased, revision: confirmed.revision } : rebased,
         "POST", true, !project);
@@ -626,10 +626,16 @@ function TripAppContent({
     setDate(trip.startDate);
     setTab(destination);
     setSelected("");
+    setModal(null);
+    setAtHome(false);
     if (cached) {
       accept(cached);
-      setAtHome(false);
-    } else setOpeningTrip(trip);
+      setOpeningTrip(null);
+    } else {
+      wsRef.current = null;
+      setWorkspace(null);
+      setOpeningTrip(trip);
+    }
     try {
       const next = await api<Workspace>(`/api/trips/${trip.id}`);
       if (
@@ -641,8 +647,10 @@ function TripAppContent({
         setAtHome(false);
       }
     } catch (e) {
-      if (uid === identity.current && request === openRequest.current)
+      if (uid === identity.current && request === openRequest.current) {
         fail(e, trip.id);
+        if (!cached) setAtHome(true);
+      }
     } finally {
       if (request === openRequest.current) setOpeningTrip(null);
     }
@@ -788,9 +796,7 @@ function TripAppContent({
     };
   }, [accountScreen, activeTripId, tab, busy, atHome]);
   const records = workspace?.records ?? [],
-    allDays = workspace
-      ? days(workspace.trip.startDate, workspace.trip.endDate)
-      : [],
+    allDays = workspace ? itineraryDays(workspace.trip, records) : [],
     currentDate = allDays.includes(date) ? date : allDays[0] ?? "",
     plans = records
       .filter((r) => r.kind === "plan" && r.data.date === currentDate)
@@ -802,7 +808,7 @@ function TripAppContent({
     timeZone: "Asia/Seoul",
   });
   const selectedTrip =
-    workspace?.trip ?? (compactCollection ? null : preferredTrip(trips, today));
+    openingTrip ?? workspace?.trip ?? (compactCollection ? null : preferredTrip(trips, today));
   const visibleTrips = filterTrips(trips, search, tripFilter, sort, today);
   async function withdrawAccount() {
     await api(
@@ -876,6 +882,11 @@ function TripAppContent({
       return;
     }
     if (isPreparationTab(next)) setLastPreparation(next);
+    if (openingTrip) {
+      setTab(next);
+      setSelected("");
+      return;
+    }
     if (!workspace) {
       if (selectedTrip) void open(selectedTrip, next);
       else setNotice("여행을 먼저 골라봐북");
@@ -925,7 +936,7 @@ function TripAppContent({
         <KeyboardFocus />
         <div
           className={`app-shell with-trip-nav ${
-            workspace && !atHome && !accountScreen ? "in-trip" : ""
+            (workspace || openingTrip) && !atHome && !accountScreen ? "in-trip" : ""
           } ${atHome && !accountScreen ? "is-home" : ""} ${accountScreen ? "is-settings" : ""} ${
             accountScreen && !user ? "guest-settings-screen" : ""
           }`}
@@ -942,13 +953,13 @@ function TripAppContent({
           <main className="main">
             <AppHeader
               trip={
-                workspace && !atHome && !accountScreen ? workspace.trip : null
+                !atHome && !accountScreen ? openingTrip ?? workspace?.trip ?? null : null
               }
               tab={
-                accountScreen ? "settings" : atHome || !workspace ? "home" : tab
+                accountScreen ? "settings" : atHome ? "home" : tab
               }
               guestSettings={!!accountScreen && !user}
-              disabled={busy}
+              disabled={busy || !!openingTrip}
               onHome={goHome}
               onTrip={() => setModal("travel-settings")}
             />
@@ -1019,6 +1030,12 @@ function TripAppContent({
                     </section>
                   )}
                 </section>
+              ) : openingTrip ? (
+                <div className="workspace" key={navigationEpoch}>
+                  <WorkspaceTabs tab={tab} disabled={false} onSelect={goTab}/>
+                  <PreparationTabs tab={tab} disabled={false} onSelect={goTab}/>
+                  <div className="workspace-loading" role="status" aria-live="polite"><LoaderCircle size={30} className="spinner" aria-hidden="true"/><span>{openingTrip.title} 불러오는 중</span></div>
+                </div>
               ) : atHome || !workspace ? (
                 <div className="home" key={navigationEpoch}>
                   <section className="home-hero">
@@ -1166,6 +1183,9 @@ function TripAppContent({
                   )}
                   {tab === "checklist" && user && (
                     <Checklist
+                      onReorder={async (category, ids) => {
+                        await optimistic("reorder-checklist", { category, ids, revision: workspace.revision }, (w) => ({ ...w, records: w.records.map(r => r.kind === "checklist" && ids.includes(r.id) ? { ...r, data: { ...r.data, position: ids.indexOf(r.id) } } : r) }));
+                      }}
                       workspace={workspace}
                       userId={user.id}
                       readOnly={readOnly}
@@ -1290,10 +1310,10 @@ function TripAppContent({
               />
             </Dialog>
           )}
-          <NetworkStatus
+          {!openingTrip && <NetworkStatus
             active={busy || !!openingTrip || listLoading}
-            label={busy ? "저장 중" : openingTrip ? `${openingTrip.title} 불러오는 중` : "불러오는 중"}
-          />
+            label={busy ? "저장 중" : "불러오는 중"}
+          />}
           <input
             type="file"
             ref={importInput}

@@ -993,3 +993,48 @@ test('flight, hotel and tour reservations synchronize event dates both ways with
   const guards=await db.query("select has_function_privilege('authenticated','tripboogie_private.sync_plan_booking(public.trips,public.trip_records,public.trip_records)','execute') as allowed");assert.equal(guards.rows[0].allowed,false);
  }finally{await db.close();}
 });
+
+test('flight airport events always exist outside trip dates and repair legacy missing events with airport coordinates',async()=>{
+ const {db,rpc}=await fixture({beforeMigration:'_flight_airports_and_checklist_order.sql'});try{
+  let w=await rpc('owner','create',null,{data:details});const id=w.trip.id;
+  w=await rpc('owner','save-booking',id,{data:{type:'flight',title:'ICN → NRT',startDate:'2026-10-31',endDate:'2026-11-06',startTime:'23:30',endTime:'00:45',departureAirport:{icao:'RKSI',iata:'ICN',name:'Incheon',timezone:'Asia/Seoul'},arrivalAirport:{icao:'RJAA',iata:'NRT',name:'Narita',timezone:'Asia/Tokyo'}}});
+  const old=w.records.find(r=>r.kind==='booking');assert.equal(w.records.filter(r=>r.kind==='plan').length,0);
+  const migration=(await readdir(new URL('../../supabase/migrations/',import.meta.url))).find(n=>n.endsWith('_flight_airports_and_checklist_order.sql'));
+  await db.exec(await readFile(new URL('../../supabase/migrations/'+migration,import.meta.url),'utf8'));
+  const airports={departureAirport:{...old.data.departureAirport,lat:37.46,lng:126.44},arrivalAirport:{...old.data.arrivalAirport,lat:35.76,lng:140.39}};
+  const result=await db.query('select tripboogie_private.repair_existing_flight($1,$2,$3::jsonb) as repaired',[old.id,old.version,JSON.stringify(airports)]);assert.equal(result.rows[0].repaired.events,2);
+  w=await rpc('owner','workspace',id);let booking=w.records.find(r=>r.id===old.id);
+  let events=w.records.filter(r=>r.kind==='plan'&&r.data.bookingId===booking.id);assert.equal(events.length,2);
+  for(const [event,date,time,lat] of [['departure','2026-10-31','23:30',37.46],['arrival','2026-11-06','00:45',35.76]]){
+   const p=events.find(r=>r.data.bookingEvent===event),place=w.records.find(r=>r.id===p.data.placeId);assert.equal(p.data.date,date);assert.equal(p.data.time,time);assert.equal(place.data.lat,lat);assert.ok(place.data.name);
+  }
+  const placeIds=events.map(r=>r.data.placeId).sort();
+  // Old clients may omit the added coordinates on subsequent reservation edits.
+  w=await rpc('owner','save-booking',id,{id:booking.id,version:booking.version,data:{...booking.data,departureAirport:old.data.departureAirport,startTime:'22:00'}});
+  booking=w.records.find(r=>r.id===booking.id);assert.equal(booking.data.departureAirport.lat,37.46);
+  assert.deepEqual(w.records.filter(r=>r.kind==='plan').map(r=>r.data.placeId).sort(),placeIds);assert.equal(w.records.find(r=>r.data.bookingEvent==='departure').data.time,'22:00');
+  const departure=w.records.find(r=>r.data.bookingEvent==='departure');w=await rpc('owner','mutate',id,{action:'delete',kind:'plan',id:departure.id,version:departure.version});
+  booking=w.records.find(r=>r.id===booking.id);w=await rpc('owner','save-booking',id,{id:booking.id,version:booking.version,data:booking.data});assert.equal(w.records.filter(r=>r.kind==='plan').length,2);
+  await assert.rejects(rpc('owner','save-booking',id,{data:{...booking.data,departureAirport:{...airports.departureAirport,lat:91}}}),{code:'PT400'});
+  const latest=w.records.find(r=>r.id===booking.id);w=await rpc('owner','mutate',id,{action:'delete',kind:'booking',id:latest.id,version:latest.version});assert.equal(w.records.filter(r=>r.kind==='plan').length,0);
+  const guards=await db.query("select has_function_privilege('authenticated','tripboogie_private.repair_existing_flight(uuid,bigint,jsonb)','execute') as allowed");assert.equal(guards.rows[0].allowed,false);
+ }finally{await db.close();}
+});
+test('checklist ordering persists per category, preserves checks and survives edits and additions',async()=>{
+ const {db,rpc}=await fixture();try{
+  let w=await rpc('owner','create',null,{data:details});const id=w.trip.id;
+  await rpc('owner','create-invite',id,{role:'viewer',token:'cd'.repeat(32)});await rpc('viewer','join',null,{token:'cd'.repeat(32)});
+  for(const title of ['Passport','Charger','Tickets'])w=await rpc('owner','mutate',id,{action:'upsert',kind:'checklist',data:{title,category:'documents',scope:'all',done:false}});
+  let tasks=w.records.filter(r=>r.kind==='checklist').sort((a,b)=>a.data.position-b.data.position);assert.deepEqual(tasks.map(r=>r.data.title),['Passport','Charger','Tickets']);
+  w=await rpc('viewer','checklist-toggle',id,{id:tasks[0].id,done:true});const checks=w.records.find(r=>r.id===tasks[0].id).data.checks;
+  const ids=[tasks[2].id,tasks[0].id,tasks[1].id],revision=w.revision;
+  await assert.rejects(rpc('viewer','reorder-checklist',id,{revision,category:'documents',ids}),{code:'PT403'});
+  await assert.rejects(rpc('owner','reorder-checklist',id,{revision,category:'documents',ids:[ids[0],ids[0],ids[1]]}),{code:'PT409'});
+  await assert.rejects(rpc('owner','reorder-checklist',id,{revision,category:'other',ids}),{code:'PT409'});
+  w=await rpc('owner','reorder-checklist',id,{revision,category:'documents',ids});assert.deepEqual(w.records.find(r=>r.id===tasks[0].id).data.checks,checks);
+  await assert.rejects(rpc('owner','reorder-checklist',id,{revision,category:'documents',ids}),{code:'PT409'});
+  const edited=w.records.find(r=>r.id===tasks[0].id);w=await rpc('owner','mutate',id,{action:'upsert',kind:'checklist',id:edited.id,version:edited.version,data:{title:'Passport changed',category:'documents',scope:'all',done:false}});assert.equal(w.records.find(r=>r.id===edited.id).data.position,1);
+  w=await rpc('owner','mutate',id,{action:'upsert',kind:'checklist',data:{title:'Wallet',category:'documents',scope:'once',done:false}});
+  assert.deepEqual((await rpc('owner','workspace',id)).records.filter(r=>r.kind==='checklist').sort((a,b)=>a.data.position-b.data.position).map(r=>r.data.title),['Tickets','Passport changed','Charger','Wallet']);
+ }finally{await db.close();}
+});

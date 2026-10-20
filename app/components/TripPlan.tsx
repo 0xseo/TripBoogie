@@ -8,6 +8,7 @@ import {
   ChevronRight,
   MapPin,
   StickyNote,
+  Ticket,
 } from "lucide-react";
 import type { ItemRecord, Workspace } from "../types";
 import { travelContext } from "../travel-context";
@@ -137,6 +138,8 @@ export default function TripPlan({
               label="전체 일정 지도"
             />
             <MapCards
+              bookings={workspace.records.filter(r=>r.kind === "booking")}
+              onBooking={id=>{setExpanded(false);onBooking(id);}}
               key={date}
               plans={plans}
               places={places}
@@ -156,6 +159,8 @@ export default function TripPlan({
   );
 }
 function MapCards({
+  bookings,
+  onBooking,
   plans,
   places,
   selected,
@@ -164,6 +169,8 @@ function MapCards({
   onAdd,
   disabled,
 }: {
+  bookings: ItemRecord[];
+  onBooking: (id: string) => void;
   plans: ItemRecord[];
   places: ItemRecord[];
   selected: string;
@@ -318,7 +325,7 @@ function MapCards({
         }}
       >
         {plans.map((r, i) => {
-          const place = places.find((p) => p.id === r.data.placeId);
+          const place = places.find((p) => p.id === r.data.placeId), booking = bookings.find(b=>b.id===r.data.bookingId);
           return (
             <article
               className="map-schedule-card"
@@ -326,13 +333,13 @@ function MapCards({
               key={r.id}
               role="button"
               tabIndex={0}
-              aria-label={`${text(r.data.title)} 장소 보기`}
+              aria-label={`${text(r.data.title)} ${booking ? "예약 열기" : "장소 보기"}`}
               onClick={(e) => {
                 if (
                   !suppressClick.current &&
                   !(e.target as HTMLElement).closest("button")
                 )
-                  onSelected(r.id);
+                  { if (booking) onBooking(booking.id); else onSelected(r.id); }
               }}
               onKeyDown={(e) => {
                 if (
@@ -340,7 +347,7 @@ function MapCards({
                   (e.key === "Enter" || e.key === " ")
                 ) {
                   e.preventDefault();
-                  onSelected(r.id);
+                  { if (booking) onBooking(booking.id); else onSelected(r.id); }
                 }
               }}
               aria-current={index === i ? "true" : undefined}
@@ -363,10 +370,11 @@ function MapCards({
                 <button
                   type="button"
                   className="text-button"
-                  disabled={disabled}
-                  onClick={() => onEdit(r)}
+                  disabled={booking ? false : disabled}
+                  aria-label={booking ? "예약 열기" : "일정 수정"}
+                  onClick={() => booking ? onBooking(booking.id) : onEdit(r)}
                 >
-                  수정
+                  {booking ? <Ticket size={18}/> : "수정"}
                 </button>
               </div>
               <div className="map-card-meta">

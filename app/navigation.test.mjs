@@ -7,7 +7,7 @@ import path from 'node:path';
 import ts from 'typescript';
 const directory=await mkdtemp(path.join(tmpdir(),'tripboogie-navigation-'));
 test.after(()=>rm(directory,{recursive:true,force:true}));
-for(const name of ['navigation','trip-collection','calendar','memo','profile-update','booking-categories','install-platform'])await writeFile(path.join(directory,name+'.mjs'),ts.transpileModule(await readFile(new URL('./'+name+'.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText);
+for(const name of ['navigation','trip-collection','calendar','memo','profile-update','booking-categories','install-platform','planning'])await writeFile(path.join(directory,name+'.mjs'),ts.transpileModule(await readFile(new URL('./'+name+'.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText);
 const nav=await import(pathToFileURL(path.join(directory,'navigation.mjs')));
 const collection=await import(pathToFileURL(path.join(directory,'trip-collection.mjs')));
 const trip=(id,title,startDate,endDate,role='owner',destination='서울')=>({id,title,startDate,endDate,role,destination,settings:{cities:[]}});
@@ -114,4 +114,11 @@ test('install options use the device OS rather than viewport size and include de
  assert.equal(installPlatform('Mozilla Macintosh','MacIntel',5),'ios');
  assert.equal(installPlatform('Mozilla Macintosh','MacIntel',0),'desktop');
  assert.equal(installPlatform('Mozilla Windows NT 10','Win32',0),'desktop');
+});
+
+const planning=await import(pathToFileURL(path.join(directory,'planning.mjs')));
+test('itinerary dates include every linked flight date without inventing gap days',()=>{
+ const trip={startDate:'2026-11-01',endDate:'2026-11-03'};
+ const records=[{id:'flight',kind:'booking',data:{type:'flight'}},{id:'dep',kind:'plan',data:{bookingId:'flight',date:'2026-10-10'}},{id:'arr',kind:'plan',data:{bookingId:'flight',date:'2026-11-04'}},{id:'memo',kind:'plan',data:{date:'2026-12-01'}}];
+ assert.deepEqual(planning.itineraryDays(trip,records),['2026-10-10','2026-11-01','2026-11-02','2026-11-03','2026-11-04']);
 });
