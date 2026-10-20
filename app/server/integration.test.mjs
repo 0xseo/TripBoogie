@@ -317,7 +317,7 @@ test("database-owned resource limits and grants cannot be bypassed through RPC",
     assert.equal((await rpc("owner", "list")).length, 100);
 
     const grants = (await asUser("owner", (tx) => tx.query("select c.relname, has_table_privilege(current_user,c.oid,'INSERT') as ins,has_table_privilege(current_user,c.oid,'UPDATE') as upd,has_table_privilege(current_user,c.oid,'DELETE') as del from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'"))).rows;
-    assert.equal(grants.length, 6);
+    assert.equal(grants.length, 7);
     assert.ok(grants.every((r) => !r.ins && !r.upd && !r.del));
   } finally { await db.close(); }
 });
@@ -1240,4 +1240,69 @@ test('five built-in expense categories cannot be deleted and one flight seat sur
   w=await rpc('owner','save-booking',w.trip.id,{data:{type:'flight',title:'Seat and bags',startDate:details.startDate,endDate:details.startDate,flightSeat:'18A',flightExtras:[{id:crypto.randomUUID(),baggageCount:1,baggageKg:23},{id:crypto.randomUUID(),baggageCount:2,baggageKg:10}]}});const b=w.records.find(r=>r.kind==='booking');assert.equal(b.data.flightSeat,'18A');assert.equal(b.data.flightExtras.length,2);assert.ok(b.data.flightExtras.every(e=>e.seat===''));
   const copy=await rpc('owner','import',null,{key:crypto.randomUUID(),trip:w.trip,records:w.records});assert.equal(copy.records.find(r=>r.kind==='booking').data.flightSeat,'18A');assert.equal(copy.trip.settings.expenseCategories.length,5);
  }finally{await db.close();}
+});
+
+test("shared overview: members read, editors save per-day versions, conflicts preserve independent days and sources", async () => {
+  const {db,rpc,request,asUser}=await fixture();
+  try {
+    const created=await rpc('owner','create',null,{data:details}),id=created.trip.id;
+    for(const [role,user,token] of [['editor','editor','ab'.repeat(32)],['viewer','viewer','cd'.repeat(32)]]){await rpc('owner','create-invite',id,{role,token});await rpc(user,'join',null,{token});}
+    const planId=crypto.randomUUID();
+    const source=await rpc('owner','mutate',id,{action:'upsert',kind:'plan',id:planId,data:{title:'원본 캐노피 투어',date:'2026-11-01',time:'08:30',duration:180,note:'원본 메모',placeId:''}});
+    const route=`trips/${id}/actions/save-overview`;
+    const first={date:'2026-11-01',text:'08:30 캐노피 (3시간)\n점심',sourceIds:[planId],version:0};
+    const saved=await request(route,'owner','POST',{rows:[first]});
+    assert.equal(saved.status,200);assert.equal(saved.body.overview[0].version,1);assert.deepEqual(saved.body.records,source.records);
+    assert.equal((await request(`trips/${id}`,'viewer')).body.overview[0].text,first.text);
+    assert.equal((await request(route,'viewer','POST',{rows:[{...first,text:'불가',version:1}]})).status,403);
+    assert.equal((await request(route,'outsider','POST',{rows:[first]})).status,404);
+    assert.equal((await request(route,null,'POST',{rows:[first]})).status,401);
+    const other=await request(route,'editor','POST',{rows:[{date:'2026-11-02',text:'다른 날짜는 동시에 편집 가능',sourceIds:[],version:0}]});assert.equal(other.status,200);
+    const stale=await request(route,'editor','POST',{rows:[{...first,text:'오래된 편집'}]});assert.equal(stale.status,409);assert.equal(stale.body.code,'OVERVIEW_CONFLICT');
+    const retried=await request(route,'owner','POST',{rows:[first]});assert.equal(retried.status,200);assert.equal(retried.body.revision,other.body.revision);
+    const emptied=await request(route,'owner','POST',{rows:[{...first,text:'',sourceIds:[],version:1}]});assert.equal(emptied.status,200);assert.equal(emptied.body.overview[0].version,2);
+    assert.equal((await request(route,'editor','POST',{rows:[{...first,text:'빈 칸 부활 방지',version:1}]})).status,409);
+    assert.deepEqual((await rpc('owner','workspace',id)).records,source.records);
+    assert.equal((await asUser('outsider',tx=>tx.query('select * from public.trip_overview_days'))).rows.length,0);
+    assert.equal((await asUser('viewer',tx=>tx.query('select * from public.trip_overview_days'))).rows.length,2);
+    await assert.rejects(asUser('editor',tx=>tx.query('update public.trip_overview_days set text=$1 where trip_id=$2',['bypass',id])),/permission denied/);
+    const priv=await asUser('editor',tx=>tx.query("select has_function_privilege('authenticated','tripboogie_private.save_overview(public.trips,jsonb)','EXECUTE') allowed"));assert.equal(priv.rows[0].allowed,false);
+  } finally {await db.close();}
+});
+
+test("shared overview: bulk writes are atomic, validate references and whitespace, and accept bounded long requests",async()=>{
+  const {db,rpc,request}=await fixture();
+  try{
+    const created=await rpc('owner','create',null,{data:details}),id=created.trip.id;
+    const route=`trips/${id}/actions/save-overview`;
+    const first={date:'2026-11-01',text:'  여백 보존\n\n',sourceIds:[],version:0};
+    const initial=(await request(route,'owner','POST',{rows:[first]})).body;assert.equal(initial.overview[0].text,first.text);
+    const failed=await request(route,'owner','POST',{rows:[{...first,date:'2026-11-02',text:'롤백되어야 함'},{...first,text:'충돌'}]});assert.equal(failed.status,409);
+    const after=await rpc('owner','workspace',id);assert.equal(after.overview.length,1);assert.equal(after.revision,initial.revision);
+    for(const row of [{...first,date:'2026-12-01'},{...first,date:'2026-11-40'},{...first,version:-1},{...first,version:'1'},{...first,text:'가'.repeat(10001)},{...first,sourceIds:[crypto.randomUUID()]}])assert.equal((await request(route,'owner','POST',{rows:[row]})).status,400);
+    assert.equal((await request(route,'owner','POST',{rows:[{...first,version:1},{...first,version:1}]})).status,400);
+    const foreign=await rpc('owner','create',null,{data:{...details,title:'다른 여행'}}), foreignPlan=crypto.randomUUID();
+    await rpc('owner','mutate',foreign.trip.id,{action:'upsert',id:foreignPlan,kind:'plan',data:{date:'2026-11-01',title:'타 여행 일정',placeId:''}});
+    assert.equal((await request(route,'owner','POST',{rows:[{...first,version:1,sourceIds:[foreignPlan]}]})).status,400);
+    const long=await request(route,'owner','POST',{rows:['02','03','04'].map(day=>({date:`2026-11-${day}`,text:'가'.repeat(9000),sourceIds:[],version:0}))});assert.equal(long.status,200);assert.equal(long.body.overview.length,4);
+    assert.equal((await request(route,'owner','POST',{rows:[{...first,version:1,text:'가'.repeat(90000)}]})).status,413);
+  }finally{await db.close();}
+});
+
+test("shared overview: backup and trip copy remap plan links, retain deleted-source text and cascade on deletion",async()=>{
+  const {db,rpc}=await fixture();
+  try{
+    const id=(await rpc('owner','create',null,{data:details})).trip.id,planId=crypto.randomUUID();
+    await rpc('owner','mutate',id,{action:'upsert',id:planId,kind:'plan',data:{title:'캐노피',date:'2026-11-01',placeId:''}});
+    const original=await rpc('owner','save-overview',id,{rows:[{date:'2026-11-01',text:'요약 이름\n자유 입력',sourceIds:[planId],version:0}]});
+    const copy=await rpc('owner','import',null,{key:crypto.randomUUID(),trip:original.trip,records:original.records,overview:original.overview});
+    assert.equal(copy.overview[0].text,original.overview[0].text);assert.equal(copy.overview[0].version,1);assert.notEqual(copy.overview[0].sourceIds[0],planId);assert.ok(copy.records.some(r=>r.id===copy.overview[0].sourceIds[0]&&r.kind==='plan'));
+    await rpc('owner','mutate',id,{action:'delete',id:planId,version:original.records.find(r=>r.id===planId).version});
+    const deleted=await rpc('owner','workspace',id);
+    const restored=await rpc('owner','import',null,{key:crypto.randomUUID(),trip:deleted.trip,records:deleted.records,overview:deleted.overview});
+    assert.equal(restored.overview[0].text,original.overview[0].text);assert.deepEqual(restored.overview[0].sourceIds,[]);
+    await rpc('owner','delete-trip',copy.trip.id,{revision:copy.revision});
+    assert.equal((await db.query('select count(*)::integer n from public.trip_overview_days where trip_id=$1',[copy.trip.id])).rows[0].n,0);
+    const oldBackup=await rpc('owner','import',null,{key:crypto.randomUUID(),trip:details,records:[]});assert.deepEqual(oldBackup.overview,[]);
+  }finally{await db.close();}
 });

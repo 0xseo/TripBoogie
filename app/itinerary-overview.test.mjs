@@ -144,3 +144,13 @@ test('canvas memory is released when PNG encoding fails', async () => {
     assert.equal(canvas.width, 0); assert.equal(canvas.height, 0);
   } finally { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; }
 });
+
+test('shared changes retain the version originally edited and never include another date',()=>{
+  const rows=[{date,text:'원래 내용',sourceIds:['plan'],version:3},{date:'2026-11-27',text:'동행의 날짜',sourceIds:[],version:8}];
+  const before=overview.overviewFromRows(rows);
+  const after=overview.writeOverviewDay(before,date,'내 편집');
+  const changes=overview.overviewChanges(before,after,rows);
+  assert.deepEqual(changes,[{date,text:'내 편집',sourceIds:['plan'],version:3}]);
+  assert.deepEqual(overview.overviewChanges(before,before,rows),[]);
+  assert.equal(rows[0].text,'원래 내용');assert.equal(before.days['2026-11-27'].text,'동행의 날짜');
+});

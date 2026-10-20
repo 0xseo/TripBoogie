@@ -19,13 +19,14 @@ import TripCollectionControls from "../../app/components/TripCollectionControls"
 import ItineraryEditor from "../../app/ItineraryEditor";
 import { dayGraph } from "../../app/route-graph";
 import KeyboardFocus from "../../app/components/KeyboardFocus";
+import TripOverview from "../../app/components/TripOverview";
 import { MobileTripNav } from "../../app/components/TripNavigation";
 import Toast from "../../app/components/Toast";
 import PullToRefresh from "../../app/components/PullToRefresh";
 import NetworkStatus from "../../app/components/NetworkStatus";
 import { ConfirmationProvider } from "../../app/components/Confirmation";
 import { Dialog } from "../../app/components/ui";
-import type { Workspace, Profile, ItemRecord } from "../../app/types";
+import type { Workspace, Profile, ItemRecord, OverviewRow } from "../../app/types";
 import "../../app/styles.css";
 import "../native.css";
 const noop = () => {},
@@ -198,6 +199,7 @@ function Fixture() {
     window.keyboardFixture.notices.push(message);
     setNotice(message);
   };
+  const [overviewRows,setOverviewRows]=useState<OverviewRow[]>([{date:"2026-11-01",text:memo,sourceIds:[],version:1,updatedAt:"",updatedBy:"test"}]);
   const hotelWorkspace = {
     ...workspace,
     records:
@@ -693,6 +695,10 @@ function Fixture() {
             onNotice={notify}
           />
         )}
+        {scene === "overview" && <TripOverview workspace={{...workspace,overview:overviewRows}} accountId="keyboard-overview" days={["2026-11-01"]} preview onSave={async changes=>{
+          window.keyboardFixture.saved.push(["save-overview",changes]);
+          setOverviewRows(current=>{const next=[...current];for(const change of changes){const index=next.findIndex(row=>row.date===change.date),value={...change,version:(next[index]?.version??0)+1,updatedAt:"",updatedBy:"test"};if(index<0)next.push(value);else next[index]=value;}return next;});
+        }}/>}
         {scene.startsWith("linked-plan-") && (
           <PlanComposer
             key={scene}
