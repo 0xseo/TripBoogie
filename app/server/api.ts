@@ -67,6 +67,7 @@ export function createApiHandler(deps: Dependencies) {
         method === "POST" &&
         [
           "save-plan",
+          "save-overview",
           "save-travel-time",
           "save-booking",
           "save-expense",
@@ -88,7 +89,7 @@ export function createApiHandler(deps: Dependencies) {
           await repository.command(
             segments[1],
             segments[3],
-            await readJson(request, segments[3] === "reorder-checklist" ? 262144 : 65536),
+            await readJson(request, ["reorder-checklist", "save-overview"].includes(segments[3]) ? 262144 : 65536),
           ),
         );
       if (segments.length === 1 && segments[0] === "trips") {

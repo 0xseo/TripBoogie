@@ -285,6 +285,37 @@ public class FormKeyboardTest {
         assertTrue(label+" never settles: "+m,m.getDouble("tailY")<=1&&m.getDouble("tailHeight")<=1&&m.getDouble("tailScroll")<=1);
         assertTrue(label+" moves the caret",m.getBoolean("caretPreserved"));
     }
+    @Test public void overviewCellKeyboardRestoresWholeEditor() throws Exception {
+        try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
+            loadFixture(scenario);show(scenario,"overview");
+            expect(scenario,"!document.querySelector('main textarea')&&document.querySelectorAll('main [aria-label$=\"요약 일정 편집\"]').length===1");
+            click(scenario,"11/1 (일) 요약 일정 편집");
+            expect(scenario,"!!document.querySelector('dialog[open] textarea')");
+            scenario.onActivity(a->((InputMethodManager)a.getSystemService(Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(a.getBridge().getWebView().getWindowToken(),0));
+            SystemClock.sleep(1200);
+            double original=Double.parseDouble(js(scenario,"document.querySelector('dialog[open] textarea').getBoundingClientRect().height"));
+            js(scenario,"window.motionTarget=document.querySelector('dialog[open] textarea');window.motionTarget.focus();window.motionTarget.setSelectionRange(window.motionTarget.value.length,window.motionTarget.value.length);true");
+            sample(scenario);keyboard(scenario);
+            // A cold emulator can delay its first IME layout. Wait for the
+            // shrunken editor and ten stable real frames before auditing motion.
+            expect(scenario,"(()=>{const s=window.motionSamples.slice(-10);return s.length===10&&s.every(r=>r.h<"+(original-100)+"&&Math.abs(r.h-s[0].h)<=1&&Math.abs(r.y-s[0].y)<=1)})()");
+            assertMotion(scenario,"overview opening",false);
+            expect(scenario,"JSON.parse("+INPUT_BOUNDS+").clear");
+            double shrunken=Double.parseDouble(js(scenario,"window.motionTarget.getBoundingClientRect().height"));
+            screenshot("overview-keyboard-open");
+            input(scenario,"dialog[open] textarea","08:30 캐노피 (3시간)\n시간 미정 점심");
+            sample(scenario);scenario.onActivity(a->((InputMethodManager)a.getSystemService(Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(a.getBridge().getWebView().getWindowToken(),0));
+            expect(scenario,"(()=>{const s=window.motionSamples.slice(-10);return s.length===10&&s.every(r=>Math.abs(r.h-"+original+")<=3&&Math.abs(r.y-s[0].y)<=1)})()");
+            assertMotion(scenario,"overview closing",true);
+            double restored=Double.parseDouble(js(scenario,"window.motionTarget.getBoundingClientRect().height"));
+            assertTrue("Closing keyboard must expand overview input",restored>shrunken+100);
+            assertEquals("Closing keyboard must restore full overview editor",original,restored,3);
+            expect(scenario,"(()=>{const t=window.motionTarget.getBoundingClientRect(),f=document.querySelector('dialog[open] footer').getBoundingClientRect();return f.top-t.bottom>=0&&f.top-t.bottom<30&&f.bottom<=visualViewport.height+2})()");
+            screenshot("overview-keyboard-restored");click(scenario,"저장");
+            expect(scenario,"!document.querySelector('dialog[open]')&&window.keyboardFixture.saved.at(-1)?.[0]==='save-overview'");
+        }
+    }
+
     @Test public void formKeyboardOpeningAndDismissalStayStable() throws Exception {
         try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
             loadFixture(scenario);

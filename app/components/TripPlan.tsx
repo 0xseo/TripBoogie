@@ -16,7 +16,7 @@ import {
   StickyNote,
   Table2,
 } from "lucide-react";
-import type { ItemRecord, Workspace } from "../types";
+import type { ItemRecord, Workspace, OverviewChange } from "../types";
 import { travelContext } from "../travel-context";
 import { dayGraph } from "../route-graph";
 import MapPanel from "../MapPanel";
@@ -25,17 +25,18 @@ import ItineraryEditor from "../ItineraryEditor";
 import { Dialog, text } from "./ui";
 import WeekDays from "./WeekDays";
 import TripOverview from "./TripOverview";
-import type { OverviewDraft } from "../itinerary-overview";
 import overviewStyles from "./TripOverview.module.css";
 
-export default function TripPlan(props: Parameters<typeof DailyTripPlan>[0] & { accountId: string; initialView?: "map" | "overview"; initialOverview?: OverviewDraft }) {
-  const [view, setView] = useState(props.initialView ?? "map");
+export default function TripPlan(props: Parameters<typeof DailyTripPlan>[0] & { accountId: string; initialView?: "map" | "overview"; view?: "map" | "overview"; onViewChange?: (view:"map"|"overview")=>void; onSaveOverview: (rows:OverviewChange[])=>Promise<void>; preview?:boolean }) {
+  const [localView, setLocalView] = useState(props.initialView ?? "map");
+  const view = props.view ?? localView;
+  const setView = (next: "map" | "overview") => { setLocalView(next); props.onViewChange?.(next); };
   return <>
     <div className={overviewStyles.viewSwitcher} role="group" aria-label="일정 보기 방식">
       <button type="button" aria-pressed={view === "map"} onClick={() => setView("map")}><MapPin size={15} />지도·일정</button>
       <button type="button" aria-pressed={view === "overview"} onClick={() => setView("overview")}><Table2 size={15} />한눈에 보기</button>
     </div>
-    {view === "overview" ? (props.accountId ? <TripOverview workspace={props.workspace} days={props.days} accountId={props.accountId} disabled={props.disabled} initialDraft={props.initialOverview} /> : <p>로그인 정보를 확인하고 있어요.</p>) : <DailyTripPlan {...props} />}
+    {view === "overview" ? (props.accountId ? <TripOverview workspace={props.workspace} days={props.days} accountId={props.accountId} disabled={props.disabled} onSave={props.onSaveOverview} preview={props.preview} /> : <p>로그인 정보를 확인하고 있어요.</p>) : <DailyTripPlan {...props} />}
   </>;
 }
 

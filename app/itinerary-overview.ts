@@ -1,4 +1,4 @@
-import type { ItemRecord, Workspace } from "./types";
+import type { ItemRecord, Workspace, OverviewRow, OverviewChange } from "./types";
 import { comparePlans } from "./planning";
 import { airportLabel } from "./booking-display";
 import { memoText } from "./memo";
@@ -16,7 +16,18 @@ export type OverviewCandidate = {
 export type OverviewSeparator = " · " | "\n";
 export const emptyOverview = (): OverviewDraft => ({ schema: 1, days: {} });
 
-/** Drafts are account/trip scoped, and never enter the workspace mutation API. */
+export function overviewFromRows(rows: OverviewRow[] = []): OverviewDraft {
+  return { schema: 1, days: Object.fromEntries(rows.map(row => [row.date, { text: row.text, sourceIds: [...row.sourceIds] }])) };
+}
+
+/** Expected versions belong to the snapshot the user actually edited. Never rebase them. */
+export function overviewChanges(before: OverviewDraft, after: OverviewDraft, rows: OverviewRow[] = []): OverviewChange[] {
+  const versions = new Map(rows.map(row => [row.date, row.version]));
+  return Object.entries(after.days).filter(([date, day]) => day.text !== (before.days[date]?.text ?? "") || JSON.stringify(day.sourceIds) !== JSON.stringify(before.days[date]?.sourceIds ?? []))
+    .map(([date, day]) => ({ date, text: day.text, sourceIds: [...day.sourceIds], version: versions.get(date) ?? 0 }));
+}
+
+/** Key for migrating the previous account/trip-scoped local draft once. */
 export function overviewStorageKey(accountId: string, tripId: string) {
   return `tripboogie:overview:v1:${encodeURIComponent(accountId)}:${encodeURIComponent(tripId)}`;
 }

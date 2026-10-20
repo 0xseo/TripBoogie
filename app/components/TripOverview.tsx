@@ -1,141 +1,139 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowDownToLine, ArrowRight, Check, FileImage, FolderInput, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
-import type { Workspace } from "../types";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ArrowDownToLine, Check, FileImage, FolderInput, Pencil, Trash2 } from "lucide-react";
+import type { Workspace, OverviewRow, OverviewChange } from "../types";
 import { shortDate } from "../calendar";
-import { emptyOverview, importOverview, overviewCandidates, overviewStorageKey, overviewTextLimit, parseOverview, writeOverviewDay, type OverviewCandidate, type OverviewDraft, type OverviewSeparator } from "../itinerary-overview";
+import { emptyOverview, importOverview, overviewCandidates, overviewStorageKey, overviewTextLimit, parseOverview, overviewFromRows, overviewChanges, type OverviewCandidate, type OverviewDraft, type OverviewSeparator } from "../itinerary-overview";
 import { renderOverviewImages, type OverviewImageRow } from "../overview-image";
 import { saveDownload } from "../download";
 import { useConfirm } from "./Confirmation";
 import Dialog from "./Dialog";
 import styles from "./TripOverview.module.css";
 
-type Props = { workspace: Workspace; days: string[]; accountId: string; disabled?: boolean; initialDraft?: OverviewDraft };
+type Props = { workspace: Workspace; days: string[]; accountId: string; disabled?: boolean; onSave: (rows: OverviewChange[]) => Promise<void>; preview?: boolean };
+type ImportRequest = { dates: string[]; draft: OverviewDraft; rows: OverviewRow[] };
 const subscribe = () => () => {};
+const failureText = (cause: unknown) => cause instanceof Error ? cause.message : "저장하지 못했어요. 연결을 확인하고 다시 시도해 주세요.";
 
 export default function TripOverview(props: Props) {
   const mounted = useSyncExternalStore(subscribe, () => true, () => false);
   return mounted ? <OverviewEditor key={overviewStorageKey(props.accountId, props.workspace.trip.id)} {...props} /> : <p className={styles.loading}>한눈에 보기를 준비하고 있어요…</p>;
 }
 
-function readDraft(key: string, fallback?: OverviewDraft) {
-  try { return { draft: parseOverview(localStorage.getItem(key) ?? (fallback ? JSON.stringify(fallback) : null)), error: "" }; }
-  catch { return { draft: emptyOverview(), error: "저장된 내용을 읽지 못했어요. 새로고침하거나 ‘표 비우기’로 새 표를 시작해 주세요." }; }
+function readLegacy(key: string) {
+  try { return parseOverview(localStorage.getItem(key)); } catch { return emptyOverview(); }
 }
 
-function OverviewEditor({ workspace, days, accountId, disabled = false, initialDraft }: Props) {
+function OverviewEditor({ workspace, days, accountId, disabled = false, onSave, preview = false }: Props) {
   const key = overviewStorageKey(accountId, workspace.trip.id);
-  const [initial] = useState(() => readDraft(key, initialDraft));
-  const [draft, setDraft] = useState(initial.draft);
-  const [past, setPast] = useState<OverviewDraft[]>([]), [future, setFuture] = useState<OverviewDraft[]>([]);
-  const [blocked, setBlocked] = useState(!!initial.error), [storageError, setStorageError] = useState(initial.error);
-  const [importDate, setImportDate] = useState<string | null>(null), [exporting, setExporting] = useState(false);
-  const [notice, setNotice] = useState("");
-  const typingDate = useRef<string | null>(null);
+  const [legacy, setLegacy] = useState(() => readLegacy(key));
+  const [editing, setEditing] = useState<{date: string; initial?: OverviewRow} | null>(null);
+  const [importRequest, setImportRequest] = useState<ImportRequest | null>(null), [exporting, setExporting] = useState(false);
+  const [saving, setSaving] = useState(false), [error, setError] = useState("");
   const confirm = useConfirm();
-  const locked = disabled || blocked;
-  const filled = days.filter(date => draft.days[date]?.text.trim()).length;
+  const rows = workspace.overview ?? [];
+  const dates = [...new Set([...days, ...rows.map(row => row.date)])].sort();
+  const draft = overviewFromRows(rows);
+  const filled = dates.filter(date => draft.days[date]?.text.trim()).length;
+  const ready = workspace.overview !== undefined;
+  const locked = disabled || saving || !ready;
+  const hasLegacy = Object.values(legacy.days).some(day => day.text.trim());
 
-  function persist(next: OverviewDraft) {
-    try { localStorage.setItem(key, JSON.stringify(next)); setStorageError(""); setBlocked(false); }
-    catch { setStorageError("브라우저에 저장하지 못했어요. 이 화면을 닫기 전에 이미지를 저장하거나 저장을 다시 시도해 주세요."); }
+  async function saveRows(changes: OverviewChange[]) {
+    if (!changes.length) return;
+    setSaving(true); setError("");
+    try { await onSave(changes); } finally { setSaving(false); }
   }
-  function change(next: OverviewDraft, checkpoint = true) {
-    if (checkpoint) setPast(items => [...items.slice(-29), draft]);
-    setFuture([]); setDraft(next); persist(next); setNotice("");
+  async function emptyTable() {
+    if (!await confirm("동행과 공유하는 요약표 내용을 모두 비울까요? 원본 일정·예약은 그대로 유지됩니다.", { title: "요약표 비우기", confirmLabel: "비우기" })) return;
+    try { await saveRows(rows.filter(row => row.text || row.sourceIds.length).map(row => ({date:row.date,text:"",sourceIds:[],version:row.version}))); }
+    catch (cause) { setError(failureText(cause)); }
   }
-  function undo() {
-    const next = past.at(-1); if (!next) return;
-    setFuture(items => [...items, draft]); setPast(items => items.slice(0, -1)); setDraft(next); persist(next); typingDate.current = null; setNotice("");
+  async function uploadLegacy() {
+    if (Object.entries(legacy.days).some(([date,day])=>day.text.trim()&&!dates.includes(date))) {
+      setError("이 기기의 표에 현재 여행 기간 밖의 날짜가 있어요. 여행 기간을 확인해 주세요. 기기에 저장된 표는 유지했어요.");
+      return;
+    }
+    if (!await confirm("이 브라우저에 저장했던 표를 동행과 공유할까요? 이미 공유 중인 날짜에는 기존 내용 아래에 추가됩니다.", {title:"이 기기의 표 올리기",confirmLabel:"공유하기",intent:"default"})) return;
+    const next = {schema:1 as const, days:{...draft.days}};
+    for (const [date, day] of Object.entries(legacy.days)) {
+      if (!dates.includes(date) || !day.text.trim()) continue;
+      const saved = draft.days[date];
+      next.days[date] = {text:saved?.text === day.text ? day.text : [saved?.text,day.text].filter(Boolean).join("\n"),sourceIds:[...new Set([...(saved?.sourceIds??[]),...day.sourceIds])]};
+    }
+    try { await saveRows(overviewChanges(draft,next,rows)); setLegacy(emptyOverview()); try { localStorage.removeItem(key); } catch {} }
+    catch (cause) { setError(failureText(cause)); }
   }
-  function redo() {
-    const next = future.at(-1); if (!next) return;
-    setPast(items => [...items, draft]); setFuture(items => items.slice(0, -1)); setDraft(next); persist(next); typingDate.current = null; setNotice("");
-  }
-  async function clear() {
-    if (!await confirm("한눈에 보기의 내용을 모두 비울까요? 원본 일정은 그대로 유지됩니다.", { title: "표 비우기", confirmLabel: "비우기" })) return;
-    change(emptyOverview());
-  }
-
   return <section className={styles.overview} aria-label="일정 한눈에 보기">
     <div className={styles.heading}>
       <div><p className={styles.eyebrow}>YOUR TRIP, AT A GLANCE</p><h2>여행을 한눈에</h2><p>하루의 흐름을 자유롭게 적고, 나만의 여행표로 저장해 보세요.</p></div>
-      <span className={styles.localBadge}><Check size={14} />로컬 검토용 · 이 브라우저에 저장</span>
+      <span className={styles.localBadge}><Check size={14}/>{preview ? "예시 여행" : "동행과 공유"}</span>
     </div>
-    <div className={styles.toolbar}>
-      <div className={styles.actions}>
-        <button type="button" className="secondary" disabled={locked} onClick={() => setImportDate("")}><FolderInput size={17} />기존 일정 불러오기</button>
-        <button type="button" className="primary" disabled={!days.length} onClick={() => setExporting(true)}><FileImage size={17} />이미지 저장</button>
-      </div>
-      <div className={styles.actions}>
-        <button type="button" className="icon" aria-label="표 편집 실행 취소" title="실행 취소" disabled={locked || !past.length} onClick={undo}><Undo2 size={17} /></button>
-        <button type="button" className="icon" aria-label="표 편집 다시 실행" title="다시 실행" disabled={locked || !future.length} onClick={redo}><Redo2 size={17} /></button>
-        <button type="button" className={styles.clear} disabled={disabled || !filled && !blocked} onClick={() => void clear()}><Trash2 size={15} /><span>표 비우기</span></button>
-      </div>
-    </div>
-    <p className={styles.help}>지금은 로컬 검토 단계라 요약표만 이 브라우저에 저장해요. 표를 수정하거나 지워도 원본 일정·예약은 바뀌지 않아요.</p>
-    {storageError && <div className="error" role="alert">{storageError}{!blocked && <button type="button" className="secondary" onClick={() => persist(draft)}>저장 다시 시도</button>}</div>}
-    {notice && <p className={styles.notice} role="status">{notice}</p>}
-    <div className={styles.tableWrap}>
-      <table className={styles.table}>
-        <caption className={styles.caption}>{workspace.trip.title} · {days.length}일 중 {filled}일 작성</caption>
-        <thead><tr><th scope="col">날짜</th><th scope="col">일정<span>클릭해서 바로 편집</span></th></tr></thead>
-        <tbody>{days.map((date, index) => <tr key={date}>
-          <th scope="row"><small>DAY {index + 1}</small><strong>{shortDate(date)}</strong></th>
-          <td><DayCell date={date} value={draft.days[date]?.text ?? ""} disabled={locked} onChange={value => { change(writeOverviewDay(draft, date, value), typingDate.current !== date); typingDate.current = date; }} onBlur={() => { typingDate.current = null; }} onImport={() => setImportDate(date)} /></td>
-        </tr>)}</tbody>
-      </table>
-    </div>
-    <p className={styles.footnote}>시간은 각 장소의 현지 시각이에요. 원본의 최신 내용을 반영하려면 일정을 다시 불러와 주세요.</p>
-    {importDate !== null && <ImportDialog workspace={workspace} days={importDate ? [importDate] : days} draft={draft} onClose={() => setImportDate(null)} onImport={(items, mode, separator) => { change(importOverview(draft, items, mode, separator)); setImportDate(null); setNotice(`${items.length}개 항목을 표에 복사했어요.`); }} />}
-    {exporting && <ExportDialog title={workspace.trip.title} rows={days.map(date => ({ date, text: draft.days[date]?.text ?? "" }))} onClose={() => setExporting(false)} />}
+    <div className={styles.toolbar}><div className={styles.actions}>
+      <button type="button" className="secondary" disabled={locked} onClick={()=>setImportRequest({dates,draft,rows})}><FolderInput size={17}/>기존 일정 불러오기</button>
+      <button type="button" className="primary" disabled={!ready || !dates.length} onClick={()=>setExporting(true)}><FileImage size={17}/>이미지 저장</button>
+    </div><button type="button" className={styles.clear} disabled={locked || !filled} onClick={()=>void emptyTable()}><Trash2 size={15}/><span>표 비우기</span></button></div>
+    <p className={styles.help}>{preview ? "예시 데이터로 편집과 충돌 처리를 확인할 수 있어요." : "저장한 내용은 여행 멤버에게 공유돼요."} 표를 고쳐도 원본 일정·예약은 바뀌지 않아요.</p>
+    {hasLegacy && <div className={styles.legacy}><span>이 브라우저에 저장했던 요약표가 있어요.</span><button type="button" className="secondary" disabled={locked} onClick={()=>void uploadLegacy()}>이 기기의 표 올리기</button></div>}
+    {!ready && <p className="error" role="alert">요약표 저장소를 확인하지 못했어요. 새로고침해 주세요.</p>}
+    {error && <p className="error" role="alert">{error}</p>}
+    <div className={styles.tableWrap}><table className={styles.table}>
+      <caption className={styles.caption}>{workspace.trip.title} · {dates.length}일 중 {filled}일 작성</caption>
+      <thead><tr><th scope="col">날짜</th><th scope="col">일정<span>{disabled ? "열람 권한" : "날짜 칸을 눌러 편집"}</span></th></tr></thead>
+      <tbody>{dates.map((date,index)=><tr key={date}><th scope="row"><small>DAY {index+1}</small><strong>{shortDate(date)}</strong></th><td>
+        <button type="button" className={styles.cellPreview} disabled={locked} aria-label={`${shortDate(date)} 요약 일정 편집`} onClick={()=>setEditing({date,initial:rows.find(row=>row.date===date)})}>
+          <span className={draft.days[date]?.text ? undefined : styles.placeholder}>{draft.days[date]?.text || "일정 입력"}</span><Pencil size={13} aria-hidden="true"/>
+        </button>
+      </td></tr>)}</tbody>
+    </table></div>
+    <p className={styles.footnote}>시간은 각 장소의 현지 시각이에요. 원본 일정의 최신 내용을 반영하려면 다시 불러와 주세요.</p>
+    {editing && <CellEditor key={editing.date} workspace={workspace} date={editing.date} initial={editing.initial} latest={rows.find(row=>row.date===editing.date)} disabled={disabled} onSave={async row=>{await saveRows([row]);setEditing(null);}} onClose={()=>setEditing(null)}/>}
+    {importRequest && <ImportDialog workspace={workspace} days={importRequest.dates} draft={importRequest.draft} onClose={()=>setImportRequest(null)} onImport={async(items,mode,separator)=>{const next=importOverview(importRequest.draft,items,mode,separator);await saveRows(overviewChanges(importRequest.draft,next,importRequest.rows));setImportRequest(null);}}/>}
+    {exporting && <ExportDialog title={workspace.trip.title} rows={dates.map(date=>({date,text:draft.days[date]?.text??""}))} onClose={()=>setExporting(false)}/>}
   </section>;
 }
 
-function DayCell({ date, value, disabled, onChange, onBlur, onImport }: { date: string; value: string; disabled: boolean; onChange: (value: string) => void; onBlur: () => void; onImport: () => void }) {
-  const textarea = useRef<HTMLTextAreaElement>(null);
-  useLayoutEffect(() => {
-    const node = textarea.current; if (!node) return;
-    const fit = () => { node.style.height = "0px"; node.style.height = `${Math.max(56, node.scrollHeight)}px`; };
-    fit();
-    const observer = new ResizeObserver(fit); observer.observe(node.parentElement!);
-    return () => observer.disconnect();
-  }, [value]);
-  function insert(text: string) {
-    const node = textarea.current; if (!node) return;
-    const start = node.selectionStart, end = node.selectionEnd;
-    const next = value.slice(0, start) + text + value.slice(end);
-    if (next.length > overviewTextLimit) return;
-    onChange(next);
-    requestAnimationFrame(() => { node.focus(); node.setSelectionRange(start + text.length, start + text.length); });
-  }
-  return <div className={styles.cell}>
-    <textarea ref={textarea} aria-label={`${shortDate(date)} 요약 일정`} value={value} disabled={disabled} maxLength={overviewTextLimit} rows={2} placeholder="일정을 직접 적거나, 기존 일정을 불러오세요." onChange={event => onChange(event.target.value)} onBlur={onBlur} />
-    <div className={styles.cellTools}>
-      <button type="button" disabled={disabled} onClick={onImport} aria-label={`${shortDate(date)} 기존 일정 불러오기`}><Plus size={14} />일정 불러오기</button>
-      <div className={styles.insertTools}>
-        <button type="button" disabled={disabled} onPointerDown={event => event.preventDefault()} onClick={() => insert(" → ")} aria-label={`${shortDate(date)} 이동 화살표 넣기`}><ArrowRight size={15} /></button>
-        <button type="button" disabled={disabled} onPointerDown={event => event.preventDefault()} onClick={() => insert(" · ")} aria-label={`${shortDate(date)} 구분점 넣기`}>·</button>
-        <button type="button" disabled={disabled} onPointerDown={event => event.preventDefault()} onClick={() => insert("\n")} aria-label={`${shortDate(date)} 줄바꿈 넣기`}>줄바꿈</button>
-      </div>
-    </div>
-  </div>;
+function CellEditor({workspace,date,initial,latest,disabled,onSave,onClose}:{workspace:Workspace;date:string;initial?:OverviewRow;latest?:OverviewRow;disabled:boolean;onSave:(row:OverviewChange)=>Promise<void>;onClose:()=>void}) {
+  const [base,setBase]=useState({text:initial?.text??"",sourceIds:initial?.sourceIds??[],version:initial?.version??0});
+  const [value,setValue]=useState(base.text),[sourceIds,setSourceIds]=useState(base.sourceIds);
+  const [saving,setSaving]=useState(false),[importing,setImporting]=useState(false),[error,setError]=useState("");
+  const confirm=useConfirm();
+  const input=useRef<HTMLTextAreaElement|null>(null);
+  const focus=useCallback((node:HTMLTextAreaElement|null)=>{input.current=node;if(node)requestAnimationFrame(()=>{if(node.isConnected){node.focus();node.setSelectionRange(node.value.length,node.value.length);}});},[]);
+  const dirty=value!==base.text||JSON.stringify(sourceIds)!==JSON.stringify(base.sourceIds);
+  const conflict=!saving&&(latest?.version??0)!==base.version&&((latest?.text??"")!==value||JSON.stringify(latest?.sourceIds??[])!==JSON.stringify(sourceIds));
+  async function close(){if(saving)return;if(dirty&&!await confirm("입력한 내용을 저장하지 않고 닫을까요?",{title:"편집 중인 내용",confirmLabel:"저장하지 않고 닫기"}))return;onClose();}
+  function merge(){const remote={text:latest?.text??"",sourceIds:latest?.sourceIds??[],version:latest?.version??0};setValue(dirty&&remote.text!==value?[remote.text,value].filter(Boolean).join("\n"):remote.text);setSourceIds([...new Set([...remote.sourceIds,...sourceIds])]);setBase(remote);setError("");}
+  async function save(){if(disabled||saving||conflict)return;setSaving(true);setError("");try{await onSave({date,text:value,sourceIds,version:base.version});}catch(cause){setError(failureText(cause));}finally{setSaving(false);}}
+  const localDraft:OverviewDraft={schema:1,days:{[date]:{text:value,sourceIds}}};
+  return <Dialog title={`${shortDate(date)} 요약 편집`} mobilePage onClose={()=>void close()}>
+    <form className={`${styles.cellEditorForm} overview-cell-editor`} onSubmit={event=>{event.preventDefault();void save();}} onKeyDown={event=>{if(event.key==="Enter"&&(event.metaKey||event.ctrlKey)){event.preventDefault();event.currentTarget.requestSubmit();}}}>
+      <div className={styles.editorToolbar}><button type="button" className="secondary" disabled={disabled||saving} onClick={()=>setImporting(true)}><FolderInput size={15}/>일정 불러오기</button><small className={styles.editorHelp}>일정마다 줄을 바꿔 적어 주세요.</small></div>
+      {conflict&&<div className={styles.conflict} role="alert"><p>동행이 이 날짜를 수정했어요. 내 입력은 유지했어요.</p><details><summary>최신 내용 확인</summary><pre>{latest?.text||"(비어 있음)"}</pre></details><button type="button" className="secondary" onClick={merge}>최신 내용 합쳐서 편집</button></div>}
+      {error&&<p className="error" role="alert">{error}</p>}
+      <textarea ref={focus} className={styles.editorInput} aria-label={`${shortDate(date)} 요약 일정`} value={value} maxLength={overviewTextLimit} disabled={disabled||saving} onChange={event=>setValue(event.target.value)} placeholder="일정을 직접 적거나 불러와 주세요."/>
+      <footer className={styles.editorFooter}><small>{value.length.toLocaleString("ko-KR")} / {overviewTextLimit.toLocaleString("ko-KR")}</small><div><button type="button" className="secondary" disabled={saving} onClick={()=>void close()}>취소</button><button type="submit" className="primary" disabled={disabled||saving||conflict||value.length>overviewTextLimit}>{saving?"저장 중…":"저장"}</button></div></footer>
+    </form>
+    {importing&&<ImportDialog workspace={workspace} days={[date]} draft={localDraft} onClose={()=>setImporting(false)} onImport={(items,mode,separator)=>{const next=importOverview(localDraft,items,mode,separator).days[date];if(next){setValue(next.text);setSourceIds(next.sourceIds);}setImporting(false);requestAnimationFrame(()=>input.current?.focus());}}/>}
+  </Dialog>;
 }
 
-function ImportDialog({ workspace, days, draft, onClose, onImport }: { workspace: Workspace; days: string[]; draft: OverviewDraft; onClose: () => void; onImport: (items: OverviewCandidate[], mode: "append" | "replace", separator: OverviewSeparator) => void }) {
+function ImportDialog({ workspace, days, draft, onClose, onImport }: { workspace: Workspace; days: string[]; draft: OverviewDraft; onClose: () => void; onImport: (items: OverviewCandidate[], mode: "append" | "replace", separator: OverviewSeparator) => void | Promise<void> }) {
   const [times, setTimes] = useState(true), [hotels, setHotels] = useState(false);
   const [mode, setMode] = useState<"append" | "replace">("append");
   const [separator, setSeparator] = useState<OverviewSeparator>("\n");
   const [selected, setSelected] = useState(() => new Set(days.flatMap(date => overviewCandidates(workspace, date).filter(item => !item.hotel && !item.sourceIds.some(id => draft.days[date]?.sourceIds.includes(id))).map(item => item.id))));
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const confirm = useConfirm();
   const candidates = days.flatMap(date => overviewCandidates(workspace, date, times));
   const visible = candidates.filter(item => hotels || !item.hotel);
   const chosen = visible.filter(item => selected.has(item.id));
   async function apply() {
-    if (mode === "replace" && chosen.some(item => draft.days[item.date]?.text.trim()) && !await confirm("선택한 날짜의 표 내용을 선택한 일정으로 바꿀까요? 직접 적은 내용도 교체되며, 실행 취소로 복원할 수 있어요.", { title: "표 내용 바꾸기", confirmLabel: "바꾸기", intent: "default" })) return;
-    try { onImport(chosen, mode, separator); } catch (cause) { setError((cause as Error).message); }
+    if (mode === "replace" && chosen.some(item => draft.days[item.date]?.text.trim()) && !await confirm("선택한 날짜의 표 내용을 선택한 일정으로 바꿀까요? 직접 적은 내용도 교체됩니다.", { title: "표 내용 바꾸기", confirmLabel: "바꾸기", intent: "default" })) return;
+    setBusy(true);
+    try { await onImport(chosen, mode, separator); } catch (cause) { setError((cause as Error).message); } finally { setBusy(false); }
   }
   return <Dialog title={days.length === 1 ? `${shortDate(days[0])} 일정 불러오기` : "기존 일정 불러오기"} wide onClose={onClose}>
     <div className={styles.importContent}>
@@ -152,7 +150,7 @@ function ImportDialog({ workspace, days, draft, onClose, onImport }: { workspace
         {days.map(date => { const items = visible.filter(item => item.date === date); return !!items.length && <fieldset key={date}><legend>{shortDate(date)}</legend>{items.map(item => <label className={styles.candidate} key={item.id}><input type="checkbox" checked={selected.has(item.id)} onChange={event => setSelected(current => { const next = new Set(current); if (event.target.checked) next.add(item.id); else next.delete(item.id); return next; })} /><span>{item.text}{item.sourceIds.some(id => draft.days[date]?.sourceIds.includes(id)) && <small>이전에 불러온 항목</small>}</span></label>)}</fieldset>; })}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
-      <div className={styles.dialogActions}><button type="button" className="secondary" onClick={onClose}>취소</button><button type="button" className="primary" disabled={!chosen.length} onClick={() => void apply()}><FolderInput size={17} />{chosen.length}개 불러오기</button></div>
+      <div className={styles.dialogActions}><button type="button" className="secondary" onClick={onClose}>취소</button><button type="button" className="primary" disabled={busy || !chosen.length} onClick={() => void apply()}><FolderInput size={17} />{busy ? "저장 중…" : `${chosen.length}개 불러오기`}</button></div>
     </div>
   </Dialog>;
 }

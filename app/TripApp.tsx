@@ -32,6 +32,7 @@ import type {
   ItemRecord,
   Profile,
   Bootstrap,
+  OverviewChange,
 } from "./types";
 import {
   apiFetch as api,
@@ -138,6 +139,7 @@ function TripAppContent({
     [openingTrip, setOpeningTrip] = useState<Trip | null>(null),
     [workspace, setWorkspace] = useState<Workspace | null>(null),
     [tab, setTab] = useState<TripTab>("plan"),
+    [planView, setPlanView] = useState<"map" | "overview">("map"),
     [navigationEpoch, setNavigationEpoch] = useState(0),
     [lastPreparation, setLastPreparation] =
       useState<PreparationTab>("checklist"),
@@ -497,9 +499,9 @@ function TripAppContent({
     const timer = setInterval(() => {
       if (document.visibilityState === "visible" && !mutating.current)
         void refresh(true);
-    }, 8000);
+    }, tab === "plan" && planView === "overview" ? 3000 : 8000);
     return () => clearInterval(timer);
-  }, [workspace?.trip.id, atHome, modal, busy, refresh]);
+  }, [workspace?.trip.id, atHome, modal, busy, refresh, tab, planView]);
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(""), 2200);
@@ -714,6 +716,7 @@ function TripAppContent({
       key,
       trip: source.trip,
       records: source.records.map(({ id, kind, data }) => ({ id, kind, data })),
+      ...(source.overview ? { overview: source.overview } : {}),
     });
     accept(next);
     setAtHome(false);
@@ -1168,6 +1171,12 @@ function TripAppContent({
                     <>
                       <TripPlan
                         accountId={user?.id ?? ""}
+                        view={planView}
+                        onViewChange={setPlanView}
+                        onSaveOverview={async (rows: OverviewChange[]) => {
+                          try { await commit({rows}, "save-overview", current => current); }
+                          catch (cause) { if ((cause as {status?:number}).status === 409) await refresh(true); throw cause; }
+                        }}
                         mapHeightScale={myProfile?.mapHeightScale}
                         onMapHeight={myProfile ? async (mapHeightScale) => {
                           if (profileState.getSnapshot()?.id !== myProfile.id) throw new Error("계정이 바뀌었습니다.");

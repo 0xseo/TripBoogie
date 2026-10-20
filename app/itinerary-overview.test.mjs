@@ -118,3 +118,13 @@ test('long export days continue on multiple pages with every line preserved, inc
   assert.deepEqual(pages.at(-1).at(-1), {date: '2026-11-27', lines: [''], continued: false});
   assert.deepEqual(image.wrapOverviewText('서울 → 😀\n\n다음 날', value => Array.from(value).length, 100), ['서울 → 😀', '', '다음 날']);
 });
+
+test('shared changes retain the version originally edited and never include another date',()=>{
+  const rows=[{date,text:'원래 내용',sourceIds:['plan'],version:3},{date:'2026-11-27',text:'동행의 날짜',sourceIds:[],version:8}];
+  const before=overview.overviewFromRows(rows);
+  const after=overview.writeOverviewDay(before,date,'내 편집');
+  const changes=overview.overviewChanges(before,after,rows);
+  assert.deepEqual(changes,[{date,text:'내 편집',sourceIds:['plan'],version:3}]);
+  assert.deepEqual(overview.overviewChanges(before,before,rows),[]);
+  assert.equal(rows[0].text,'원래 내용');assert.equal(before.days['2026-11-27'].text,'동행의 날짜');
+});

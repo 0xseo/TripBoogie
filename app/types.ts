@@ -41,7 +41,17 @@ export interface Workspace {
   members: Member[];
   files: TripFile[];
   revision: number;
+  overview?: OverviewRow[];
 }
+export interface OverviewRow {
+  date: string;
+  text: string;
+  sourceIds: string[];
+  version: number;
+  updatedAt: string;
+  updatedBy: string;
+}
+export type OverviewChange = Pick<OverviewRow, "date" | "text" | "sourceIds" | "version">;
 export interface CurrentUser {
   provider?: "google" | "kakao" | "email";
   id: string;
