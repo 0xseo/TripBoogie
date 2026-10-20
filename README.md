@@ -3,8 +3,8 @@
 친구와 함께 여행 일정·지도·경비·준비물을 정리하는 웹앱입니다. PC·모바일 브라우저, iOS 홈 화면 웹앱, Android 앱을 지원합니다.
 
 - 서비스: https://tripboogie.0xseo94.com
-- 현재 버전: **0.1.6**
-- 릴리즈 APK 파일명: **TripBoogie_버전.apk** (예: `TripBoogie_0.1.6.apk`).
+- 현재 버전: **0.1.7**
+- 릴리즈 APK 파일명: **TripBoogie_버전.apk** (예: `TripBoogie_0.1.7.apk`).
 - Android/iOS 앱 식별자: `com.tripboogie.app`
 
 ## 기능
@@ -39,6 +39,8 @@ npm run lint
 node --test app/workspace-mutations.test.mjs app/checklist.test.mjs app/startup.test.mjs app/profile-state.test.mjs app/file-library.test.mjs app/file-upload.test.mjs app/pull-to-refresh.test.mjs app/navigation.test.mjs native/native.test.mjs app/theme.test.mjs
 npm test
 npm run build
+# Android 에뮬레이터/기기를 연결한 상태에서 실제 소프트 키보드 회귀 검사
+JAVA_HOME=/path/to/jdk21 node scripts/test-android-keyboard.mjs
 ```
 
 서버 통합 테스트는 로컬 PGlite를 사용합니다. 실제 운영 계정·제공자 로그인을 대신 검증하지 않습니다.

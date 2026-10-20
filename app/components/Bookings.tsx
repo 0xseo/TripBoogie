@@ -350,7 +350,7 @@ export function BookingForm({
       departureAirport: d.departureAirport as Airport | undefined,
       arrivalAirport: d.arrivalAirport as Airport | undefined,
     }),
-    [addToPlan,setAddToPlan]=useState(["flight","hotel","tour"].includes(text(d.type,type))),
+    [addToPlan,setAddToPlan]=useState(!record&&["flight","hotel","tour"].includes(text(d.type,type))),
     [showRoom,setShowRoom]=useState(!!d.roomName),
     [showPlatform, setShowPlatform] = useState(!!d.platform),
     [showReference, setShowReference] = useState(!!d.reference),
@@ -588,7 +588,7 @@ export function BookingForm({
                     onChange={(category) => {
                       const kind=bookingCategories(workspace.trip.settings).find(c=>c.id===category)!.kind;
                       setForm(f=>({...f,category,type:kind}));
-                      setAddToPlan(["flight","hotel","tour"].includes(kind));
+                      if(!record)setAddToPlan(["flight","hotel","tour"].includes(kind));
                     }}
                   />
                 </Field>

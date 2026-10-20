@@ -1,5 +1,6 @@
 "use client";
 import Form from "./Form";
+import BookingIcon from "./BookingIcon";
 import TimeField from "./TimeField";
 import ChoiceField from "./ChoiceField";
 import { memoText } from "../memo";
@@ -158,8 +159,8 @@ export default function PlanComposer({
           )}
           {kind==="plan"&&showHotels&&<div className="hotel-shortcut-options">{hotels.map(hotel=><button type="button" key={hotel.id} disabled={busy} onClick={()=>void addHotel(hotel)}><Hotel size={17}/>{bookingTitle(hotel.data)}</button>)}</div>}
           {kind === "plan" && original?.id === placeId && <PlaceMedia place={original.data} compact />}
-          {kind==="plan"&&<Field label="예약 연결 · 선택 사항"><ChoiceField label="연결할 예약" value={bookingId} options={[{id:"",label:"연결 안 함"},...bookings.map(booking=>({id:booking.id,label:`${bookingTitle(booking.data)} · ${dateLabel(text(booking.data.startDate))}`}))]} onChange={id=>{setBookingId(id);announced.current.clear();const booking=bookings.find(b=>b.id===id);if(booking){if(!title)setTitle(bookingTitle(booking.data));setDay(text(booking.data.startDate));setTime(text(booking.data.startTime));setNote(text(booking.data.note));}}}/></Field>}
-          {kind === "plan" && <><Field label="일정 이름"><input required maxLength={300} placeholder="일정 이름" value={title} onChange={e=>setTitle(e.target.value)}/></Field><div className="optional-time"><TimeField value={time} onChange={value=>{setTime(value);if(bookingId)announce("time","일정 시간만 변경돼요. 예약 시간은 유지됩니다.");}}/><Field label="머무를 시간 · 분"><input aria-label="머무를 시간 · 분" type="number" min={0} max={1440} value={duration} onChange={e=>setDuration(e.target.value)} placeholder="분"/></Field></div></>}
+          {kind==="plan"&&<Field label="예약 연결 · 선택 사항"><ChoiceField label="연결할 예약" value={bookingId} options={[{id:"",label:"연결 안 함"},...bookings.map(booking=>({id:booking.id,label:`${bookingTitle(booking.data)} · ${dateLabel(text(booking.data.startDate))}`,icon:<BookingIcon type={booking.data.type} size={18} aria-hidden="true"/>}))]} onChange={id=>{setBookingId(id);announced.current.clear();const booking=bookings.find(b=>b.id===id);if(booking){if(!title)setTitle(bookingTitle(booking.data));setDay(text(booking.data.startDate));setTime(text(booking.data.startTime));setNote(text(booking.data.note));}}}/></Field>}
+          {kind === "plan" && <><Field label="일정 이름"><input required maxLength={300} placeholder="일정 이름" value={title} onChange={e=>setTitle(e.target.value)}/></Field><div className="optional-time"><Field label="시간"><TimeField label="일정 시간" placeholder="시간 선택" value={time} onChange={value=>{setTime(value);if(bookingId)announce("time","일정 시간만 변경돼요. 예약 시간은 유지됩니다.");}}/></Field><Field label="머무를 시간 · 분"><input aria-label="머무를 시간 · 분" type="number" min={0} max={1440} value={duration} onChange={e=>setDuration(e.target.value)} placeholder="분"/></Field></div></>}
           <div className={kind === "memo" ? "memo-editor-field" : ""}><Field label="메모">
             <textarea
               required={kind === "memo"}

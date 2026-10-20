@@ -1,5 +1,6 @@
 "use client";
 import Form from "./components/Form";
+import KeyboardFocus from "./components/KeyboardFocus";
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState, type FormEvent } from "react";
@@ -87,7 +88,7 @@ export default function AuthCallback() {
   return (
     <main
       style={{
-        minHeight: "100vh",
+        minHeight: "var(--visual-viewport-height, 100dvh)",
         display: "grid",
         placeContent: "center",
         padding: 24,
@@ -96,6 +97,7 @@ export default function AuthCallback() {
         textAlign: "center",
       }}
     >
+      <KeyboardFocus/>
       <Image
         src="/map-mascot.png"
         width={140}

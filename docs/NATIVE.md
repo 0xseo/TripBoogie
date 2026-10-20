@@ -178,3 +178,11 @@ Supabase 보안 진단의 비공개 보조 테이블 RLS 무정책 정보 2건�
 브랜드 버튼에만 WebKit user-select/touch-callout/drag 방지를 적용한다. 본문 복사는 유지한다. 당김 시작 영역을 콘텐츠만에서 main(헤더 포함)으로 넓히고 중첩 스크롤이 실제로 내려간 경우에만 제스처를 막는다. 설정 → 앱 정보 → 화면 새로고침은 문서를 재로드해 새 웹 코드를 불러온다. 기존 당김은 서버 데이터 새로고침이다. 설치 앱을 삭제하거나 브라우저 데이터를 지우지 않는다.
 
 최종 반영: 서버 37·클라이언트 24 검사, TypeScript/ESLint/Next 빌드, Android debug/release assemble·lint(오류 0, 기존 경고 34), iOS simulator build 7 성공. 운영 dpl_CNXmSmsBxTmVdKFhcfWr8CwkGHCe READY, 첫 화면 200, QA 경로 404, 익명 bootstrap private/no-store·빈 데이터 및 공개 APK 실제 다운로드 SHA-256 9f874412fbdab33378b1761b62a57b0d4539d022a2887927bab8494c7748ab3b 확인. 기기 0.0.1/build 7 install -r Success, 2026-10-19 22:31:46 KST. 운영 모바일 뷰에서 브랜드 user-select none, 앱 정보의 화면 새로고침 버튼과 재로드를 확인했다. 실제 iPhone 선택·당김·키보드와 네이티브 iOS 설치는 미검증이다.
+
+### 공통 키보드 처리 (0.1.7 / build 21)
+
+Android 15 이상에서 Capacitor 7의 edge-to-edge 여백 리스너는 시스템 바 영역만 처리하고 IME 영역을 제외하지 않는다. `KeyboardInsets`가 WebView의 시스템 바·컷아웃·키보드 여백을 함께 처리하고, 이미 네이티브 여백으로 반영한 인셋은 WebView에 중복 적용하지 않도록 0으로 전달한다. Android 14 이하는 기존 `adjustResize`를 유지한다.
+
+웹의 `KeyboardFocus`는 visual viewport와 입력 화면의 헤더·하단 저장 버튼 사이에서 입력칸을 드러낸다. 긴 메모는 textarea 내부 커서 줄을 스크롤하고, 중첩 스크롤 영역의 끝에서는 상위 영역까지 이동한다. visual viewport만 줄어드는 브라우저의 일반 페이지 입력에는 부족한 문서 스크롤 여백을 제공한다.
+
+`JAVA_HOME=/path/to/jdk21 node scripts/test-android-keyboard.mjs`는 Vite로 실제 React 입력 화면을 테스트 전용 자산으로 만들고 Android 계측 테스트를 실행한다. 테스트 자산은 `androidTest` APK에만 들어가며 배포 APK에는 포함하지 않는다. 에뮬레이터 또는 기기의 소프트 키보드를 켠 상태로 실행한다. 운영 계정·예약 데이터는 사용하지 않는다.

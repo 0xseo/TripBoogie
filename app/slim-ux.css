@@ -2104,3 +2104,11 @@ textarea:focus{max-height:var(--memo-visible-height,70dvh);min-height:min(80px,v
 .dialog .memo-editor-field textarea:focus{max-height:var(--memo-visible-height,70dvh)}
 
 .booking-open-button{color:var(--green)}
+
+.choice-label{display:flex;align-items:center;gap:9px;min-width:0;text-align:left}.choice-label>svg{flex:none;color:var(--green)}
+.optional-time{align-items:start}.optional-time>.field{display:flex;flex-direction:column;gap:6px}.optional-time .time-trigger,.optional-time input{height:44px;min-height:44px;margin:0;width:100%;box-sizing:border-box;font-size:16px}.optional-time .time-trigger{justify-content:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);line-height:22px}.optional-time .time-trigger>svg{flex:none}.optional-time .time-trigger>span{line-height:22px}
+.time-wheel{--wheel-height:clamp(132px,calc(var(--dialog-vh,100dvh) - 220px),220px);height:var(--wheel-height);padding-block:calc((var(--wheel-height) - 44px)/2)}
+body>.toast{bottom:calc(var(--trip-nav-reserve,0px) + 16px);left:50%;max-width:min(90vw,480px)}
+
+body::after{content:"";display:block;height:var(--keyboard-page-gap,0px);pointer-events:none}
+.time-wheel-wrap{display:grid;gap:8px}.time-wheel-wrap>small{line-height:16px}.time-picker>span{margin-top:24px}

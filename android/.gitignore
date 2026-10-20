@@ -103,3 +103,6 @@ app/src/main/res/xml/config.xml
 *.jks
 *.keystore
 key.properties
+
+# Kotlin compiler session state
+.kotlin/

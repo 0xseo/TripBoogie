@@ -8,5 +8,6 @@ public class MainActivity extends BridgeActivity {
         SplashScreen.installSplashScreen(this);
         registerPlugin(TripBoogieAuthPlugin.class);
         super.onCreate(state);
+        KeyboardInsets.attach(this, getBridge().getWebView());
     }
 }

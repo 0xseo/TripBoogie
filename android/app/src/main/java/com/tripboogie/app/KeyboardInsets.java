@@ -1,0 +1,52 @@
+package com.tripboogie.app;
+
+import android.app.Activity;
+import android.graphics.Rect;
+import android.os.Build;
+import android.view.View;
+import android.view.ViewGroup;
+import android.webkit.WebView;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsAnimationCompat;
+import androidx.core.view.WindowInsetsCompat;
+import java.util.List;
+
+/** Own the WebView's obscured area on Android's enforced edge-to-edge windows. */
+final class KeyboardInsets {
+    private KeyboardInsets() {}
+    static void attach(Activity activity, WebView webView) {
+        // Older windows already resize through adjustResize. Capacitor's auto
+        // edge-to-edge handler only owns margins starting with Android 15.
+        if (Build.VERSION.SDK_INT < 35) return;
+        ViewCompat.setOnApplyWindowInsetsListener(webView, (view, insets) -> apply(activity, view, insets));
+        ViewCompat.setWindowInsetsAnimationCallback(webView,
+            new WindowInsetsAnimationCompat.Callback(WindowInsetsAnimationCompat.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
+                @Override public WindowInsetsCompat onProgress(WindowInsetsCompat insets, List<WindowInsetsAnimationCompat> animations) {
+                    return apply(activity, webView, insets);
+                }
+            });
+        ViewCompat.requestApplyInsets(webView);
+    }
+    private static WindowInsetsCompat apply(Activity activity, View view, WindowInsetsCompat insets) {
+        if (Build.VERSION.SDK_INT < 35 || !(view.getParent() instanceof View)) return insets;
+        View parent = (View) view.getParent();
+        int[] location = new int[2];parent.getLocationOnScreen(location);
+        Rect window = activity.getWindowManager().getCurrentWindowMetrics().getBounds();
+        int bars = WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout();
+        Insets safe = insets.getInsets(bars);
+        int visibleBottom = window.bottom - (insets.isVisible(WindowInsetsCompat.Type.ime())
+            ? insets.getInsets(WindowInsetsCompat.Type.ime()).bottom : safe.bottom);
+        ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) view.getLayoutParams();
+        int left = Math.max(0, window.left + safe.left - location[0]);
+        int right = Math.max(0, location[0] + parent.getWidth() - (window.right - safe.right));
+        int top = Math.max(0, window.top + safe.top - location[1]);
+        int bottom = Math.max(0, location[1] + parent.getHeight() - visibleBottom);
+        if (margins.leftMargin != left || margins.topMargin != top || margins.rightMargin != right || margins.bottomMargin != bottom) {
+            margins.setMargins(left, top, right, bottom);view.setLayoutParams(margins);
+        }
+        // These areas are handled by native margins. Zero them explicitly so
+        // newer WebViews don't apply the same keyboard/system-bar space twice.
+        return new WindowInsetsCompat.Builder(insets).setInsets(bars | WindowInsetsCompat.Type.ime(), Insets.NONE).build();
+    }
+}
