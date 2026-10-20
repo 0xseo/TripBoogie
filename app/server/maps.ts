@@ -9,6 +9,7 @@ import { ApiError, object, readJson } from "./validation";
 
 import type { PlaceDetails, TravelImage } from "../media";
 export type MapPlace = {
+  cityName?: string;
   providerId?: string;
   image?: TravelImage | null;
   details?: PlaceDetails;
@@ -126,6 +127,7 @@ function providerPlaces(raw: unknown): MapPlace[] {
             "검색한 장소",
         ).slice(0, 300),
         address: String(props.formatted ?? "").slice(0, 1000),
+        ...(typeof (props.city??props.town??props.village)==="string"?{cityName:String(props.city??props.town??props.village).slice(0,300)}:{}),
         ...(typeof props.place_id === "string" && /^[a-f0-9]{10,2048}$/.test(props.place_id) ? { providerId: props.place_id } : {}),
         lat: props.lat as number,
         lng: props.lon as number,
@@ -152,7 +154,7 @@ function providerPlaces(raw: unknown): MapPlace[] {
 export function createMapHandler(deps: Deps) {
   return async (
     request: Request,
-    operation: "search" | "autocomplete" | "route",
+    operation: "search" | "autocomplete" | "route" | "reverse",
   ) => {
     const headers = {
       "Cache-Control": "private, no-store",
@@ -184,13 +186,15 @@ export function createMapHandler(deps: Deps) {
       )
         throw new ApiError(400, "여행지 국가를 확인하세요.");
       const url = new URL(
-        operation === "route"
+        operation === "reverse" ? "https://api.geoapify.com/v1/geocode/reverse" : operation === "route"
           ? "https://api.geoapify.com/v1/routing"
           : operation === "autocomplete"
             ? "https://api.geoapify.com/v1/geocode/autocomplete"
             : "https://api.geoapify.com/v1/geocode/search",
       );
-      if (operation !== "route") {
+      if(operation==="reverse"){
+        const p=coord(input);url.searchParams.set("lat",String(p.lat));url.searchParams.set("lon",String(p.lng));url.searchParams.set("type","city");url.searchParams.set("lang",language);url.searchParams.set("limit","1");
+      } else if (operation !== "route") {
         if (
           typeof input.query !== "string" ||
           input.query.trim().length < 2 ||
@@ -286,6 +290,7 @@ export function createMapHandler(deps: Deps) {
         );
       }
       let cityMatches: MapPlace[] = [];
+      if(operation==="reverse")return Response.json({places:providerPlaces(raw).filter(p=>p.countryCode&&p.timezone).slice(0,1)},{headers});
       const country = input.type !== "city" ? input.countryCode as string | undefined : undefined;
       const inCountry = (p: MapPlace) => !country || p.countryCode === country;
       const directPlaces = operation !== "route" ? providerPlaces(raw).filter(inCountry) : [];

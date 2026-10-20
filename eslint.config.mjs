@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     ".sites-runtime/**",
     "out/**",
     "native-dist/**",
+    "public/pdfjs/**",
     "android/**",
     "ios/**",
     "build/**",

@@ -86,3 +86,6 @@ next-env.d.ts
 /일정.png
 /홈.png
 /설정.png
+
+# Generated from the pinned PDF.js dependency before each build.
+/public/pdfjs/

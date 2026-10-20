@@ -7,6 +7,9 @@ import {
   useSyncExternalStore,
 } from "react";
 import Image from "next/image";
+import type {MapPlace} from "./server/maps";
+import {tripCountries} from "./trip-destinations";
+import {distanceMeters} from "./route-graph";
 import LaunchScreen from "./components/LaunchScreen";
 import AccountSettings from "./components/AccountSettings";
 import CategorySettings from "./components/CategorySettings";
@@ -553,6 +556,22 @@ function TripAppContent({
         operation === "schedule" ? { ...rebased, revision: confirmed.revision } : rebased,
         "POST", true, !project);
     });
+  }
+  async function suggestTravelCity(place:MapPlace,start:string,end=start){
+    const original=wsRef.current;if(!original)return;
+    const normalized=(value:unknown)=>String(value||"").normalize("NFKC").replace(/\s+/g,"").toLocaleLowerCase();
+    if(place.cityName&&(original.trip.settings.cities||[]).some(c=>c.countryCode===place.countryCode&&normalized(c.name)===normalized(place.cityName)))return;
+    let candidate:MapPlace|undefined;
+    try{candidate=(await api<{places:MapPlace[]}>("/api/maps/reverse",jsonRequest({lat:place.lat,lng:place.lng}))).places[0];}catch{return;}
+    if(!candidate?.countryCode||!candidate.timezone)return;
+    const current=wsRef.current;if(!current||current.trip.id!==original.trip.id)throw new Error("여행이 바뀌었어요. 다시 저장해 주세요.");
+    const cityName=candidate.cityName||candidate.name,cities=current.trip.settings.cities||[];
+    if(cities.some(c=>c.countryCode===candidate!.countryCode&&((candidate!.providerId&&c.providerId===candidate!.providerId)||normalized(c.name)===normalized(cityName)||distanceMeters(c,candidate!)<1000)))return;
+    if(cities.length>=20){setNotice("방문 도시는 최대 20개까지 추가할 수 있어요.");return;}
+    if(!(await confirm(`${cityName}을(를) 여행 방문 도시에 추가할까요?`,{title:"방문 도시 추가",confirmLabel:"추가하기",intent:"default"})))return;
+    if(wsRef.current?.trip.id!==current.trip.id)throw new Error("여행이 바뀌었어요. 다시 저장해 주세요.");
+    const latest=wsRef.current,from=start<latest.trip.startDate?latest.trip.startDate:start>latest.trip.endDate?latest.trip.endDate:start,to=end<from?from:end>latest.trip.endDate?latest.trip.endDate:end;
+    await commit({cities:[...(latest.trip.settings.cities||[]),{...candidate,name:cityName,id:crypto.randomUUID(),startDate:from,endDate:to}],countries:[...new Set([...tripCountries(latest.trip),candidate.countryCode])]},"update-settings");
   }
   function previewSave(kind: ItemRecord["kind"], data: Record<string, unknown>, id: string) {
     return (current: Workspace): Workspace => {
@@ -1271,6 +1290,8 @@ function TripAppContent({
                         expenseVersion,
                         addToPlan
                       ) => {
+                        if(place)await suggestTravelCity(place,text(data.startDate,workspace.trip.startDate),text(data.endDate,workspace.trip.endDate));
+                        if(wsRef.current?.trip.id!==workspace.trip.id)throw new Error("여행이 바뀌었어요. 다시 저장해 주세요.");
                         const id = r?.id ?? crypto.randomUUID();
                         const saving=commit(
                           {
@@ -1284,7 +1305,7 @@ function TripAppContent({
                           },
                           "save-booking", previewSave("booking", data, id)
                         );
-                        if(addToPlan){const next=await saving;const linked=next.records.filter(p=>p.kind==="plan"&&p.data.bookingId===id);const plan=linked.find(p=>["departure","checkin","tour"].includes(String(p.data.bookingEvent)))||linked[0];goTab("plan");setDate(text(plan?.data.date,text(data.startDate)));setPlanBooking(id);setEditing(plan);setModal("plan");}else void saving.catch(()=>{});
+                        if(addToPlan){const next=await saving;const linked=next.records.filter(p=>p.kind==="plan"&&p.data.bookingId===id);const plan=linked.find(p=>["departure","checkin","tour"].includes(String(p.data.bookingEvent)))||linked[0];goTab("plan");setDate(text(plan?.data.date,text(data.startDate)));setPlanBooking(id);setEditing(plan);setModal("plan");}else await saving;
                       }}
                       onDelete={(r) => void remove(r)}
                       fileCommand={fileCommand}
@@ -1450,6 +1471,9 @@ function TripAppContent({
               onNotice={setNotice}
               onClose={() => setModal(null)}
               onSave={async (data, place) => {
+                const chosen=place||(!editing||editing.data.placeId!==data.placeId?wsRef.current?.records.find(r=>r.kind==="place"&&r.id===data.placeId)?.data as MapPlace|undefined:undefined);
+                if(chosen)await suggestTravelCity(chosen,text(data.date,currentDate));
+                if(wsRef.current?.trip.id!==workspace.trip.id)throw new Error("여행이 바뀌었어요. 다시 저장해 주세요.");
                 const id = editing?.id ?? crypto.randomUUID();
                 await commit(
                   {

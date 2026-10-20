@@ -9,7 +9,11 @@ import TurtleIcon from "./TurtleIcon";
 import TimeField from "./TimeField";
 import { bookingCategories } from "../booking-categories";
 import { useEffect, useRef, useState } from "react";
-import { airportCode, bookingTitle as displayBookingTitle, compareBookings } from "../booking-display";
+import {
+  airportCode,
+  bookingTitle as displayBookingTitle,
+  compareBookings,
+} from "../booking-display";
 import Files, { type FileCommand } from "./Files";
 import {
   Plus,
@@ -25,15 +29,32 @@ import {
 import type { Workspace, ItemRecord, Profile } from "../types";
 import type { MapPlace } from "../server/maps";
 import { Dialog, Field, Empty, RangeCalendar, text, dateLabel } from "./ui";
-import { ExpenseForm } from "./Expenses";
-import { convert, units, splitAmount, currencyDigits } from "../money";
+import { ExpenseForm, useRate } from "./Expenses";
+import {
+  convert,
+  units,
+  splitAmount,
+  currencyDigits,
+  recordedRate,
+} from "../money";
+import {
+  currencyForDate,
+  tripCurrencies,
+  tripCountries,
+} from "../trip-destinations";
 import { travelContext } from "../travel-context";
 import type { Airport } from "../airports";
 import AirportInput from "./AirportInput";
 import StayDates from "./StayDates";
-import { money, CurrencySelect } from "./ui";
+import { money } from "./ui";
 import PlacePicker from "./PlacePicker";
-const bookingEventLabels: Record<string, string> = {checkin:"체크인",checkout:"체크아웃",departure:"출발",arrival:"도착",stay:"숙박"};
+const bookingEventLabels: Record<string, string> = {
+  checkin: "체크인",
+  checkout: "체크아웃",
+  departure: "출발",
+  arrival: "도착",
+  stay: "숙박",
+};
 export default function Bookings({
   workspace,
   profile,
@@ -54,28 +75,38 @@ export default function Bookings({
     place?: MapPlace,
     expense?: BookingExpenseChange | null,
     expenseVersion?: number,
-    addToPlan?: boolean
+    addToPlan?: boolean,
   ) => Promise<void>;
   onDelete: (r: ItemRecord) => void;
   fileCommand: FileCommand;
   focused?: string;
   onPlan: (plan: ItemRecord) => void;
-  onNotice: (message:string) => void;
+  onNotice: (message: string) => void;
 }) {
   const [type, setType] = useState(() => {
-      const booking = workspace.records.find((r) => r.kind === "booking" && r.id === focused);
-      return booking ? String(booking.data.category || booking.data.type) : "hotel";
+      const booking = workspace.records.find(
+        (r) => r.kind === "booking" && r.id === focused,
+      );
+      return booking
+        ? String(booking.data.category || booking.data.type)
+        : "hotel";
     }),
     [editing, setEditing] = useState<ItemRecord | "new" | null>(null),
     [reviewPayment, setReviewPayment] = useState(false),
     [showFiles, setShowFiles] = useState(false);
   const scrolledTo = useRef("");
   useEffect(() => {
-    if (!focused) { scrolledTo.current = ""; return; }
+    if (!focused) {
+      scrolledTo.current = "";
+      return;
+    }
     if (scrolledTo.current === focused) return;
     const frame = requestAnimationFrame(() => {
       const target = document.getElementById(`booking-${focused}`);
-      if (target) { target.scrollIntoView({ block: "center" }); scrolledTo.current = focused; }
+      if (target) {
+        target.scrollIntoView({ block: "center" });
+        scrolledTo.current = focused;
+      }
     });
     return () => cancelAnimationFrame(frame);
   }, [focused, type, showFiles]);
@@ -88,11 +119,13 @@ export default function Bookings({
   }
   const categories = bookingCategories(workspace.trip.settings),
     selectedCategory = categories.find((c) => c.id === type) || categories[0];
-  const rows = workspace.records.filter(
-    (r) =>
-      r.kind === "booking" &&
-      (r.data.category || r.data.type) === selectedCategory.id
-  ).sort(compareBookings);
+  const rows = workspace.records
+    .filter(
+      (r) =>
+        r.kind === "booking" &&
+        (r.data.category || r.data.type) === selectedCategory.id,
+    )
+    .sort(compareBookings);
   return (
     <section className="feature">
       <FeatureToolbar
@@ -136,36 +169,39 @@ export default function Bookings({
       {!showFiles && (
         <div className="booking-grid">
           {rows.map((r) => (
-            <article className="booking-card" key={r.id} id={`booking-${r.id}`} data-focused={focused === r.id}>
+            <article
+              className="booking-card"
+              key={r.id}
+              id={`booking-${r.id}`}
+              data-focused={focused === r.id}
+            >
               <div className="inline">
                 <div className="booking-kind">
-                <span className="booking-type">
-                  {selectedCategory.kind === "hotel" ? (
-                    <Hotel />
-                  ) : selectedCategory.kind === "flight" ? (
-                    <Plane />
-                  ) : selectedCategory.kind === "tour" ? (
-                    <Ticket />
-                  ) : (
-                    <TurtleIcon />
+                  <span className="booking-type">
+                    {selectedCategory.kind === "hotel" ? (
+                      <Hotel />
+                    ) : selectedCategory.kind === "flight" ? (
+                      <Plane />
+                    ) : selectedCategory.kind === "tour" ? (
+                      <Ticket />
+                    ) : (
+                      <TurtleIcon />
+                    )}
+                  </span>
+                  {r.data.type === "flight" && (
+                    <span className="flight-tag">
+                      {
+                        {
+                          outbound: "출발",
+                          inbound: "도착",
+                          transfer: "여행 중 이동",
+                        }[
+                          text(r.data.flightRole, "outbound") as
+                            "outbound" | "inbound" | "transfer"
+                        ]
+                      }
+                    </span>
                   )}
-                </span>
-              {r.data.type === "flight" && (
-                <span className="flight-tag">
-                  {
-                    {
-                      outbound: "출발",
-                      inbound: "도착",
-                      transfer: "여행 중 이동",
-                    }[
-                      text(r.data.flightRole, "outbound") as
-                        | "outbound"
-                        | "inbound"
-                        | "transfer"
-                    ]
-                  }
-                </span>
-              )}
                 </div>
                 <div className="row-actions">
                   <button
@@ -194,7 +230,9 @@ export default function Bookings({
                 {dateLabel(text(r.data.startDate))} {text(r.data.startTime)} →{" "}
                 {dateLabel(text(r.data.endDate))} {text(r.data.endTime)}
               </p>
-              {r.data.type==="hotel"&&Boolean(r.data.roomName)&&<p className="booking-room">방 · {text(r.data.roomName)}</p>}
+              {r.data.type === "hotel" && Boolean(r.data.roomName) && (
+                <p className="booking-room">방 · {text(r.data.roomName)}</p>
+              )}
               {Boolean(r.data.platform) && (
                 <p className="booking-platform">
                   예약 플랫폼 · {text(r.data.platform)}
@@ -209,12 +247,50 @@ export default function Bookings({
                     <strong>
                       {money(
                         r.data.moneyAmount,
-                        text(r.data.moneyCurrency, workspace.trip.currency)
+                        text(r.data.moneyCurrency, workspace.trip.currency),
                       )}
                     </strong>
                     <span className={r.data.isPaid ? "paid-badge" : ""}>
                       {r.data.isPaid ? "경비에 반영됨" : "결제 전"}
                     </span>
+                  </div>
+                )}
+              {r.data.isPaid === true && (
+                <p className="booking-payer-names">
+                  결제 ·{" "}
+                  {(
+                    (workspace.records.find(
+                      (e) => e.kind === "expense" && e.id === r.data.expenseId,
+                    )?.data.payers as { name: string }[]) || []
+                  )
+                    .map((p) => p.name)
+                    .join(", ") || "결제자 확인"}
+                </p>
+              )}
+              {r.data.type === "flight" &&
+                Array.isArray(r.data.flightExtras) &&
+                r.data.flightExtras.length > 0 && (
+                  <div className="booking-flight-extras">
+                    {(
+                      r.data.flightExtras as {
+                        id: string;
+                        seat: string;
+                        baggageCount: number | null;
+                        baggageKg: number | null;
+                      }[]
+                    ).map((e, i) => (
+                      <p key={e.id || i}>
+                        {[
+                          e.seat ? `좌석 ${e.seat}` : "",
+                          e.baggageCount !== null
+                            ? `수하물 ${e.baggageCount}개`
+                            : "",
+                          e.baggageKg !== null ? `${e.baggageKg}kg` : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    ))}
                   </div>
                 )}
               {Boolean(r.data.expenseId) && (
@@ -233,11 +309,30 @@ export default function Bookings({
                 <p className="preserve">{text(r.data.note)}</p>
               )}
               <div className="booking-plan-links">
-                {workspace.records.filter((p) => p.kind === "plan" && p.data.bookingId === r.id).sort((a, b) => String(a.data.date).localeCompare(String(b.data.date)) || String(a.data.time || "").localeCompare(String(b.data.time || ""))).map((plan) => (
-                  <button type="button" className="text-button" key={plan.id} onClick={() => onPlan(plan)}>
-                    <CalendarDays size={15}/>{dateLabel(text(plan.data.date))} {text(plan.data.time)} · {r.data.type === "flight" || r.data.type === "hotel" ? `${bookingEventLabels[text(plan.data.bookingEvent)] || text(plan.data.title,"연결")} ` : ""}일정 보기
-                  </button>
-                ))}
+                {workspace.records
+                  .filter((p) => p.kind === "plan" && p.data.bookingId === r.id)
+                  .sort(
+                    (a, b) =>
+                      String(a.data.date).localeCompare(String(b.data.date)) ||
+                      String(a.data.time || "").localeCompare(
+                        String(b.data.time || ""),
+                      ),
+                  )
+                  .map((plan) => (
+                    <button
+                      type="button"
+                      className="text-button"
+                      key={plan.id}
+                      onClick={() => onPlan(plan)}
+                    >
+                      <CalendarDays size={15} />
+                      {dateLabel(text(plan.data.date))} {text(plan.data.time)} ·{" "}
+                      {r.data.type === "flight" || r.data.type === "hotel"
+                        ? `${bookingEventLabels[text(plan.data.bookingEvent)] || text(plan.data.title, "연결")} `
+                        : ""}
+                      일정 보기
+                    </button>
+                  ))}
               </div>
               <Files
                 key={`${workspace.trip.id}:${r.id}`}
@@ -278,7 +373,7 @@ export default function Bookings({
               place,
               expense,
               expenseVersion,
-              addToPlan
+              addToPlan,
             )
           }
         />
@@ -286,6 +381,12 @@ export default function Bookings({
     </section>
   );
 }
+type FlightExtra = {
+  id: string;
+  seat: string;
+  baggageCount: string;
+  baggageKg: string;
+};
 export type BookingExpenseChange = {
   data: Record<string, unknown>;
   id?: string;
@@ -315,17 +416,17 @@ export function BookingForm({
     place?: MapPlace,
     expense?: BookingExpenseChange | null,
     expenseVersion?: number,
-    addToPlan?: boolean
+    addToPlan?: boolean,
   ) => Promise<void>;
   onClose: () => void;
-  onNotice: (message:string) => void;
+  onNotice: (message: string) => void;
 }) {
   const confirm = useConfirm();
   const d = record?.data ?? {},
     [linked] = useState(() =>
       workspace.records.find(
-        (r) => r.kind === "expense" && r.id === d.expenseId
-      )
+        (r) => r.kind === "expense" && r.id === d.expenseId,
+      ),
     );
   const [form, setForm] = useState<Record<string, string>>({
       type: text(d.type, type),
@@ -361,8 +462,41 @@ export function BookingForm({
       departureAirport: d.departureAirport as Airport | undefined,
       arrivalAirport: d.arrivalAirport as Airport | undefined,
     }),
-    [addToPlan,setAddToPlan]=useState(!record&&["flight","hotel","tour"].includes(text(d.type,type))),
-    [showRoom,setShowRoom]=useState(!!d.roomName),
+    [flightExtras, setFlightExtras] = useState<FlightExtra[]>(() =>
+      Array.isArray(d.flightExtras)
+        ? d.flightExtras.map((row) => {
+            const e = row as Record<string, unknown>;
+            return {
+              id: String(e.id),
+              seat: String(e.seat || ""),
+              baggageCount:
+                e.baggageCount == null ? "" : String(e.baggageCount),
+              baggageKg: e.baggageKg == null ? "" : String(e.baggageKg),
+            };
+          })
+        : [],
+    ),
+    [payerIds, setPayerIds] = useState<string[]>(() =>
+      Array.isArray(linked?.data.payers)
+        ? (linked.data.payers as { userId: string }[]).map((p) => p.userId)
+        : [profile.id],
+    ),
+    [manualCounterpartValue, setCounterpart] = useState(() =>
+      linked && linked.data.baseCurrency === profile.baseCurrency
+        ? String(
+            d.moneyCurrency === profile.baseCurrency
+              ? (linked.data.tripAmount ?? "")
+              : (linked.data.baseAmount ?? ""),
+          )
+        : "",
+    ),
+    [manualCounterpart, setManualCounterpart] = useState(
+      !!linked && linked.data.baseCurrency === profile.baseCurrency,
+    ),
+    [addToPlan, setAddToPlan] = useState(
+      !record && ["flight", "hotel", "tour"].includes(text(d.type, type)),
+    ),
+    [showRoom, setShowRoom] = useState(!!d.roomName),
     [showPlatform, setShowPlatform] = useState(!!d.platform),
     [showReference, setShowReference] = useState(!!d.reference),
     [paid, setPaid] = useState(d.isPaid === true && !!linked),
@@ -372,24 +506,176 @@ export function BookingForm({
     [payment, setPayment] = useState(reviewPayment),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const announced=useRef(new Set<string>());
-  const hasLinkedTour=!!record&&form.type==="tour"&&workspace.records.some(p=>p.kind==="plan"&&p.data.bookingId===record.id);
-  function notifyLinkedChange(key:string){
-    if(!hasLinkedTour)return;
-    const group=key==="note"?"note":key.endsWith("Date")?"date":key.endsWith("Time")?"time":"info";
-    if(announced.current.has(group))return;
+  const announced = useRef(new Set<string>());
+  const hasLinkedTour =
+    !!record &&
+    form.type === "tour" &&
+    workspace.records.some(
+      (p) => p.kind === "plan" && p.data.bookingId === record.id,
+    );
+  function notifyLinkedChange(key: string) {
+    if (!hasLinkedTour) return;
+    const group =
+      key === "note"
+        ? "note"
+        : key.endsWith("Date")
+          ? "date"
+          : key.endsWith("Time")
+            ? "time"
+            : "info";
+    if (announced.current.has(group)) return;
     announced.current.add(group);
-    onNotice(group==="note"?"메모를 바꾸면 연결된 일정 메모도 함께 변경돼요.":group==="date"?"날짜를 바꾸면 연결된 일정 날짜도 함께 변경돼요.":group==="time"?"예약 시간만 변경돼요. 기존 일정 시간은 유지됩니다.":"이 예약에 연결된 일정이 있어요. 날짜·메모는 함께 변경돼요.");
+    onNotice(
+      group === "note"
+        ? "메모를 바꾸면 연결된 일정 메모도 함께 변경돼요."
+        : group === "date"
+          ? "날짜를 바꾸면 연결된 일정 날짜도 함께 변경돼요."
+          : group === "time"
+            ? "예약 시간만 변경돼요. 기존 일정 시간은 유지됩니다."
+            : "이 예약에 연결된 일정이 있어요. 날짜·메모는 함께 변경돼요.",
+    );
   }
-  function set(key:string,value:string){
-    if(form[key]!==value)notifyLinkedChange(key);
-    setForm(f=>({...f,[key]:value}));
+  function set(key: string, value: string) {
+    if (form[key] !== value) notifyLinkedChange(key);
+    if (
+      (key === "moneyAmount" || key === "moneyCurrency") &&
+      form[key] !== value
+    ) {
+      setManualCounterpart(false);
+      setCounterpart("");
+    }
+    setForm((f) => ({ ...f, [key]: value }));
   }
-  function setDates(startDate:string,endDate:string){
-    if(form.startDate!==startDate||form.endDate!==endDate)notifyLinkedChange("startDate");
-    setForm(f=>({...f,startDate,endDate}));
+  function setDates(startDate: string, endDate: string) {
+    if (form.startDate !== startDate || form.endDate !== endDate)
+      notifyLinkedChange("startDate");
+    setForm((f) => ({ ...f, startDate, endDate }));
   }
-  const lastStep = form.type === "flight" ? 1 : 2;
+  const lastStep = 2;
+  const paymentLocal =
+    linked &&
+    form.moneyCurrency === d.moneyCurrency &&
+    linked.data.baseCurrency === profile.baseCurrency
+      ? String(linked.data.tripCurrency)
+      : form.moneyCurrency === profile.baseCurrency
+        ? currencyForDate(workspace.trip, form.startDate)
+        : form.moneyCurrency;
+  const paymentRate = useRate(
+    paymentLocal || workspace.trip.currency,
+    profile.baseCurrency,
+  );
+  const counterpart =
+    paymentLocal === profile.baseCurrency
+      ? form.moneyAmount
+      : manualCounterpart
+        ? manualCounterpartValue
+        : (() => {
+            if (!form.moneyAmount) return "";
+            if (paymentLocal === profile.baseCurrency) return form.moneyAmount;
+            if (paymentRate.quote)
+              try {
+                return convert(
+                  form.moneyAmount,
+                  String(Number(paymentRate.quote.rate.toFixed(6))),
+                  form.moneyCurrency === profile.baseCurrency,
+                );
+              } catch {
+                return "";
+              }
+            return "";
+          })();
+  function paymentExpense(): BookingExpenseChange {
+    if (!payerIds.length) throw new Error("결제자를 선택하세요.");
+    const basePaid = form.moneyCurrency === profile.baseCurrency,
+      a = basePaid ? counterpart : form.moneyAmount,
+      b = basePaid ? form.moneyAmount : counterpart;
+    units(a);
+    units(b);
+    const quote =
+      paymentLocal === profile.baseCurrency
+        ? "1"
+        : paymentRate.quote
+          ? String(Number(paymentRate.quote.rate.toFixed(6)))
+          : "";
+    let rate = quote;
+    try {
+      rate = recordedRate(a, b);
+    } catch {
+      if (!rate) throw new Error("환산 금액이나 환율을 확인하세요.");
+    }
+    const members = Array.from(
+      new Map(
+        [
+          ...workspace.members.map((m) => ({ userId: m.id, name: m.name })),
+          ...((linked?.data.payers as { userId: string; name: string }[]) ||
+            []),
+          ...((linked?.data.participants as {
+            userId: string;
+            name: string;
+          }[]) || []),
+        ].map((m) => [m.userId, m]),
+      ).values(),
+    );
+    const allocate = (ids: string[]) => {
+      const amounts = splitAmount(
+        form.moneyAmount,
+        ids.length,
+        currencyDigits(form.moneyCurrency),
+      );
+      return ids.map((id, i) => ({
+        userId: id,
+        name: members.find((m) => m.userId === id)?.name || "동행",
+        amount: amounts[i],
+      }));
+    };
+    const amountsChanged =
+      changed || String(linked?.data.paidCurrency) !== form.moneyCurrency;
+    const oldPayers = Array.isArray(linked?.data.payers)
+        ? (linked.data.payers as {
+            userId: string;
+            name: string;
+            amount: string;
+          }[])
+        : [],
+      samePayers =
+        oldPayers.length === payerIds.length &&
+        oldPayers.every((p) => payerIds.includes(p.userId));
+    const participantIds = Array.isArray(linked?.data.participants)
+      ? (linked.data.participants as { userId: string }[]).map((p) => p.userId)
+      : workspace.members.map((m) => m.id);
+    return {
+      id: linked?.id,
+      version: linked?.version,
+      data: {
+        ...expenseSeed(),
+        ...linked?.data,
+        tripCurrency: paymentLocal,
+        baseCurrency: profile.baseCurrency,
+        paidCurrency: form.moneyCurrency,
+        tripAmount: a,
+        baseAmount: b,
+        exchangeRate: rate,
+        rateDate: manualCounterpart
+          ? linked?.data.rateDate || ""
+          : paymentRate.quote?.date || "",
+        countryCode:
+          linked?.data.countryCode ||
+          (workspace.trip.settings.cities || []).find(
+            (c) =>
+              !c.transit &&
+              c.startDate <= form.startDate &&
+              c.endDate >= form.startDate,
+          )?.countryCode ||
+          tripCountries(workspace.trip)[0] ||
+          "",
+        payers: !amountsChanged && samePayers ? oldPayers : allocate(payerIds),
+        participants:
+          !amountsChanged && linked?.data.participants
+            ? linked.data.participants
+            : allocate(participantIds),
+      },
+    };
+  }
   const bookingTitle =
     form.type === "flight"
       ? [
@@ -407,8 +693,8 @@ export function BookingForm({
         today < workspace.trip.startDate
           ? "before"
           : today > workspace.trip.endDate
-          ? "after"
-          : "day";
+            ? "after"
+            : "day";
     const tripCurrency =
       form.moneyCurrency === profile.baseCurrency
         ? workspace.trip.currency
@@ -420,8 +706,8 @@ export function BookingForm({
           (form.type === "hotel"
             ? "stay"
             : form.type === "flight"
-            ? "transport"
-            : "activity")
+              ? "transport"
+              : "activity"),
       )?.id ||
       workspace.trip.settings.expenseCategories[0]?.id ||
       "other";
@@ -447,7 +733,7 @@ export function BookingForm({
     if (!linked || !changed) return linked;
     if (
       ![linked.data.tripCurrency, linked.data.baseCurrency].includes(
-        form.moneyCurrency
+        form.moneyCurrency,
       )
     )
       return undefined;
@@ -456,7 +742,7 @@ export function BookingForm({
         other = convert(
           form.moneyAmount,
           String(linked.data.exchangeRate),
-          !isTrip
+          !isTrip,
         );
       const people = (v: unknown) => {
         const rows = Array.isArray(v)
@@ -465,7 +751,7 @@ export function BookingForm({
         const values = splitAmount(
           form.moneyAmount,
           rows.length,
-          currencyDigits(form.moneyCurrency)
+          currencyDigits(form.moneyCurrency),
         );
         return rows.map((p, i) => ({ ...p, amount: values[i] }));
       };
@@ -486,14 +772,21 @@ export function BookingForm({
   }
   async function persist(
     expense?: BookingExpenseChange | null,
-    updated?: Record<string, unknown>
+    updated?: Record<string, unknown>,
   ) {
     await onSave(
-      { ...form, title: bookingTitle, ...airports, isPaid: paid, ...updated },
+      {
+        ...form,
+        title: bookingTitle,
+        ...airports,
+        flightExtras,
+        isPaid: paid,
+        ...updated,
+      },
       place,
       expense,
       linked?.version,
-      addToPlan
+      addToPlan,
     );
   }
   if (payment)
@@ -510,11 +803,13 @@ export function BookingForm({
         onSave={async (data) => {
           const currency = String(data.paidCurrency),
             amount = String(
-              currency === data.tripCurrency ? data.tripAmount : data.baseAmount
+              currency === data.tripCurrency
+                ? data.tripAmount
+                : data.baseAmount,
             );
           await persist(
             { data, id: linked?.id, version: linked?.version },
-            { moneyCurrency: currency, moneyAmount: amount, isPaid: true }
+            { moneyCurrency: currency, moneyAmount: amount, isPaid: true },
           );
           onClose();
         }}
@@ -566,15 +861,14 @@ export function BookingForm({
               if (paid) {
                 if (!form.moneyAmount || units(form.moneyAmount) <= BigInt(0))
                   throw new Error("결제 금액을 입력하세요.");
-                if (changed) {
-                  setPayment(true);
-                  return;
-                }
+                await persist(paymentExpense());
+                onClose();
+                return;
               }
               if (!paid && linked) {
                 if (
                   !(await confirm(
-                    "결제 완료를 해제하면 연결된 경비도 삭제됩니다. 계속할까요?"
+                    "결제 완료를 해제하면 연결된 경비도 삭제됩니다. 계속할까요?",
                   ))
                 )
                   return;
@@ -590,7 +884,7 @@ export function BookingForm({
         >
           <nav className="wizard-steps" aria-label="예약 입력 단계">
             {(form.type === "flight"
-              ? ["항공편", "상세·결제"]
+              ? ["항공편", "예약 상세", "금액·결제"]
               : ["예약 정보", "이용 날짜", "금액·결제"]
             ).map((label, i) => (
               <button
@@ -612,15 +906,29 @@ export function BookingForm({
                     value={form.category}
                     options={bookingCategories(workspace.trip.settings)}
                     onChange={(category) => {
-                      const kind=bookingCategories(workspace.trip.settings).find(c=>c.id===category)!.kind;
-                      setForm(f=>({...f,category,type:kind}));
-                      if(!record)setAddToPlan(["flight","hotel","tour"].includes(kind));
+                      const kind = bookingCategories(
+                        workspace.trip.settings,
+                      ).find((c) => c.id === category)!.kind;
+                      setForm((f) => ({ ...f, category, type: kind }));
+                      if (!record)
+                        setAddToPlan(
+                          ["flight", "hotel", "tour"].includes(kind),
+                        );
                     }}
                   />
                 </Field>
                 {form.type === "flight" && (
                   <Field label="이동 종류">
-                    <ChoiceField label="이동 종류" value={form.flightRole} options={[{id:"outbound",label:"출발"},{id:"inbound",label:"도착"},{id:"transfer",label:"여행 중 이동"}]} onChange={value=>set("flightRole",value)}/>
+                    <ChoiceField
+                      label="이동 종류"
+                      value={form.flightRole}
+                      options={[
+                        { id: "outbound", label: "출발" },
+                        { id: "inbound", label: "도착" },
+                        { id: "transfer", label: "여행 중 이동" },
+                      ]}
+                      onChange={(value) => set("flightRole", value)}
+                    />
                   </Field>
                 )}
               </div>
@@ -645,7 +953,7 @@ export function BookingForm({
                   {place?.name ||
                     String(
                       workspace.records.find((r) => r.id === form.placeId)?.data
-                        .name || "숙소 위치 검색"
+                        .name || "숙소 위치 검색",
                     )}
                 </button>
               )}
@@ -712,7 +1020,7 @@ export function BookingForm({
                       onChange={(e) =>
                         set(
                           "flightNumber",
-                          e.target.value.toUpperCase().replace(/\s/g, "")
+                          e.target.value.toUpperCase().replace(/\s/g, ""),
                         )
                       }
                     />
@@ -724,7 +1032,28 @@ export function BookingForm({
           {((form.type === "flight" && step === 1) ||
             (form.type !== "flight" && step === 0)) && (
             <div className="stack booking-details">
-              {form.type==="hotel"&&<div className="booking-optional-field"><button type="button" className="text-button" aria-expanded={showRoom} onClick={()=>setShowRoom(v=>!v)}>{showRoom?<Minus size={15}/>:<Plus size={15}/>} 방 이름</button>{showRoom&&<input aria-label="방 이름" value={form.roomName} maxLength={200} onChange={e=>set("roomName",e.target.value)} placeholder="예: 디럭스 트윈"/>}</div>}
+              {form.type === "hotel" && (
+                <div className="booking-optional-field">
+                  <button
+                    type="button"
+                    className="text-button"
+                    aria-expanded={showRoom}
+                    onClick={() => setShowRoom((v) => !v)}
+                  >
+                    {showRoom ? <Minus size={15} /> : <Plus size={15} />} 방
+                    이름
+                  </button>
+                  {showRoom && (
+                    <input
+                      aria-label="방 이름"
+                      value={form.roomName}
+                      maxLength={200}
+                      onChange={(e) => set("roomName", e.target.value)}
+                      placeholder="예: 디럭스 트윈"
+                    />
+                  )}
+                </div>
+              )}
               <div className="booking-optional-field">
                 <button
                   type="button"
@@ -767,6 +1096,104 @@ export function BookingForm({
                   />
                 )}
               </div>
+              {form.type === "flight" && (
+                <div className="flight-extras">
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={flightExtras.length >= 50}
+                    onClick={() =>
+                      setFlightExtras([
+                        ...flightExtras,
+                        {
+                          id: crypto.randomUUID(),
+                          seat: "",
+                          baggageCount: "",
+                          baggageKg: "",
+                        },
+                      ])
+                    }
+                  >
+                    <Plus size={16} />
+                    좌석·수하물 정보 추가
+                  </button>
+                  {flightExtras.map((extra, index) => (
+                    <section key={extra.id} className="flight-extra">
+                      <header>
+                        <strong>좌석·수하물 {index + 1}</strong>
+                        <button
+                          type="button"
+                          className="icon"
+                          aria-label={`좌석·수하물 ${index + 1} 삭제`}
+                          onClick={() =>
+                            setFlightExtras(
+                              flightExtras.filter((e) => e.id !== extra.id),
+                            )
+                          }
+                        >
+                          <Trash2 size={17} />
+                        </button>
+                      </header>
+                      <div className="form-grid">
+                        <Field label="좌석">
+                          <input
+                            aria-label={`좌석 ${index + 1}`}
+                            maxLength={30}
+                            placeholder="예: 18A"
+                            value={extra.seat}
+                            onChange={(e) =>
+                              setFlightExtras((rows) =>
+                                rows.map((r) =>
+                                  r.id === extra.id
+                                    ? { ...r, seat: e.target.value }
+                                    : r,
+                                ),
+                              )
+                            }
+                          />
+                        </Field>
+                        <Field label="수하물 개수">
+                          <input
+                            aria-label={`수하물 개수 ${index + 1}`}
+                            type="number"
+                            min={0}
+                            max={20}
+                            value={extra.baggageCount}
+                            onChange={(e) =>
+                              setFlightExtras((rows) =>
+                                rows.map((r) =>
+                                  r.id === extra.id
+                                    ? { ...r, baggageCount: e.target.value }
+                                    : r,
+                                ),
+                              )
+                            }
+                          />
+                        </Field>
+                        <Field label="수하물 무게 제한 · kg">
+                          <input
+                            aria-label={`수하물 무게 ${index + 1}`}
+                            type="number"
+                            min={0}
+                            max={200}
+                            step="0.01"
+                            value={extra.baggageKg}
+                            onChange={(e) =>
+                              setFlightExtras((rows) =>
+                                rows.map((r) =>
+                                  r.id === extra.id
+                                    ? { ...r, baggageKg: e.target.value }
+                                    : r,
+                                ),
+                              )
+                            }
+                          />
+                        </Field>
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              )}
               <Field label="메모">
                 <textarea
                   aria-label="예약 메모"
@@ -779,7 +1206,16 @@ export function BookingForm({
             </div>
           )}
 
-          {step===(form.type==="flight"?0:1)&&<label className="booking-add-plan"><input type="checkbox" checked={addToPlan} onChange={e=>setAddToPlan(e.target.checked)}/>일정에도 추가하기</label>}
+          {step === (form.type === "flight" ? 0 : 1) && (
+            <label className="booking-add-plan">
+              <input
+                type="checkbox"
+                checked={addToPlan}
+                onChange={(e) => setAddToPlan(e.target.checked)}
+              />
+              일정에도 추가하기
+            </label>
+          )}
           {step === 1 && form.type !== "flight" && (
             <>
               {form.type === "hotel" ? (
@@ -833,8 +1269,18 @@ export function BookingForm({
               </div>
               <div className="form-grid">
                 <Field label="예약 통화">
-                  <CurrencySelect
+                  <ChoiceField
+                    label="예약 통화"
                     value={form.moneyCurrency}
+                    options={[
+                      ...new Set([
+                        ...tripCurrencies(workspace.trip),
+                        profile.baseCurrency,
+                        form.moneyCurrency,
+                      ]),
+                    ]
+                      .filter(Boolean)
+                      .map((id) => ({ id, label: id }))}
                     onChange={(c) => set("moneyCurrency", c)}
                   />
                 </Field>
@@ -858,6 +1304,68 @@ export function BookingForm({
                 </span>
               </label>
 
+              {paid && (
+                <section className="booking-payers">
+                  <strong>누가 결제했나요?</strong>
+                  <div>
+                    {Array.from(
+                      new Map(
+                        [
+                          ...workspace.members,
+                          ...(
+                            (linked?.data.payers as {
+                              userId: string;
+                              name: string;
+                            }[]) || []
+                          ).map((p) => ({ id: p.userId, name: p.name })),
+                        ].map((m) => [m.id, m]),
+                      ).values(),
+                    ).map((m) => (
+                      <label key={m.id}>
+                        <input
+                          type="checkbox"
+                          checked={payerIds.includes(m.id)}
+                          onChange={(e) =>
+                            setPayerIds((ids) =>
+                              e.target.checked
+                                ? [...ids, m.id]
+                                : ids.filter((id) => id !== m.id),
+                            )
+                          }
+                        />
+                        {m.name}
+                      </label>
+                    ))}
+                  </div>
+                  {payerIds.length > 1 && (
+                    <small className="muted">
+                      여러 명을 선택하면 결제 금액을 균등하게 나눠 기록해요.
+                    </small>
+                  )}
+                  {paymentLocal !== profile.baseCurrency && (
+                    <Field
+                      label={`${form.moneyCurrency === profile.baseCurrency ? paymentLocal : profile.baseCurrency} · 경비 환산 금액`}
+                    >
+                      <input
+                        inputMode="decimal"
+                        value={counterpart}
+                        onChange={(e) => {
+                          setCounterpart(e.target.value);
+                          setManualCounterpart(true);
+                        }}
+                        placeholder={
+                          paymentRate.error
+                            ? "직접 입력"
+                            : "자동 환산 · 수정 가능"
+                        }
+                      />
+                    </Field>
+                  )}
+                  <small className="muted">
+                    예약을 저장하면 선택한 결제자로 경비에 바로 반영돼요.
+                  </small>
+                </section>
+              )}
               {linked && paid && (
                 <button
                   type="button"
@@ -883,13 +1391,7 @@ export function BookingForm({
               className="primary"
               disabled={busy || !form.startDate || !form.endDate}
             >
-              {busy
-                ? "저장 중…"
-                : step < lastStep
-                ? "다음"
-                : paid && changed
-                ? "경비 확인 후 저장"
-                : "예약 저장"}
+              {busy ? "저장 중…" : step < lastStep ? "다음" : "예약 저장"}
             </button>
           </footer>
         </Form>

@@ -944,12 +944,13 @@ test("file tags persist with reservation defaults, editable taxonomy, CAS, membe
  }finally{await db.close();}
 });
 
-test("reservation upload restores a removed automatic tag and malformed file tags fail atomically",async()=>{
+test("built-in file tags cannot be deleted and malformed file tags fail atomically",async()=>{
  const {db,rpc}=await fixture();try{
   let w=await rpc('owner','create',null,{data:details});const id=w.trip.id;
-  w=await rpc('owner','update-settings',id,{revision:w.revision,fileTags:[]});
+  await assert.rejects(rpc('owner','update-settings',id,{revision:w.revision,fileTags:[]}),{code:'PT400'});
+  w=await rpc('owner','update-settings',id,{revision:w.revision,fileTags:[{id:'hotel',label:'숙소'},{id:'flight',label:'항공'},{id:'tour',label:'투어·티켓'}]});
   w=await rpc('owner','save-booking',id,{data:{type:'other',title:'Museum',startDate:details.startDate,endDate:details.startDate}});const booking=w.records.find(r=>r.kind==='booking');
-  const p=await rpc('owner','prepare-file',id,{name:'entry.txt',mime:'text/plain',size:4,bookingId:booking.id});assert.deepEqual(p.file.tags,['other']);assert.deepEqual(p.workspace.trip.settings.fileTags,[{id:'other',label:'기타'}]);
+  const p=await rpc('owner','prepare-file',id,{name:'entry.txt',mime:'text/plain',size:4,bookingId:booking.id});assert.deepEqual(p.file.tags,['other']);assert.deepEqual(p.workspace.trip.settings.fileTags.map(t=>t.id),['hotel','flight','tour','other']);
   for(const tags of [null,'other',[12],['invalid'],Array.from({length:51},()=> 'other')])await assert.rejects(rpc('owner','prepare-file',id,{name:'bad.txt',mime:'text/plain',size:4,tags}),{code:'PT400'});
   assert.equal((await rpc('owner','workspace',id)).files.length,1);
  }finally{await db.close();}
@@ -1144,4 +1145,67 @@ test('memo-only itinerary edits and clearing sync every booking type through HTT
    }
   }
  }finally{await db.close();}
+});
+
+test('country-only travel derives all currencies and city transit survives editing and backup',async()=>{
+ const {db,rpc}=await fixture();try{
+  let w=await rpc('owner','create',null,{data:{...details,countries:['NZ','JP','NZ'],currency:'NZD',cities:[]}});const id=w.trip.id;
+  assert.deepEqual(w.trip.settings.countries,['NZ','JP']);assert.deepEqual(w.trip.settings.currencies,['NZD','JPY']);assert.deepEqual(w.trip.settings.cities,[]);
+  const city={id:crypto.randomUUID(),name:'Auckland',address:'NZ',lat:-36.85,lng:174.76,countryCode:'NZ',timezone:'Pacific/Auckland',currency:'NZD',startDate:details.startDate,endDate:details.endDate,transit:true};
+  w=await rpc('owner','update-settings',id,{revision:w.revision,cities:[city],countries:['NZ','JP','BT']});assert.equal(w.trip.settings.cities[0].transit,true);assert.deepEqual(new Set(w.trip.settings.currencies),new Set(['NZD','JPY','BTN','INR']));
+  await assert.rejects(rpc('owner','update-settings',id,{revision:w.revision,countries:['INVALID']}),{code:'PT400'});
+  const copy=await rpc('owner','import',null,{key:crypto.randomUUID(),trip:w.trip,records:[]});assert.equal(copy.trip.settings.cities[0].transit,true);assert.deepEqual(new Set(copy.trip.settings.currencies),new Set(w.trip.settings.currencies));assert.deepEqual(copy.trip.settings.countries,w.trip.settings.countries);
+  w=await rpc('owner','mutate',id,{action:'update-trip',version:w.trip.version,revision:w.revision,data:{...w.trip,cities:[],countries:['JP'],currency:'JPY'}});assert.deepEqual(w.trip.settings.countries,['JP']);assert.deepEqual(w.trip.settings.currencies,['JPY']);
+ }finally{await db.close();}
+});
+
+test('bulk file operations validate every version and membership before changing any file',async()=>{
+ const {db,rpc,request}=await fixture();try{
+  let w=await rpc('owner','create',null,{data:details});const id=w.trip.id;
+  await rpc('owner','create-invite',id,{role:'viewer',token:'fa'.repeat(32)});await rpc('viewer','join',null,{token:'fa'.repeat(32)});
+  for(const name of ['one.pdf','two.pdf']){const p=await rpc('owner','prepare-file',id,{name,mime:'application/pdf',size:10});await db.query("insert into storage.objects(bucket_id,name,metadata) values('tripboogie-private',$1,'{\"size\":10}')",[p.file.path]);await rpc('owner','finish-file',id,{id:p.file.id});}
+  w=await rpc('owner','workspace',id);let files=w.files.map(f=>({id:f.id,version:f.version}));const original=structuredClone(w.files);
+  assert.equal((await request(`trips/${id}/actions/set-files-tags`,'viewer','POST',{files,tags:['flight']})).status,403);
+  await assert.rejects(rpc('outsider','set-files-tags',id,{files,tags:['hotel']}),{code:'PT404'});
+  await assert.rejects(rpc('owner','set-files-tags',id,{files:[files[0],{...files[1],version:99}],tags:['hotel']}),{code:'PT409'});assert.deepEqual((await rpc('owner','workspace',id)).files,original);
+  await assert.rejects(rpc('owner','set-files-tags',id,{files:[files[0],files[0]],tags:['hotel']}),{code:'PT400'});
+  const result=await request(`trips/${id}/actions/set-files-tags`,'owner','POST',{files,tags:['flight','tour']});assert.equal(result.status,200);w=result.body.workspace;assert.ok(w.files.every(f=>f.tags.join(',')==='flight,tour'&&f.version===2));files=w.files.map(f=>({id:f.id,version:f.version}));
+  await rpc('owner','mark-files-delete',id,{files});await assert.rejects(rpc('owner','finish-files-delete',id,{files}),{code:'PT409'});assert.equal((await rpc('owner','workspace',id)).files.length,2);
+  await db.query("delete from storage.objects where bucket_id='tripboogie-private' and name=any($1::text[])",[w.files.map(f=>f.path)]);
+  w=(await rpc('owner','finish-files-delete',id,{files})).workspace;assert.equal(w.files.length,0);
+  const guard=await db.query("select has_function_privilege('authenticated','tripboogie_private.file_operation(text,public.trips,jsonb)','execute') as allowed");assert.equal(guard.rows[0].allowed,false);
+ }finally{await db.close();}
+});
+
+test('flight seat and baggage bundles are bounded, versioned and survive backup without changing schedule overrides',async()=>{
+ const {db,rpc}=await fixture();try{
+  let w=await rpc('owner','create',null,{data:details});const id=w.trip.id,extras=[{id:crypto.randomUUID(),seat:'18A',baggageCount:2,baggageKg:23},{id:crypto.randomUUID(),seat:'18B',baggageCount:'',baggageKg:''}];
+  const data={type:'flight',title:'ICN → NRT',startDate:details.startDate,endDate:details.startDate,startTime:'09:00',endTime:'11:00',departureZone:'Asia/Seoul',arrivalZone:'Asia/Tokyo',flightExtras:extras};
+  w=await rpc('owner','save-booking',id,{data});let booking=w.records.find(r=>r.kind==='booking');assert.equal(booking.data.flightExtras.length,2);assert.equal(booking.data.flightExtras[0].baggageKg,23);assert.equal(booking.data.flightExtras[1].baggageCount,null);
+  await assert.rejects(rpc('owner','save-booking',id,{id:booking.id,version:booking.version,data:{...booking.data,flightExtras:[{...extras[0],baggageCount:21}]}}),{code:'PT400'});
+  w=await rpc('owner','save-booking',id,{id:booking.id,version:booking.version,data:{...booking.data,flightExtras:[{...extras[0],seat:'19A'}]}});booking=w.records.find(r=>r.id===booking.id);assert.equal(booking.data.flightExtras[0].seat,'19A');assert.equal(booking.data.flightExtras.length,1);
+  const copy=await rpc('owner','import',null,{key:crypto.randomUUID(),trip:w.trip,records:w.records});assert.deepEqual(copy.records.find(r=>r.kind==='booking').data.flightExtras,booking.data.flightExtras);
+ }finally{await db.close();}
+});
+
+test('paid reservations atomically create payer-labelled expenses with country and independently recorded conversion amounts',async()=>{
+ const {db,rpc}=await fixture();try{
+  let w=await rpc('owner','create',null,{data:{...details,countries:['JP','NZ']}});const id=w.trip.id;
+  for(const type of ['flight','hotel','tour','other']){
+   const bookingId=crypto.randomUUID(),price='200',payment={model:2,title:`Paid ${type}`,category:'other',tripCurrency:'NZD',baseCurrency:'KRW',paidCurrency:'NZD',tripAmount:price,baseAmount:'161234',exchangeRate:'800',rateDate:details.startDate,period:'day',date:details.startDate,countryCode:'NZ',payers:[{userId:users.owner.id,name:'owner',amount:price}],participants:[{userId:users.owner.id,name:'owner',amount:price}]};
+   w=await rpc('owner','save-booking',id,{id:bookingId,data:{type,title:`Paid ${type}`,startDate:details.startDate,endDate:details.startDate,isPaid:true,moneyAmount:price,moneyCurrency:'NZD'},expense:{data:payment}});
+   const booking=w.records.find(r=>r.id===bookingId),expense=w.records.find(r=>r.id===booking.data.expenseId);assert.equal(expense.data.countryCode,'NZ');assert.equal(String(expense.data.baseAmount),'161234');assert.equal(expense.data.payers[0].name,'owner');
+   await assert.rejects(rpc('owner','save-booking',id,{id:bookingId,version:booking.version,data:{...booking.data,moneyAmount:'300'},expense:{id:expense.id,version:expense.version,data:{...payment,paidCurrency:'KRW'}}}),{code:'PT400'});
+   assert.equal((await rpc('owner','workspace',id)).records.find(r=>r.id===bookingId).data.moneyAmount,price);
+  }
+  w=await rpc('owner','workspace',id);assert.equal(w.records.filter(r=>r.kind==='expense').length,4);
+ }finally{await db.close();}
+});
+
+test('reverse city lookup is authenticated, coordinate-bounded and exposes city and timezone metadata',async()=>{
+ const {createMapHandler}=await import(pathToFileURL(path.join(directory,'maps.mjs')));let calls=0,budgets=0;
+ const handler=createMapHandler({key:'private-test-key',resolveUser:async r=>r.headers.get('authorization')?users.owner:null,budget:async()=>{budgets++;},fetch:async url=>{calls++;const u=new URL(url);assert.equal(u.pathname,'/v1/geocode/reverse');assert.equal(u.searchParams.get('type'),'city');assert.equal(u.searchParams.get('lat'),'-38.13');return Response.json({features:[{properties:{name:'Rotorua',city:'Rotorua',formatted:'Rotorua, New Zealand',lat:-38.13,lon:176.25,country_code:'nz',timezone:{name:'Pacific/Auckland'}}}]});}});
+ const req=(data,auth=true)=>new Request('https://tripboogie.example.test/api/maps/reverse',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://tripboogie.example.test',...(auth?{authorization:'Bearer owner'}:{})},body:JSON.stringify(data)});
+ assert.equal((await handler(req({lat:-38.13,lng:176.25},false),'reverse')).status,401);assert.equal((await handler(req({lat:91,lng:176.25}),'reverse')).status,400);assert.equal(calls,0);
+ const r=await handler(req({lat:-38.13,lng:176.25}),'reverse'),body=await r.json();assert.equal(r.status,200);assert.equal(body.places[0].cityName,'Rotorua');assert.equal(body.places[0].countryCode,'NZ');assert.equal(body.places[0].currency,'NZD');assert.equal(budgets,1);assert.equal(calls,1);
 });

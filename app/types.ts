@@ -80,6 +80,7 @@ export interface Category {
   label: string;
 }
 export interface TravelCity {
+  transit?: boolean;
   providerId?: string;
   image?: TravelImage | null;
   imageDisabled?: boolean;
@@ -96,6 +97,8 @@ export interface TravelCity {
 }
 export interface BookingCategory extends Category { kind: "hotel" | "flight" | "tour" | "other"; }
 export interface TripSettings {
+  countries?: string[];
+  currencies?: string[];
   fileTags?: Category[];
   bookingCategories?: BookingCategory[];
   cities?: TravelCity[];

@@ -95,7 +95,7 @@ export default function PlacePicker({
       <div className="searchbox">
         <Search size={20} aria-hidden="true" />
         <input
-          autoFocus
+          autoFocus={!initial}
           placeholder="가고 싶은 장소를 찾아북"
           aria-label="장소·주소 검색"
           value={query}

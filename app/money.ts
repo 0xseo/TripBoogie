@@ -46,6 +46,7 @@ export function convert(amount: string, rate: string, inverse = false) {
     : (a * r + scale / BigInt(2)) / scale;
   return decimal(v);
 }
+export function recordedRate(local:string,base:string){const a=units(local),b=units(base);if(!a||!b)throw new Error("환산 금액을 확인하세요.");return decimal((b*scale+a/BigInt(2))/a);}
 
 /** Sum recorded counterparts, never revalue past expenses at a live exchange rate. */
 export function recordedExpenseTotals(records: { data: Record<string, unknown> }[], fallbackCurrency: string) {
@@ -59,4 +60,27 @@ export function recordedExpenseTotals(records: { data: Record<string, unknown> }
       sums.set(currency, (sums.get(currency) || BigInt(0)) + units(amount));
   }
   return [...sums].map(([currency, amount]) => ({ currency, amount: decimal(amount) }));
+}
+
+/** Actual payments by tender, separate from the saved converted counterparts. */
+export function paidExpenseTotals(records:{data:Record<string,unknown>}[],fallbackCurrency:string){
+  const totals=new Map<string,bigint>();
+  for(const {data:d} of records){
+    const currency=String(d.paidCurrency||d.currency||fallbackCurrency);
+    const amount=d.model===2?(currency===d.tripCurrency?d.tripAmount:d.baseAmount):d.amount;
+    totals.set(currency,(totals.get(currency)||BigInt(0))+units(amount??0));
+  }
+  return [...totals].map(([currency,amount])=>({currency,amount:decimal(amount)}));
+}
+export function expenseBaseTotal(records:{data:Record<string,unknown>}[],currency:string,rates:Record<string,string>={}){
+  let total=BigInt(0);const missing:string[]=[];let live=false;
+  for(const {data:d} of records){
+    const value=d.baseCurrency===currency?d.baseAmount:d.tripCurrency===currency?d.tripAmount:d.currency===currency?d.amount:undefined;
+    if(value!==undefined)total+=units(value);
+    else{
+      const source=d.baseCurrency&&d.baseAmount!==undefined?String(d.baseCurrency):String(d.paidCurrency||d.currency||""),amount=d.baseCurrency&&d.baseAmount!==undefined?d.baseAmount:d.amount;
+      if(rates[source]){total+=units(convert(String(amount??0),rates[source]));live=true;}else if(!missing.includes(source))missing.push(source);
+    }
+  }
+  return {amount:decimal(total),missing,live};
 }

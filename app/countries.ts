@@ -1,4 +1,4 @@
-// Current single-tender territories, Unicode CLDR 48 (Unicode License v3).
+// Current tender currencies; first tender is used for the local entry default, Unicode CLDR 48 (Unicode License v3).
 // Source: https://github.com/unicode-org/cldr-json/blob/48.0.0/cldr-json/cldr-core/supplemental/currencyData.json
 export const countryCurrencies: Record<string, string> = {
   AC: "SHP",
@@ -249,7 +249,16 @@ export const countryCurrencies: Record<string, string> = {
   YT: "EUR",
   ZA: "ZAR",
   ZM: "ZMW",
+  BT: "BTN",
+  HT: "HTG",
+  LS: "ZAR",
+  NA: "NAD",
+  PA: "PAB",
+  PS: "ILS",
+  ZW: "ZWG",
 };
+const multiTenderCurrencies:Record<string,string[]>={"BT":["BTN","INR"],"HT":["HTG","USD"],"LS":["ZAR","LSL"],"NA":["NAD","ZAR"],"PA":["PAB","USD"],"PS":["ILS","JOD"],"ZW":["ZWG","USD"]};
+export function currenciesForCountry(code:string){return multiTenderCurrencies[code]||[countryCurrencies[code]].filter(Boolean);}
 export const currencyCountry: Record<string, string> = {
   KRW: "KR",
   JPY: "JP",

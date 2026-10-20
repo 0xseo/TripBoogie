@@ -76,14 +76,15 @@ export default function PlanComposer({
     >
       {picker ? (
         <PlacePicker
-          initial={place}
+          initial={place||(selectedPlace?.data as MapPlace|undefined)}
           previous={previousPlanPlace(workspace.records,day,record?.id)}
           countryCode={context.city?.countryCode}
           bias={location ? { lat: location.lat, lng: location.lng } : undefined}
           onChoose={(p) => {
             if (!title || title === placeName) setTitle(p.name);
-            setPlace(p);
-            setPlaceId("");
+            const same=selectedPlace&&p.name===selectedPlace.data.name&&p.address===selectedPlace.data.address&&p.lat===selectedPlace.data.lat&&p.lng===selectedPlace.data.lng;
+            setPlace(same?undefined:p);
+            setPlaceId(same?selectedPlace.id:"");
             setPicker(false);
           }}
         />

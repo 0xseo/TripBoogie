@@ -1,21 +1,19 @@
 "use client";
 import Form from "./Form";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, MapPin, Search, Trash2, Copy } from "lucide-react";
-import { countryName } from "../countries";
-import { ImagePicker, Photo, ImageCredit, loadDetails } from "./Media";
+import { ArrowRight, MapPin, Search, Trash2, Copy, Globe } from "lucide-react";
+import {
+  countryCodes,
+  countryCurrencies,
+  countryName,
+  currenciesForCountry,
+} from "../countries";
+import { countryGroups, tripCountries } from "../trip-destinations";
 import type { Trip, TravelCity } from "../types";
 import type { MapPlace } from "../server/maps";
 import { useSearchLanguage } from "./SearchLanguage";
 import { apiFetch as api, jsonRequest } from "../client-api";
-import {
-  Dialog,
-  Field,
-  CurrencySelect,
-  RangeCalendar,
-  days,
-  dateLabel,
-} from "./ui";
+import { Dialog, Field, RangeCalendar, days, dateLabel } from "./ui";
 export default function TripForm({
   trip,
   onSave,
@@ -30,38 +28,53 @@ export default function TripForm({
   onDelete?: () => Promise<void>;
 }) {
   const [step, setStep] = useState(trip ? 2 : 0),
-    [title, setTitle] = useState(trip?.title ?? ""),
-    [cities, setCities] = useState<TravelCity[]>(trip?.settings.cities ?? []),
-    [start, setStart] = useState(trip?.startDate ?? ""),
-    [end, setEnd] = useState(trip?.endDate ?? ""),
-    [currency, setCurrency] = useState(trip?.currency ?? "KRW"),
-    [manualCurrency, setManualCurrency] = useState(false),
-    [query, setQuery] = useState(trip?.destination || ""),
-    [queryChanged, setQueryChanged] = useState(!trip?.settings.cities?.length),
+    [title, setTitle] = useState(trip?.title || ""),
+    [cities, setCities] = useState<TravelCity[]>(trip?.settings.cities || []),
+    [countries, setCountries] = useState<string[]>(
+      trip ? tripCountries(trip) : [],
+    ),
+    [start, setStart] = useState(trip?.startDate || ""),
+    [end, setEnd] = useState(trip?.endDate || ""),
+    [query, setQuery] = useState(""),
     [results, setResults] = useState<MapPlace[]>([]),
     [searching, setSearching] = useState(false),
     [active, setActive] = useState(0),
     [searchError, setSearchError] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [imageCity, setImageCity] = useState<TravelCity | null>(null),
-    [imagePending, setImagePending] = useState(0),
     [cityPeriod, setCityPeriod] = useState<string | null>(null);
-  const sequence = useRef(0);
-  const language = useSearchLanguage();
+  const sequence = useRef(0),
+    language = useSearchLanguage(),
+    english = new Intl.DisplayNames(["en"], { type: "region" });
+  const countryMatches =
+    query.trim().length >= 2
+      ? countryCodes
+          .filter(
+            (code) =>
+              countryName(code)
+                .toLowerCase()
+                .includes(query.trim().toLowerCase()) ||
+              english
+                .of(code)
+                ?.toLowerCase()
+                .includes(query.trim().toLowerCase()) ||
+              code === query.trim().toUpperCase(),
+          )
+          .slice(0, 6)
+      : [];
   useEffect(() => {
-    if (step !== 0 || !queryChanged || query.trim().length < 2) return;
+    if (step !== 0 || query.trim().length < 2) return;
     const controller = new AbortController(),
       n = ++sequence.current;
     const timer = setTimeout(() => {
       setSearching(true);
       setSearchError("");
-      api<{ places: MapPlace[] }>(
+      void api<{ places: MapPlace[] }>(
         "/api/maps/autocomplete",
         jsonRequest(
           { query, type: "city", language },
-          { signal: controller.signal }
-        )
+          { signal: controller.signal },
+        ),
       )
         .then(async (r) => {
           if (!r.places.some((p) => p.countryCode && p.timezone))
@@ -69,24 +82,19 @@ export default function TripForm({
               "/api/maps/search",
               jsonRequest(
                 { query, type: "city", language },
-                { signal: controller.signal }
-              )
+                { signal: controller.signal },
+              ),
             );
-          if (sequence.current === n) {
-            const valid = r.places.filter(
-              (p) => !!p.countryCode && !!p.timezone
-            );
-            setResults(valid);
-            if (!valid.length)
-              setSearchError("도시를 찾지 못했어북. 이름을 다시 확인해북.");
+          if (n === sequence.current) {
+            setResults(r.places.filter((p) => p.countryCode && p.timezone));
           }
         })
         .catch((e) => {
-          if (!controller.signal.aborted && sequence.current === n)
+          if (!controller.signal.aborted && n === sequence.current)
             setSearchError(e.message);
         })
         .finally(() => {
-          if (sequence.current === n) setSearching(false);
+          if (n === sequence.current) setSearching(false);
         });
     }, 450);
     return () => {
@@ -94,67 +102,76 @@ export default function TripForm({
       controller.abort();
       if (sequence.current === n) sequence.current = n + 1;
     };
-  }, [query, language, step, queryChanged]);
-  const duration = days(start, end).length,
-    city = cities.find((c) => c.id === cityPeriod);
-  function changeRange(a: string, b: string) {
+  }, [query, language, step]);
+  const city = cities.find((c) => c.id === cityPeriod),
+    groups = countryGroups(cities, countries),
+    currencies = [
+      ...new Set(
+        [
+          ...cities.map((c) => c.currency || countryCurrencies[c.countryCode]),
+          ...countries.flatMap((c) => currenciesForCountry(c)),
+        ].filter(Boolean),
+      ),
+    ],
+    currency = currencies[0] || trip?.currency || "KRW",
+    duration = days(start, end).length;
+  const destination =
+    groups
+      .map((g) =>
+        g.cities.length
+          ? `${g.name} | ${g.cities.map((c) => c.name + (c.transit ? "(환승)" : "")).join(", ")}`
+          : g.name,
+      )
+      .join(" · ") ||
+    trip?.destination ||
+    "";
+  function clearSearch() {
+    setQuery("");
+    setResults([]);
+    setSearching(false);
+    sequence.current++;
+  }
+  function addCountry(code: string) {
+    if (!countries.includes(code)) setCountries([...countries, code]);
+    clearSearch();
+  }
+  function add(p: MapPlace) {
+    if (cities.length >= 20) {
+      setSearchError("도시는 최대 20개까지 선택할 수 있어북");
+      return;
+    }
+    if (
+      !cities.some(
+        (c) =>
+          Math.abs(c.lat - p.lat) < 0.001 && Math.abs(c.lng - p.lng) < 0.001,
+      )
+    )
+      setCities([
+        ...cities,
+        {
+          ...p,
+          id: crypto.randomUUID(),
+          countryCode: p.countryCode!,
+          timezone: p.timezone!,
+          currency: p.currency || countryCurrencies[p.countryCode!] || currency,
+          startDate: start,
+          endDate: end,
+        },
+      ]);
+    if (p.countryCode && !countries.includes(p.countryCode))
+      setCountries([...countries, p.countryCode]);
+    clearSearch();
+  }
+  function range(a: string, b: string) {
     setCities((rows) =>
       rows.map((c) => ({
         ...c,
         startDate: !c.startDate || c.startDate === start ? a : c.startDate,
         endDate: !c.endDate || c.endDate === end ? b : c.endDate,
-      }))
+      })),
     );
     setStart(a);
     setEnd(b);
-  }
-  function add(p: MapPlace) {
-    if (cities.length >= 20) {
-      setSearchError("최대 20개 도시까지 선택할 수 있어북");
-      return;
-    }
-    if (
-      cities.some(
-        (c) =>
-          Math.abs(c.lat - p.lat) < 0.001 && Math.abs(c.lng - p.lng) < 0.001
-      )
-    ) {
-      setQuery("");
-      setResults([]);
-      return;
-    }
-    if (!cities.length && !manualCurrency) setCurrency(p.currency || "");
-    const id = crypto.randomUUID();
-    setCities([
-      ...cities,
-      {
-        ...p,
-        id,
-        countryCode: p.countryCode!,
-        timezone: p.timezone!,
-        currency: p.currency || "",
-        startDate: start,
-        endDate: end,
-      },
-    ]);
-    setQuery("");
-    setResults([]);
-    setSearching(false);
-    setImagePending((n) => n + 1);
-    void loadDetails(p, "city")
-      .then((details) =>
-        setCities((rows) =>
-          rows.map((c) =>
-            c.id === id && c.image === undefined
-              ? details.photos[0]
-                ? { ...c, image: details.photos[0] }
-                : c
-              : c
-          )
-        )
-      )
-      .catch(() => {})
-      .finally(() => setImagePending((n) => n - 1));
   }
   async function act(fn: () => Promise<void>) {
     setBusy(true);
@@ -167,40 +184,24 @@ export default function TripForm({
       setBusy(false);
     }
   }
-  const placeNames = cities.map((c) => c.name).join(" · ");
   return (
     <Dialog
       mobilePage
+      wide
       title={city ? `${city.name} 방문 기간` : trip ? "여행 수정" : "새 여행"}
       onClose={onClose}
-      wide
     >
-      {imageCity && (
-        <ImagePicker
-          place={imageCity}
-          onClose={() => setImageCity(null)}
-          onChoose={(image) => {
-            setCities((rows) =>
-              rows.map((c) =>
-                c.id === imageCity.id
-                  ? { ...c, image, imageDisabled: image === null }
-                  : c
-              )
-            );
-            setImageCity(null);
-          }}
-        />
-      )}
       <Form
-        className="stack wizard"
+        className="stack wizard trip-form"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!trip && step < 2 && !city) {
-            if (step === 0 && !cities.length && !trip) {
-              setError("도시를 선택하세요.");
+          if (city) return;
+          if (!trip && step < 2) {
+            if (step === 0 && !groups.length) {
+              setError("국가나 도시를 선택하세요.");
               return;
             }
-            if (step === 1 && (!start || !end)) {
+            if (step === 1 && !duration) {
               setError("여행 기간을 선택하세요.");
               return;
             }
@@ -208,23 +209,30 @@ export default function TripForm({
             setStep(step + 1);
             return;
           }
-          if (city) return;
           void act(async () => {
-            if (!cities.length && !trip)
-              throw new Error("먼저 여행 도시를 선택하세요.");
-            if (!currency) throw new Error("여행 기본 통화를 선택하세요.");
+            if (!groups.length && !trip)
+              throw new Error("국가나 도시를 선택하세요.");
             if (!duration) throw new Error("여행 기간을 선택하세요.");
             await onSave({
-              title: title.trim() || `${placeNames} 여행`,
-              destination: placeNames || trip?.destination,
+              title: (
+                title.trim() || `${groups.map((g) => g.name).join(" · ")} 여행`
+              ).slice(0, 200),
+              destination: destination.slice(0, 300),
               startDate: start,
               endDate: end,
               currency,
-              timezone: cities[0]?.timezone || trip?.timezone || "Asia/Seoul",
+              timezone:
+                cities[0]?.timezone ||
+                trip?.timezone ||
+                Intl.DateTimeFormat().resolvedOptions().timeZone ||
+                "Asia/Seoul",
+              countries,
+              currencies,
               shiftDates: true,
               cities: cities.map((c) => ({
                 ...c,
-                currency: c.currency || currency,
+                currency:
+                  c.currency || countryCurrencies[c.countryCode] || currency,
                 startDate:
                   !c.startDate || c.startDate < start || c.startDate > end
                     ? start
@@ -238,23 +246,6 @@ export default function TripForm({
           });
         }}
       >
-        {!city && (
-          <nav className="wizard-steps" aria-label="여행 만들기 단계">
-            {(trip
-              ? ["도시", "날짜", "여행 정보"]
-              : ["도시", "날짜", "확인"]
-            ).map((s, i) => (
-              <button
-                type="button"
-                key={s}
-                className={step === i ? "active" : ""}
-                onClick={() => setStep(i)}
-              >
-                {trip ? s : `${i + 1}. ${s}`}
-              </button>
-            ))}
-          </nav>
-        )}
         {city ? (
           <>
             <RangeCalendar
@@ -263,56 +254,77 @@ export default function TripForm({
               min={start}
               max={end}
               onChange={(a, b) =>
-                setCities(
-                  cities.map((c) =>
-                    c.id === city.id ? { ...c, startDate: a, endDate: b } : c
-                  )
+                setCities((rows) =>
+                  rows.map((c) =>
+                    c.id === city.id ? { ...c, startDate: a, endDate: b } : c,
+                  ),
                 )
               }
             />
-            <button
-              type="button"
-              className="primary"
-              disabled={!city.startDate || !city.endDate}
-              onClick={() => setCityPeriod(null)}
-            >
-              방문 기간 적용
-            </button>
+            <label className="inline">
+              <input
+                type="checkbox"
+                checked={!!city.transit}
+                onChange={(e) =>
+                  setCities((rows) =>
+                    rows.map((c) =>
+                      c.id === city.id
+                        ? { ...c, transit: e.target.checked }
+                        : c,
+                    ),
+                  )
+                }
+              />
+              환승으로 방문
+            </label>
+            <footer className="wizard-footer">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => setCityPeriod(null)}
+              >
+                방문 기간 적용
+              </button>
+            </footer>
           </>
         ) : (
           <>
+            <nav className="wizard-steps" aria-label="여행 만들기 단계">
+              {["국가·도시", "날짜", trip ? "여행 정보" : "확인"].map(
+                (label, i) => (
+                  <button
+                    type="button"
+                    key={i}
+                    className={step === i ? "active" : ""}
+                    onClick={() => setStep(i)}
+                  >
+                    {trip ? label : `${i + 1}. ${label}`}
+                  </button>
+                ),
+              )}
+            </nav>
             {step === 0 && (
               <>
                 <div className="searchbox">
-                  <Search size={20} />
+                  <Search size={19} />
                   <input
-                    autoFocus
-                    aria-label="여행 도시 검색"
-                    placeholder="어디로 떠나나요?"
+                    autoFocus={!trip}
+                    aria-label="여행 국가·도시 검색"
+                    placeholder="뉴질랜드 또는 오클랜드처럼 검색해북"
                     value={query}
                     onChange={(e) => {
-                      setQueryChanged(true);
                       setQuery(e.target.value);
                       setResults([]);
                       setActive(0);
-                      if (e.target.value.trim().length < 2) {
-                        setSearching(false);
-                        setResults([]);
-                        setSearchError("");
-                      }
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === "Escape") {
-                        setResults([]);
-                        return;
-                      }
                       if (!results.length) return;
                       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                         e.preventDefault();
                         setActive(
                           (active +
                             (e.key === "ArrowDown" ? 1 : results.length - 1)) %
-                            results.length
+                            results.length,
                         );
                       }
                       if (e.key === "Enter") {
@@ -320,28 +332,33 @@ export default function TripForm({
                         add(results[active] || results[0]);
                       }
                     }}
-                    aria-activedescendant={
-                      results.length ? `city-option-${active}` : undefined
-                    }
-                    role="combobox"
-                    aria-autocomplete="list"
-                    aria-expanded={results.length > 0}
-                    aria-controls="city-suggestions"
                   />
                   {searching && <span className="spinner" />}
                 </div>
+                {countryMatches.length > 0 && (
+                  <div className="country-search-results">
+                    {countryMatches.map((code) => (
+                      <button
+                        type="button"
+                        key={code}
+                        onClick={() => addCountry(code)}
+                      >
+                        <Globe size={18} />
+                        <span>
+                          {countryName(code)}
+                          <small>국가만 선택 · 도시는 나중에 추가</small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {results.length > 0 && (
-                  <ul
-                    className="suggestions"
-                    role="listbox"
-                    id="city-suggestions"
-                  >
+                  <ul className="suggestions" role="listbox">
                     {results.map((p, i) => (
-                      <li key={i}>
+                      <li key={`${p.lat}-${p.lng}`}>
                         <button
                           type="button"
                           role="option"
-                          id={`city-option-${i}`}
                           aria-selected={active === i}
                           onClick={() => add(p)}
                         >
@@ -357,62 +374,69 @@ export default function TripForm({
                     ))}
                   </ul>
                 )}
-                {searchError && <p className="info">{searchError}</p>}
-                <div className="city-list">
-                  {cities.map((c) => (
-                    <div className="city-chip" key={c.id}>
-                      {c.image ? (
-                        <Photo
-                          image={c.image}
-                          alt={`${c.name} 대표 이미지`}
-                          className="city-thumbnail"
-                        />
-                      ) : (
-                        <MapPin size={18} />
-                      )}
-                      <span>
-                        <strong>{c.name}</strong>
-                        <small>{countryName(c.countryCode)}</small>
-                      </span>
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={() => setImageCity(c)}
-                      >
-                        사진 변경
-                      </button>
-                      <button
-                        type="button"
-                        className="icon"
-                        aria-label={`${c.name} 제외`}
-                        onClick={() => {
-                          const next = cities.filter((x) => x.id !== c.id);
-                          setCities(next);
-                          if (!manualCurrency)
-                            setCurrency(next[0]?.currency || "KRW");
-                        }}
-                      >
-                        <Trash2 size={17} />
-                      </button>
-                    </div>
+                {searchError && !countryMatches.length && (
+                  <p className="info">{searchError}</p>
+                )}
+                <p className="muted">
+                  국가만 골라 여행을 만들고, 숙소나 장소를 입력하면서 도시를
+                  추가할 수 있어북.
+                </p>
+                <div className="trip-country-groups">
+                  {groups.map((g) => (
+                    <section key={g.code}>
+                      <header>
+                        <strong>{g.name}</strong>
+                        <button
+                          type="button"
+                          className="icon"
+                          aria-label={`${g.name} 제외`}
+                          onClick={() => {
+                            setCountries(countries.filter((c) => c !== g.code));
+                            setCities(
+                              cities.filter((c) => c.countryCode !== g.code),
+                            );
+                          }}
+                        >
+                          <Trash2 size={17} />
+                        </button>
+                      </header>
+                      <div>
+                        {g.cities.length ? (
+                          g.cities.map((c) => (
+                            <span className="destination-city" key={c.id}>
+                              <button
+                                type="button"
+                                className="text-button"
+                                onClick={() => setCityPeriod(c.id)}
+                              >
+                                {c.name}
+                                {c.transit ? "(환승)" : ""}
+                              </button>
+                              <button
+                                type="button"
+                                className="icon"
+                                aria-label={`${c.name} 제외`}
+                                onClick={() =>
+                                  setCities(
+                                    cities.filter((row) => row.id !== c.id),
+                                  )
+                                }
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </span>
+                          ))
+                        ) : (
+                          <small>도시 미정</small>
+                        )}
+                      </div>
+                    </section>
                   ))}
                 </div>
-                {imagePending > 0 && (
-                  <small className="muted">
-                    도시 대표 이미지를 찾는 중이에요…
-                  </small>
-                )}
-                {cities
-                  .filter((c) => c.image)
-                  .map((c) => (
-                    <ImageCredit key={c.id} image={c.image!} />
-                  ))}
               </>
             )}
             {step === 1 && (
-              <>
-                <RangeCalendar start={start} end={end} onChange={changeRange} />
-              </>
+              <RangeCalendar start={start} end={end} onChange={range} />
             )}
             {step === 2 && (
               <>
@@ -421,9 +445,7 @@ export default function TripForm({
                     maxLength={200}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder={
-                      placeNames ? `${placeNames} 여행` : "여행 이름"
-                    }
+                    placeholder={`${groups.map((g) => g.name).join(" · ")} 여행`}
                   />
                 </Field>
                 <section className="trip-period-summary">
@@ -442,33 +464,39 @@ export default function TripForm({
                   </div>
                 </section>
                 <section className="trip-city-summary">
-                  <div className="compact-detail-row">
-                    <span>방문 도시</span>
-                    <div>
-                      {cities.length
-                        ? cities.map((c) => (
-                            <button
-                              key={c.id}
-                              className="city-name-chip"
-                              type="button"
-                              aria-label={`${c.name} 방문 기간 수정`}
-                              onClick={() => setCityPeriod(c.id)}
-                            >{`${countryName(c.countryCode)} ${
-                              c.name
-                            }`}</button>
+                  <span>방문 국가·도시</span>
+                  <div className="grouped-city-summary">
+                    {groups.map((g) => (
+                      <div key={g.code}>
+                        <strong>{g.name}</strong>
+                        <span> | </span>
+                        {g.cities.length ? (
+                          g.cities.map((c, i) => (
+                            <span key={c.id}>
+                              {i > 0 ? ", " : ""}
+                              <button
+                                type="button"
+                                className="text-button"
+                                onClick={() => setCityPeriod(c.id)}
+                              >
+                                {c.name}
+                                {c.transit ? "(환승)" : ""}
+                              </button>
+                            </span>
                           ))
-                        : trip?.destination}
-                    </div>
+                        ) : (
+                          <span>도시 미정</span>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </section>
-                <Field label="여행 기본 통화">
-                  <CurrencySelect
-                    value={currency}
-                    onChange={(c) => {
-                      setCurrency(c);
-                      setManualCurrency(true);
-                    }}
-                  />
+                <Field label="여행 통화 · 방문 국가·도시 기준 자동 설정">
+                  <div className="trip-currency-list">
+                    {(currencies.length ? currencies : [currency]).map((c) => (
+                      <span key={c}>{c}</span>
+                    ))}
+                  </div>
                 </Field>
               </>
             )}
@@ -503,28 +531,27 @@ export default function TripForm({
                   )}
                 </div>
               )}
-
-              {!trip && step < 2 ? (
-                <button
-                  type="submit"
-                  className="primary"
-                  disabled={
-                    busy ||
-                    (step === 0 && !cities.length && !trip) ||
-                    (step === 1 && (!start || !end))
-                  }
-                >
-                  다음
-                  <ArrowRight size={17} />
-                </button>
-              ) : (
-                <button
-                  className="primary"
-                  disabled={busy || !start || !end || (!cities.length && !trip)}
-                >
-                  {busy ? "저장 중…" : trip ? "변경 저장" : "여행 만들기"}
-                </button>
-              )}
+              <button
+                className="primary"
+                disabled={
+                  busy ||
+                  (!trip && step === 0 && !groups.length) ||
+                  (!trip && step > 0 && !duration)
+                }
+              >
+                {busy ? (
+                  "저장 중…"
+                ) : !trip && step < 2 ? (
+                  <>
+                    다음
+                    <ArrowRight size={17} />
+                  </>
+                ) : trip ? (
+                  "변경 저장"
+                ) : (
+                  "여행 만들기"
+                )}
+              </button>
             </footer>
           </>
         )}

@@ -79,6 +79,7 @@ public class FormKeyboardTest {
                 try {
                     if("/keyboard-test/".equals(path))return new WebResourceResponse("text/html","UTF-8",new ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8)));
                     if("/keyboard-test/fixture.js".equals(path))return new WebResourceResponse("application/javascript","UTF-8",context.getAssets().open("fixture.js"));
+                    if(path!=null&&path.startsWith("/pdfjs/")&&!path.contains(".."))return new WebResourceResponse(path.endsWith(".js")?"application/javascript":path.endsWith(".wasm")?"application/wasm":"application/octet-stream",null,context.getAssets().open(path.substring(1)));
                     if("/keyboard-test/fixture.css".equals(path))return new WebResourceResponse("text/css","UTF-8",context.getAssets().open("fixture.css"));
                 }catch(IOException e){throw new RuntimeException(e);}
                 return new WebResourceResponse("text/plain","UTF-8",new ByteArrayInputStream(new byte[0]));
@@ -143,7 +144,8 @@ public class FormKeyboardTest {
                 if(type.equals("flight"))expect(scenario,"document.querySelector('.booking-add-plan input').checked===false");
                 click(scenario,"다음");
                 if(!type.equals("flight"))expect(scenario,"document.querySelector('.booking-add-plan input').checked===false");
-                if(!type.equals("flight"))click(scenario,"다음");
+                if(type.equals("flight"))count+=audit(scenario,"flight reservation details");
+                click(scenario,"다음");
                 count+=audit(scenario,type+" booking payment");click(scenario,"예약 저장");
                 expect(scenario,"window.keyboardFixture.saved.at(-1)?.[4]===false");
                 if(!type.equals("flight"))expect(scenario,"window.keyboardFixture.saved.at(-1)[0].note.startsWith('메모만 수정한 내용')");
@@ -196,6 +198,60 @@ public class FormKeyboardTest {
                 assertEquals("Nested modal must keep toast position",toastTop,Double.parseDouble(js(scenario,"document.querySelector('.toast').getBoundingClientRect().top")),2);
                 js(scenario,"[...document.querySelectorAll('dialog[open]')].at(-1).querySelector('[aria-label=닫기]').click();true");
             }
+        }
+    }
+    @Test public void documentsFileManagementAndMultiCountryTools() throws Exception {
+        try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
+            loadFixture(scenario);
+            String audit=js(scenario,"JSON.stringify(window.keyboardFixture.auditDocuments())");System.out.println("DOCUMENT_AUDIT "+audit);
+            expect(scenario,"window.keyboardFixture.auditDocuments().pass");
+            show(scenario,"preview-pdf");
+            boolean oldPdfEngine=Boolean.parseBoolean(js(scenario,"(()=>{const m=navigator.userAgent.match(/Chrome\\/(\\d+)/);return !!m&&Number(m[1])<125})()"));
+            if(oldPdfEngine){expect(scenario,"document.querySelector('.file-preview [role=alert]')?.textContent.includes('업데이트')&&!document.querySelector('.preview-loading')");}
+            else {
+            expect(scenario,"document.querySelector('canvas')?.width>0&&!document.querySelector('.file-preview [role=status]')&&!document.querySelector('.file-preview [role=alert]')");
+            expect(scenario,"document.querySelector('.preview-toolbar').textContent.includes('1 / 2')");SystemClock.sleep(500);screenshot("preview-pdf");
+            click(scenario,"다음 페이지");expect(scenario,"document.querySelector('.preview-toolbar').textContent.includes('2 / 2')&&!document.querySelector('.file-preview [role=status]')");click(scenario,"확대");
+            }
+            show(scenario,"preview-docx");expect(scenario,"document.querySelector('.preview-text')?.textContent.includes('<script>alert(1)</script>')&&!document.querySelector('.preview-text script')");screenshot("preview-docx");
+            show(scenario,"preview-xlsx");expect(scenario,"document.querySelector('.preview-sheet-tabs')?.textContent.includes('여행 경비')");click(scenario,"날짜");expect(scenario,"document.querySelector('.preview-sheet')?.textContent.includes('2024-01-01 12:00:00')");screenshot("preview-xlsx");
+            show(scenario,"preview-txt");expect(scenario,"document.querySelector('.preview-text')?.textContent.includes('숙소 주소')");
+            show(scenario,"preview-png");expect(scenario,"document.querySelector('.preview-image')?.naturalWidth===1");
+            show(scenario,"tags-protected");expect(scenario,"document.querySelectorAll('[aria-label=\"기본 태그\"]').length===3&&document.querySelectorAll('button[aria-label$=\"태그 삭제\"]').length===1");screenshot("protected-tags");
+            show(scenario,"files");expect(scenario,"document.querySelector('.file-count').textContent==='자료 5개'");
+            js(scenario,"document.querySelectorAll('.file-list input[type=checkbox]')[0].click();document.querySelectorAll('.file-list input[type=checkbox]')[1].click();true");
+            click(scenario,"선택 태그 이동");click(scenario,"투어·티켓");click(scenario,"적용");expect(scenario,"(()=>{const [op,p]=window.keyboardFixture.saved.at(-1);return op==='set-files-tags'&&p.files.length===2&&p.tags.includes('tour')})()");
+            input(scenario,"[aria-label='자료 검색']","숙소");expect(scenario,"document.querySelectorAll('[data-file-id]').length===1&&document.querySelector('.file-count').textContent==='자료 5개'");screenshot("files-search");
+            show(scenario,"expenses-multi");expect(scenario,"document.querySelector('.expense-summary>span').textContent.includes('50')&&document.querySelector('[data-currency=JPY]').textContent.includes('2')&&document.querySelector('[data-currency=KRW]').textContent.includes('30')&&document.querySelector('[data-currency=NZD]').textContent.includes('0')");screenshot("expenses-multi");
+            show(scenario,"tools-multi");expect(scenario,"document.querySelectorAll('.clock-group').length===2&&document.querySelectorAll('.weather-city').length===3&&document.querySelectorAll('.currency-exchange-row').length===2");
+            expect(scenario,"document.querySelectorAll('.city-weather-content').length===1");js(scenario,"document.querySelectorAll('.weather-city summary')[1].click();true");expect(scenario,"document.querySelectorAll('.city-weather-content').length===2");SystemClock.sleep(500);screenshot("tools-multi");
+            System.out.println("RELEASE24_DOCUMENT_FILES_TOOLS_PASS");
+        }
+    }
+    @Test public void directPaidBookingsFlightExtrasAndExistingPlace() throws Exception {
+        try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
+            loadFixture(scenario);
+            for(String type:new String[]{"hotel","flight","tour","other"}){
+                show(scenario,"booking-"+type+"-paid");click(scenario,"다음");
+                if(type.equals("flight")){
+                    click(scenario,"좌석·수하물 정보 추가");input(scenario,"[aria-label='좌석 1']","18A");input(scenario,"[aria-label='수하물 개수 1']","2");input(scenario,"[aria-label='수하물 무게 1']","23");click(scenario,"좌석·수하물 정보 추가");input(scenario,"[aria-label='좌석 2']","18B");
+                }
+                click(scenario,"다음");js(scenario,"document.querySelector('.booking-paid-check input').click();true");
+                expect(scenario,"document.querySelector('.booking-payers').textContent.includes('검증 계정')");
+                input(scenario,".booking-payers input[inputmode=decimal]","1200");click(scenario,"예약 저장");
+                expect(scenario,"(()=>{const args=window.keyboardFixture.saved.at(-1);return args[0].isPaid&&args[2].data.baseAmount==='1200'&&args[2].data.tripAmount==='1000'&&args[2].data.payers[0].userId==='test'&&!document.querySelector('.allocation-section')})()");
+                if(type.equals("flight"))expect(scenario,"window.keyboardFixture.saved.at(-1)[0].flightExtras.length===2&&window.keyboardFixture.saved.at(-1)[0].flightExtras[0].seat==='18A'");
+            }
+            show(scenario,"expense-multi-new");input(scenario,"[data-validation-label='어디에 쓴 돈인가요?'] input","통화 전환 검증");input(scenario,".currency-inputs input","100");expect(scenario,"document.querySelectorAll('.currency-inputs input')[1].value==='80000'");
+            click(scenario,"실제로 결제한 통화");click(scenario,"JPY");expect(scenario,"document.querySelectorAll('.currency-inputs input')[0].value==='100'&&document.querySelectorAll('.currency-inputs input')[1].value==='1000'");
+            input(scenario,".currency-inputs label:nth-child(2) input","1200");click(scenario,"함께 나누기");click(scenario,"경비 저장");expect(scenario,"(()=>{const d=window.keyboardFixture.saved.at(-1)[0];return d.paidCurrency==='JPY'&&d.tripAmount==='100'&&d.baseAmount==='1200'&&d.payers[0].amount==='100'})()");
+            show(scenario,"plan-place");js(scenario,"document.querySelector('.place-input button').click();true");expect(scenario,"document.querySelector('dialog[open]').textContent.includes('서울 용산구 한강대로 405')&&document.activeElement?.getAttribute('aria-label')!=='장소·주소 검색'");screenshot("existing-place");click(scenario,"이 장소로 정해북");click(scenario,"저장하기");expect(scenario,"window.keyboardFixture.saved.at(-1)[0].placeId==='a'&&!window.keyboardFixture.saved.at(-1)[1]");
+            show(scenario,"trip-country");click(scenario,"변경 저장");expect(scenario,"(()=>{const d=window.keyboardFixture.saved.at(-1)[0];return d.cities.length===0&&d.countries.includes('NZ')&&d.currencies.includes('NZD')})()");
+            show(scenario,"trip-multi");expect(scenario,"document.querySelector('.grouped-city-summary').textContent.includes('로토루아(환승)')&&!document.querySelector('.trip-image-picker')");
+            click(scenario,"국가·도시");double before=Double.parseDouble(js(scenario,"document.querySelector('dialog[open]').getBoundingClientRect().height"));js(scenario,"document.querySelector('[aria-label=\"여행 국가·도시 검색\"]').focus();true");keyboard(scenario);
+            scenario.onActivity(a->((InputMethodManager)a.getSystemService(Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(a.getBridge().getWebView().getWindowToken(),0));SystemClock.sleep(1200);
+            assertEquals("City search keyboard must restore the whole dialog",before,Double.parseDouble(js(scenario,"document.querySelector('dialog[open]').getBoundingClientRect().height")),2);screenshot("trip-search-restored");
+            System.out.println("RELEASE24_PAID_FLIGHT_EXPENSE_PLACE_COUNTRY_KEYBOARD_PASS");
         }
     }
     private static void sample(ActivityScenario<MainActivity> scenario) throws Exception {
