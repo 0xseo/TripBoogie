@@ -1167,6 +1167,7 @@ function TripAppContent({
                   {tab === "plan" && (
                     <>
                       <TripPlan
+                        accountId={user?.id ?? ""}
                         mapHeightScale={myProfile?.mapHeightScale}
                         onMapHeight={myProfile ? async (mapHeightScale) => {
                           if (profileState.getSnapshot()?.id !== myProfile.id) throw new Error("계정이 바뀌었습니다.");

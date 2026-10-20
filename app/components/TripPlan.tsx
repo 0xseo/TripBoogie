@@ -14,6 +14,7 @@ import {
   ChevronRight,
   MapPin,
   StickyNote,
+  Table2,
 } from "lucide-react";
 import type { ItemRecord, Workspace } from "../types";
 import { travelContext } from "../travel-context";
@@ -23,7 +24,22 @@ import ResizableMap from "./ResizableMap";
 import ItineraryEditor from "../ItineraryEditor";
 import { Dialog, text } from "./ui";
 import WeekDays from "./WeekDays";
-export default function TripPlan({
+import TripOverview from "./TripOverview";
+import type { OverviewDraft } from "../itinerary-overview";
+import overviewStyles from "./TripOverview.module.css";
+
+export default function TripPlan(props: Parameters<typeof DailyTripPlan>[0] & { accountId: string; initialView?: "map" | "overview"; initialOverview?: OverviewDraft }) {
+  const [view, setView] = useState(props.initialView ?? "map");
+  return <>
+    <div className={overviewStyles.viewSwitcher} role="group" aria-label="일정 보기 방식">
+      <button type="button" aria-pressed={view === "map"} onClick={() => setView("map")}><MapPin size={15} />지도·일정</button>
+      <button type="button" aria-pressed={view === "overview"} onClick={() => setView("overview")}><Table2 size={15} />한눈에 보기</button>
+    </div>
+    {view === "overview" ? (props.accountId ? <TripOverview workspace={props.workspace} days={props.days} accountId={props.accountId} disabled={props.disabled} initialDraft={props.initialOverview} /> : <p>로그인 정보를 확인하고 있어요.</p>) : <DailyTripPlan {...props} />}
+  </>;
+}
+
+function DailyTripPlan({
   workspace,
   date,
   days,
