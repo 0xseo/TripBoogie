@@ -89,8 +89,12 @@
 .app-shell { --screen-nav-reserve:0px; }
 .app-shell.with-trip-nav { --screen-nav-reserve:var(--trip-nav-reserve); }
 .pull-refresh-root { min-height:calc(100dvh - var(--app-header-space) - var(--screen-nav-reserve)); }
-.pull-indicator { position:fixed;top:calc(8px + env(safe-area-inset-top));left:0;right:0;z-index:85;overflow:hidden;display:grid;place-items:center;pointer-events:none;transition:height .18s ease;color:var(--green); }
-.pull-indicator > span { display:flex;align-items:center;gap:8px;font-size:13px;border-radius:24px;background:var(--paper);padding:10px 16px;box-shadow:0 3px 15px #0002; }
+.pull-indicator { position:fixed;top:var(--app-header-space);left:50%;translate:-50% 0;z-index:95;display:flex;align-items:center;gap:8px;min-height:44px;white-space:nowrap;pointer-events:none;color:var(--green);font-size:13px;border:1px solid var(--line);border-radius:24px;background:var(--paper);padding:10px 16px;box-shadow:0 3px 15px #0002; }
+.pull-indicator svg { flex:none;transition:rotate .15s ease; }
+.pull-indicator[data-ready="true"] svg { rotate:180deg; }
+.refresh-overlay { position:fixed;inset:0;z-index:110;display:grid;place-items:center;background:var(--paper);color:var(--green);touch-action:none; }
+.refresh-loader { display:flex;flex-direction:column;align-items:center;gap:16px;font-size:14px; }
+.refresh-spinner { animation:spin 1s linear infinite; }
 .refresh-accessible { position:absolute; width:1px; height:1px; padding:0; border:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 .refresh-accessible:focus-visible { position:fixed; top:80px; left:20px; width:auto; height:auto; padding:14px; clip-path:none; z-index:80; }
 .native-app .sidebar { display:none; }
@@ -168,7 +172,7 @@
   .collection-grid[data-columns] { gap:8px; }
   .collection-grid[data-columns="3"] .trip-cover { height:85px; }
 }
-@media(prefers-reduced-motion:reduce) { .pull-indicator { transition:none; } .pull-indicator.refreshing svg { animation:none; } }
+@media(prefers-reduced-motion:reduce) { .pull-indicator svg { transition:none; } .refresh-spinner { animation-duration:1.6s; } }
 
 .trip-card-period-compact { display:none; }
 @media(max-width:960px) { .collection-grid[data-columns="3"] .trip-card-period-compact { display:block; font-size:10px; letter-spacing:-.3px; line-height:1.6; margin:0 0 6px; } }

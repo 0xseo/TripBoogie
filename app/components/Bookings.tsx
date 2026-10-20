@@ -43,6 +43,7 @@ export default function Bookings({
   fileCommand,
   focused,
   onPlan,
+  onNotice,
 }: {
   workspace: Workspace;
   profile: Profile;
@@ -59,6 +60,7 @@ export default function Bookings({
   fileCommand: FileCommand;
   focused?: string;
   onPlan: (plan: ItemRecord) => void;
+  onNotice: (message:string) => void;
 }) {
   const [type, setType] = useState(() => {
       const booking = workspace.records.find((r) => r.kind === "booking" && r.id === focused);
@@ -261,6 +263,7 @@ export default function Bookings({
       )}
       {editing && (
         <BookingForm
+          onNotice={onNotice}
           workspace={workspace}
           profile={profile}
           type={selectedCategory.kind}
@@ -298,6 +301,7 @@ export function BookingForm({
   reviewPayment = false,
   onSave,
   onClose,
+  onNotice,
 }: {
   workspace: Workspace;
   profile: Profile;
@@ -314,6 +318,7 @@ export function BookingForm({
     addToPlan?: boolean
   ) => Promise<void>;
   onClose: () => void;
+  onNotice: (message:string) => void;
 }) {
   const confirm = useConfirm();
   const d = record?.data ?? {},
@@ -367,8 +372,23 @@ export function BookingForm({
     [payment, setPayment] = useState(reviewPayment),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const set = (key: string, value: string) =>
-    setForm((f) => ({ ...f, [key]: value }));
+  const announced=useRef(new Set<string>());
+  const hasLinkedTour=!!record&&form.type==="tour"&&workspace.records.some(p=>p.kind==="plan"&&p.data.bookingId===record.id);
+  function notifyLinkedChange(key:string){
+    if(!hasLinkedTour)return;
+    const group=key==="note"?"note":key.endsWith("Date")?"date":key.endsWith("Time")?"time":"info";
+    if(announced.current.has(group))return;
+    announced.current.add(group);
+    onNotice(group==="note"?"메모를 바꾸면 연결된 일정 메모도 함께 변경돼요.":group==="date"?"날짜를 바꾸면 연결된 일정 날짜도 함께 변경돼요.":group==="time"?"예약 시간만 변경돼요. 기존 일정 시간은 유지됩니다.":"이 예약에 연결된 일정이 있어요. 날짜·메모는 함께 변경돼요.");
+  }
+  function set(key:string,value:string){
+    if(form[key]!==value)notifyLinkedChange(key);
+    setForm(f=>({...f,[key]:value}));
+  }
+  function setDates(startDate:string,endDate:string){
+    if(form.startDate!==startDate||form.endDate!==endDate)notifyLinkedChange("startDate");
+    setForm(f=>({...f,startDate,endDate}));
+  }
   const lastStep = form.type === "flight" ? 1 : 2;
   const bookingTitle =
     form.type === "flight"
@@ -776,17 +796,13 @@ export function BookingForm({
                       ? workspace.trip.endDate
                       : form.endDate
                   }
-                  onChange={(a, b) =>
-                    setForm((f) => ({ ...f, startDate: a, endDate: b }))
-                  }
+                  onChange={setDates}
                 />
               ) : (
                 <RangeCalendar
                   start={form.startDate}
                   end={form.endDate}
-                  onChange={(a, b) =>
-                    setForm((f) => ({ ...f, startDate: a, endDate: b }))
-                  }
+                  onChange={setDates}
                 />
               )}
               <div className="booking-time-range">

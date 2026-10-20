@@ -60,20 +60,23 @@ public class KeyboardInsetsTest {
         try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
             KeyboardTestHost.html(scenario,"<!doctype html><meta name='viewport' content='width=device-width,initial-scale=1'><textarea id='memo' style='font-size:16px'>keyboard animation</textarea>");
             for(int i=0;i<40&&!js(scenario,"!!document.getElementById('memo')").equals("true");i++)SystemClock.sleep(100);
-            List<Integer> opening=new ArrayList<>(),closing=new ArrayList<>();
-            View.OnLayoutChangeListener openListener=(v,l,t,r,b,ol,ot,or,ob)->opening.add(b-t);
-            View.OnLayoutChangeListener closeListener=(v,l,t,r,b,ol,ot,or,ob)->closing.add(b-t);
-            scenario.onActivity(a->{WebView w=a.getBridge().getWebView();opening.add(w.getHeight());w.addOnLayoutChangeListener(openListener);});
+            List<Integer> opening=new ArrayList<>(),closing=new ArrayList<>(),openingIme=new ArrayList<>(),closingIme=new ArrayList<>();
+            View.OnLayoutChangeListener openListener=(v,l,t,r,b,ol,ot,or,ob)->{opening.add(b-t);openingIme.add(ViewCompat.getRootWindowInsets(v).getInsets(WindowInsetsCompat.Type.ime()).bottom);};
+            View.OnLayoutChangeListener closeListener=(v,l,t,r,b,ol,ot,or,ob)->{closing.add(b-t);closingIme.add(ViewCompat.getRootWindowInsets(v).getInsets(WindowInsetsCompat.Type.ime()).bottom);};
+            scenario.onActivity(a->{WebView w=a.getBridge().getWebView();opening.add(w.getHeight());openingIme.add(ViewCompat.getRootWindowInsets(w).getInsets(WindowInsetsCompat.Type.ime()).bottom);w.addOnLayoutChangeListener(openListener);});
             js(scenario,"document.getElementById('memo').focus();true");
             KeyboardTestHost.keyboard(scenario);
             SystemClock.sleep(1200);
-            scenario.onActivity(a->{WebView w=a.getBridge().getWebView();w.removeOnLayoutChangeListener(openListener);closing.add(w.getHeight());w.addOnLayoutChangeListener(closeListener);((InputMethodManager)a.getSystemService(Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(w.getWindowToken(),0);});
+            scenario.onActivity(a->{WebView w=a.getBridge().getWebView();w.removeOnLayoutChangeListener(openListener);closing.add(w.getHeight());closingIme.add(ViewCompat.getRootWindowInsets(w).getInsets(WindowInsetsCompat.Type.ime()).bottom);w.addOnLayoutChangeListener(closeListener);((InputMethodManager)a.getSystemService(Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(w.getWindowToken(),0);});
             SystemClock.sleep(1200);
             scenario.onActivity(a->a.getBridge().getWebView().removeOnLayoutChangeListener(closeListener));
             int openBacktrack=0,closeBacktrack=0;
-            for(int i=1;i<opening.size();i++)openBacktrack=Math.max(openBacktrack,opening.get(i)-opening.get(i-1));
-            for(int i=1;i<closing.size();i++)closeBacktrack=Math.max(closeBacktrack,closing.get(i-1)-closing.get(i));
-            System.out.println("KEYBOARD_MOTION opening="+opening+", closing="+closing+", openBacktrack="+openBacktrack+", closeBacktrack="+closeBacktrack);
+            // Gboard may change its actual height by hiding its suggestion row.
+            // Only a reversal beyond the simultaneous OS IME target change is
+            // app-induced oscillation; a constant target retains the strict 3px check.
+            for(int i=1;i<opening.size();i++)openBacktrack=Math.max(openBacktrack,opening.get(i)-opening.get(i-1)-Math.max(0,openingIme.get(i-1)-openingIme.get(i)));
+            for(int i=1;i<closing.size();i++)closeBacktrack=Math.max(closeBacktrack,closing.get(i-1)-closing.get(i)-Math.max(0,closingIme.get(i)-closingIme.get(i-1)));
+            System.out.println("KEYBOARD_MOTION opening="+opening+", openingIme="+openingIme+", closing="+closing+", closingIme="+closingIme+", openBacktrack="+openBacktrack+", closeBacktrack="+closeBacktrack);
             assertTrue("Keyboard must actually resize the WebView",opening.get(0)-opening.get(opening.size()-1)>100);
             assertTrue("Opening must not repeatedly expand the WebView: "+opening,openBacktrack<=3);
             assertTrue("Closing must not repeatedly collapse the WebView: "+closing,closeBacktrack<=3);

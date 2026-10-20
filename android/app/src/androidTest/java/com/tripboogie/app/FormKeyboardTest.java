@@ -91,6 +91,47 @@ public class FormKeyboardTest {
             expect(scenario,"!!window.keyboardFixture?.ready");
             expect(scenario,"(()=>{const t=document.querySelector('body>.toast')?.getBoundingClientRect(),n=document.querySelector('.mobile-trip-nav')?.getBoundingClientRect();return !!t&&!!n&&t.bottom<n.top})()");
     }
+    private static void input(ActivityScenario<MainActivity> scenario,String selector,String value) throws Exception {
+        js(scenario,"(()=>{const e=document.querySelector("+JSONObject.quote(selector)+");Object.getOwnPropertyDescriptor(e.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(e,"+JSONObject.quote(value)+");e.dispatchEvent(new Event('input',{bubbles:true}));return true})()");SystemClock.sleep(150);
+    }
+    private static void pull(ActivityScenario<MainActivity> scenario,String event,int y) throws Exception {
+        js(scenario,"(()=>{const target=document.querySelector('[data-refresh-test]'),e=new Event('"+event+"',{bubbles:true,cancelable:true});Object.defineProperty(e,'touches',{value:"+(event.equals("touchend")||event.equals("touchcancel")?"[]":"[{clientX:30,clientY:"+y+"}]")+"});target.dispatchEvent(e);return true})()");SystemClock.sleep(100);
+    }
+    private static void screenshot(String name) throws Exception {
+        Bitmap image=InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
+        try(FileOutputStream output=new FileOutputStream(new File(InstrumentationRegistry.getInstrumentation().getTargetContext().getFilesDir(),name+".png"))){image.compress(Bitmap.CompressFormat.PNG,100,output);}image.recycle();
+    }
+    @Test public void bookingNoticesHotelPlaceOnlyAndRefreshFeedback() throws Exception {
+        try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
+            loadFixture(scenario);
+            show(scenario,"booking-tour-unlinked");js(scenario,"window.keyboardFixture.notices=[];true");
+            input(scenario,"textarea","연결 없는 투어 메모");expect(scenario,"window.keyboardFixture.notices.length===0");
+            show(scenario,"booking-tour");input(scenario,"[data-validation-label='이름'] input","수정한 투어");
+            expect(scenario,"window.keyboardFixture.notices.at(-1).includes('연결된 일정')");
+            input(scenario,"textarea","수정한 투어 메모");expect(scenario,"window.keyboardFixture.notices.at(-1).includes('일정 메모도 함께 변경')");
+            js(scenario,"window.noticeCount=window.keyboardFixture.notices.length;true");input(scenario,"textarea","메모 계속 입력");expect(scenario,"window.noticeCount===window.keyboardFixture.notices.length");
+            show(scenario,"plan-hotel");click(scenario,"숙소");
+            expect(scenario,"document.querySelector('.place-input').textContent.includes('숙소')&&document.querySelector('dialog[open] header').textContent.includes('일정 추가')");
+            expect(scenario,"document.querySelector('textarea').value===''&&document.querySelector('[aria-label=\"연결할 예약\"]').textContent.includes('연결 안 함')");
+            screenshot("hotel-place");click(scenario,"저장하기");
+            expect(scenario,"(()=>{const d=window.keyboardFixture.saved.at(-1)[0];return d.placeId==='b'&&d.bookingId===''&&d.date==='2026-11-02'&&d.time===''&&d.note===''})()");
+            show(scenario,"plan-hotels");click(scenario,"숙소");expect(scenario,"document.querySelectorAll('.hotel-shortcut-options button').length===2");click(scenario,"두 번째 숙소");click(scenario,"저장하기");expect(scenario,"window.keyboardFixture.saved.at(-1)[0].placeId==='a'&&window.keyboardFixture.saved.at(-1)[0].bookingId===''");
+            show(scenario,"plan-hotel-linked");click(scenario,"숙소");click(scenario,"저장하기");
+            expect(scenario,"(()=>{const d=window.keyboardFixture.saved.at(-1)[0];return d.placeId==='b'&&d.bookingId==='tour'&&d.time==='09:15'&&d.note===window.keyboardFixture.memo})()");
+            show(scenario,"plan-hotel-missing");click(scenario,"숙소");expect(scenario,"window.keyboardFixture.notices.at(-1).includes('등록된 장소가 없어요')");
+            show(scenario,"plan-no-hotel");click(scenario,"숙소");expect(scenario,"window.keyboardFixture.notices.at(-1)==='이날은 예약된 숙소가 없어요.'");
+            show(scenario,"refresh");js(scenario,"window.scrollTo(0,0);true");
+            pull(scenario,"touchstart",100);pull(scenario,"touchmove",130);expect(scenario,"document.querySelector('body>.pull-indicator')?.textContent==='당겨서 새로고침'");
+            expect(scenario,"(()=>{const e=document.querySelector('.pull-indicator'),r=e.getBoundingClientRect();return r.height>=44&&r.top>0&&r.bottom<innerHeight&&!!document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)})()");
+            pull(scenario,"touchend",130);expect(scenario,"!document.querySelector('.pull-indicator')&&window.keyboardFixture.refreshes===0");
+            pull(scenario,"touchstart",100);pull(scenario,"touchmove",210);expect(scenario,"document.querySelector('.pull-indicator')?.textContent==='놓으면 새로고침'");SystemClock.sleep(500);System.out.println("PULL_INDICATOR_LAYOUT "+js(scenario,"(()=>{const e=document.querySelector('.pull-indicator'),r=e.getBoundingClientRect(),s=getComputedStyle(e);return JSON.stringify({x:r.x,y:r.y,width:r.width,height:r.height,translate:s.translate,transform:s.transform,opacity:s.opacity,visibility:s.visibility,z:s.zIndex,color:s.color,background:s.backgroundColor,dialogs:document.querySelectorAll('dialog[open]').length})})()"));screenshot("pull-ready");pull(scenario,"touchend",210);pull(scenario,"touchend",210);
+            expect(scenario,"window.keyboardFixture.refreshes===1&&!!document.querySelector('body>.refresh-overlay')&&document.querySelector('main').inert");
+            expect(scenario,"(()=>{const e=document.querySelector('.refresh-overlay'),r=document.querySelector('.refresh-loader').getBoundingClientRect();return Math.abs(r.x+r.width/2-innerWidth/2)<2&&Math.abs(r.y+r.height/2-innerHeight/2)<2&&getComputedStyle(e).backgroundColor==='rgb(255, 255, 255)'&&document.elementFromPoint(innerWidth-20,innerHeight-100)===e})()");screenshot("refresh-centered");
+            js(scenario,"window.keyboardFixture.finishRefresh();true");expect(scenario,"!document.querySelector('.refresh-overlay')&&!document.querySelector('main').inert&&document.body.style.overflow!==\"hidden\"");
+            pull(scenario,"touchstart",100);pull(scenario,"touchmove",210);pull(scenario,"touchend",210);expect(scenario,"window.keyboardFixture.refreshes===2");js(scenario,"window.keyboardFixture.finishRefresh(true);true");expect(scenario,"!document.querySelector('.refresh-overlay')&&!document.querySelector('main').inert");
+            System.out.println("RESERVATION_REFRESH_UI_PASS linkedTourNotice=true hotelPlaceOnly=true multiHotel=true linkedBookingPreserved=true pullFeedback=true centeredOpaqueLoading=true refreshCleanup=true");
+        }
+    }
     @Test public void allFormInputsClearKeyboardAndStickyActions() throws Exception {
         try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
             loadFixture(scenario);

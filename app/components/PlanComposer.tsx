@@ -22,7 +22,6 @@ export default function PlanComposer({
   onSave,
   onClose,
   onNotice,
-  onHotel,
   initialBookingId,
 }: {
   initialBookingId?:string;
@@ -32,7 +31,6 @@ export default function PlanComposer({
   onSave: (data: Record<string, unknown>, place?: MapPlace) => Promise<void>;
   onClose: () => void;
   onNotice: (message:string)=>void;
-  onHotel: (booking:ItemRecord,date:string)=>Promise<void>;
 }) {
   const initialBooking=workspace.records.find(b=>b.kind==="booking"&&b.id===(record?.data.bookingId||initialBookingId));
   const announced=useRef(new Set<string>());
@@ -51,13 +49,20 @@ export default function PlanComposer({
     [picker, setPicker] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const placeName =
-    place?.name || String(original?.id === placeId ? original.data.name : "");
+  const selectedPlace = workspace.records.find(p=>p.kind==="place"&&p.id===placeId);
+  const placeName = place?.name || text(selectedPlace?.data.name);
   const context = travelContext(workspace.trip, { date: day });
   const location = context.location;
   const bookings=workspace.records.filter(r=>r.kind==="booking").sort(compareBookings);
   const hotels=bookings.filter(r=>r.data.type==="hotel"&&text(r.data.startDate)<=day&&text(r.data.endDate)>=day);
-  async function addHotel(booking:ItemRecord){setBusy(true);try{await onHotel(booking,day);onClose();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
+  function chooseHotel(booking:ItemRecord){
+    const hotelPlace=workspace.records.find(p=>p.kind==="place"&&p.id===booking.data.placeId);
+    if(!hotelPlace){onNotice("이 숙소에 등록된 장소가 없어요. 장소 검색으로 추가해 주세요.");return;}
+    if(!title||title===placeName)setTitle(text(hotelPlace.data.name));
+    setPlace(undefined);
+    setPlaceId(hotelPlace.id);
+    setShowHotels(false);
+  }
   return (
     <Dialog
       mobilePage
@@ -155,10 +160,10 @@ export default function PlanComposer({
                   <X size={18} />
                 </button>
               )}
-            </div>{!record&&<button type="button" className="stay-shortcut" disabled={busy} onClick={()=>{if(!hotels.length){onNotice("이날은 예약된 숙소가 없어요.");return;}if(hotels.length===1){void addHotel(hotels[0]);return;}setShowHotels(!showHotels);}}><Hotel size={18}/>숙소</button>}</div>
+            </div>{!record&&<button type="button" className="stay-shortcut" disabled={busy} aria-expanded={showHotels} onClick={()=>{if(!hotels.length){onNotice("이날은 예약된 숙소가 없어요.");return;}if(hotels.length===1){chooseHotel(hotels[0]);return;}setShowHotels(!showHotels);}}><Hotel size={18}/>숙소</button>}</div>
           )}
-          {kind==="plan"&&showHotels&&<div className="hotel-shortcut-options">{hotels.map(hotel=><button type="button" key={hotel.id} disabled={busy} onClick={()=>void addHotel(hotel)}><Hotel size={17}/>{bookingTitle(hotel.data)}</button>)}</div>}
-          {kind === "plan" && original?.id === placeId && <PlaceMedia place={original.data} compact />}
+          {kind==="plan"&&showHotels&&<div className="hotel-shortcut-options">{hotels.map(hotel=><button type="button" key={hotel.id} disabled={busy} onClick={()=>chooseHotel(hotel)}><Hotel size={17}/>{bookingTitle(hotel.data)}</button>)}</div>}
+          {kind === "plan" && selectedPlace && <PlaceMedia place={selectedPlace.data} compact />}
           {kind==="plan"&&<Field label="예약 연결 · 선택 사항"><ChoiceField label="연결할 예약" value={bookingId} options={[{id:"",label:"연결 안 함"},...bookings.map(booking=>({id:booking.id,label:`${bookingTitle(booking.data)} · ${dateLabel(text(booking.data.startDate))}`,icon:<BookingIcon type={booking.data.type} size={18} aria-hidden="true"/>}))]} onChange={id=>{setBookingId(id);announced.current.clear();const booking=bookings.find(b=>b.id===id);if(booking){if(!title)setTitle(bookingTitle(booking.data));setDay(text(booking.data.startDate));setTime(text(booking.data.startTime));setNote(text(booking.data.note));}}}/></Field>}
           {kind === "plan" && <><Field label="일정 이름"><input required maxLength={300} placeholder="일정 이름" value={title} onChange={e=>setTitle(e.target.value)}/></Field><div className="optional-time"><Field label="시간"><TimeField label="일정 시간" placeholder="시간 선택" value={time} onChange={value=>{setTime(value);if(bookingId)announce("time","일정 시간만 변경돼요. 예약 시간은 유지됩니다.");}}/></Field><Field label="머무를 시간 · 분"><input aria-label="머무를 시간 · 분" type="number" min={0} max={1440} value={duration} onChange={e=>setDuration(e.target.value)} placeholder="분"/></Field></div></>}
           <div className={kind === "memo" ? "memo-editor-field" : ""}><Field label="메모">

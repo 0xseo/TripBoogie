@@ -1257,6 +1257,7 @@ function TripAppContent({
                   )}
                   {tab === "bookings" && myProfile && (
                     <Bookings
+                      onNotice={setNotice}
                       focused={bookingFocus}
                       onPlan={(r) => { goTab("plan"); setDate(text(r.data.date)); setSelected(r.id); }}
                       workspace={workspace}
@@ -1447,7 +1448,6 @@ function TripAppContent({
               record={editing}
               initialBookingId={planBooking}
               onNotice={setNotice}
-              onHotel={async(booking,day)=>{let next=wsRef.current!;let plan=next.records.find(p=>p.kind==="plan"&&p.data.bookingId===booking.id&&p.data.date===day);if(!plan){next=await commit({bookingId:booking.id,date:day},"ensure-hotel-plan");plan=next.records.find(p=>p.kind==="plan"&&p.data.bookingId===booking.id&&p.data.date===day);}setDate(day);if(plan)setSelected(plan.id);}}
               onClose={() => setModal(null)}
               onSave={async (data, place) => {
                 const id = editing?.id ?? crypto.randomUUID();
