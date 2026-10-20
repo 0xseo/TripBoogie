@@ -1,14 +1,16 @@
 import type { Metadata, Viewport } from "next";
 import "./styles.css";
 import {startupNavigationScript} from "./startup";
+import { privateMetadata } from "./seo/site";
 
 export const metadata: Metadata = {
-  title: "트립부기",
-  description:
-    "느긋하게, 함께. 여행 일정과 장소, 경비와 준비물을 친구와 함께 계획하는 트립부기.",
+  ...privateMetadata,
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
+    other: { "naver-site-verification": process.env.NAVER_SITE_VERIFICATION || [] },
+  },
   manifest: "/manifest.webmanifest",
   referrer: "same-origin",
-  robots: { index: false, follow: false },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
