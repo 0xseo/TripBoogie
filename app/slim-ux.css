@@ -2081,5 +2081,15 @@ textarea {
 @media(max-width:960px){.resizable-map{--map-base-height:230px;--map-screen-limit:50dvh}}
 html.native-app .resizable-map{--map-base-height:230px;--map-screen-limit:50dvh}
 .booking-plan-time{display:inline-flex;align-items:center;gap:5px;color:var(--ink);font-size:12px}
+.booking-plan-time,.plan-meta>.time-trigger{line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.booking-plan-time>span,.plan-meta>.time-trigger>span{display:block;line-height:1}
+.booking-plan-time>svg,.plan-meta>.time-trigger>svg{display:block;flex:none;width:14px;height:14px}
+.flight-plan-route,.flight-plan-detail{display:block;overflow-wrap:anywhere}
+.flight-plan-detail{margin-top:3px;font-size:.82em;font-weight:500;line-height:1.4;color:var(--muted)}
+.compact-plan-content>span:has(.flight-plan-route){white-space:normal}
+.map-card-heading>h3:has(.flight-plan-route){white-space:normal;overflow:visible}
+.plan-meta:has(.flight-duration){flex-wrap:wrap;column-gap:9px;row-gap:5px}
+.plan-meta>.flight-duration{white-space:nowrap}
+.map-flight-duration{display:block;margin:7px 0 0 34px;font-size:12px;color:var(--muted)}
 .workspace-loading{min-height:45dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);font-size:13px}
 .workspace-loading svg{color:var(--green)}

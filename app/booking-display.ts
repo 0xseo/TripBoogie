@@ -21,13 +21,17 @@ export function airportLabel(value: unknown, fallback: unknown = "") {
     .replace(/국제\s*공항|공항|\bInternational\b|\bAirport\b/gi, "").trim();
   return name && name !== code ? `${name}(${code})` : name || code;
 }
-/** Render from the linked booking so existing events follow reservation edits too. */
-export function itineraryTitle(plan: ItemRecord, booking?: ItemRecord) {
+export function flightEventTitle(plan: ItemRecord, booking?: ItemRecord) {
   const event = plan.data.bookingEvent;
-  if (booking?.data.type !== "flight" || !["departure", "arrival"].includes(String(event))) return String(plan.data.title || "");
+  if (booking?.data.type !== "flight" || !["departure", "arrival"].includes(String(event))) return null;
   const data = booking.data;
   const route = [airportLabel(data.departureAirport, data.departure), airportLabel(data.arrivalAirport, data.arrival)].filter(Boolean).join(" → ");
-  return [route || "항공", event === "departure" ? "출발" : "도착", data.flightNumber].filter(Boolean).join(" · ");
+  return {route: route || "항공", detail: [event === "departure" ? "출발" : "도착", data.flightNumber].filter(Boolean).join(" · ")};
+}
+/** Flat title for accessibility; the visible heading uses two explicit lines. */
+export function itineraryTitle(plan: ItemRecord, booking?: ItemRecord) {
+  const flight = flightEventTitle(plan, booking);
+  return flight ? `${flight.route} · ${flight.detail}` : String(plan.data.title || "");
 }
 export function bookingTitle(data: Record<string, unknown>) {
   return data.type === "flight" && flightRoute(data)

@@ -8,7 +8,7 @@ async function load(name){
  return import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText).toString('base64'));
 }
 const {WorkspaceMutations}=await load('workspace-mutations');
-const {airportCode,airportLabel,bookingTitle,itineraryTitle,compareBookings}=await load('booking-display');
+const {airportCode,airportLabel,bookingTitle,itineraryTitle,flightEventTitle,compareBookings}=await load('booking-display');
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});return{promise,resolve,reject}};
 const initial=()=>({trip:{id:'trip'},records:[{id:'a',data:{done:false,title:'original'},version:1},{id:'b',data:{done:false},version:1}],revision:1});
 const edit=(id,data)=>w=>({...w,records:w.records.map(r=>r.id===id?{...r,data:{...r.data,...data}}:r)});
@@ -61,6 +61,7 @@ test('flight events show the route, local event and flight number independently 
   booking.data.flightRole=role;
   assert.equal(itineraryTitle({data:{title:'ICN · 출발',bookingEvent:'departure'}},booking),'인천(ICN) → 오클랜드(AKL) · 출발 · KE411');
   assert.equal(itineraryTitle({data:{bookingEvent:'arrival'}},booking),'인천(ICN) → 오클랜드(AKL) · 도착 · KE411');
+  assert.deepEqual(flightEventTitle({data:{bookingEvent:'departure'}},booking),{route:'인천(ICN) → 오클랜드(AKL)',detail:'출발 · KE411'});
  }
  booking.data.flightNumber='';
  assert.equal(itineraryTitle({data:{bookingEvent:'departure'}},booking),'인천(ICN) → 오클랜드(AKL) · 출발');

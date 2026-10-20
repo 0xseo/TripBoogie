@@ -1,6 +1,8 @@
 "use client";
 import { memoText } from "../memo";
 import { itineraryTitle } from "../booking-display";
+import {flightDurationMinutes, flightDurationLabel} from "../flight-duration";
+import ItineraryTitle from "./ItineraryTitle";
 import { useEffect, useRef, useState } from "react";
 import {
   Maximize2,
@@ -65,6 +67,10 @@ export default function TripPlan({
     return () => cancelAnimationFrame(frame);
   }, [selected, date]);
   const graph = dayGraph(plans, places);
+  graph.points = graph.points.map(point => {
+    const plan = plans.find(plan=>plan.id===point.planId);
+    return plan ? {...point, name: itineraryTitle(plan, workspace.records.find(booking=>booking.id===plan.data.bookingId))} : point;
+  });
   function select(id: string) {
     onSelected(id);
     const row = document.getElementById(`plan-${id}`);
@@ -331,7 +337,7 @@ function MapCards({
         }}
       >
         {plans.map((r, i) => {
-          const place = places.find((p) => p.id === r.data.placeId), booking = bookings.find(b=>b.id===r.data.bookingId), title = itineraryTitle(r, booking);
+          const place = places.find((p) => p.id === r.data.placeId), booking = bookings.find(b=>b.id===r.data.bookingId), title = itineraryTitle(r, booking), flightDuration = flightDurationLabel(booking ? flightDurationMinutes(booking.data) : null);
           return (
             <article
               className="map-schedule-card"
@@ -371,7 +377,7 @@ function MapCards({
                 {r.data.entryType === "memo" ? (
                   <p className="map-memo-body">{memoText(r.data)}</p>
                 ) : (
-                  <h3>{title}</h3>
+                  <h3><ItineraryTitle plan={r} booking={booking}/></h3>
                 )}
                 <button
                   type="button"
@@ -394,6 +400,7 @@ function MapCards({
                   </>
                 )}
               </div>
+              {flightDuration && <small className="map-flight-duration">{flightDuration}</small>}
             </article>
           );
         })}

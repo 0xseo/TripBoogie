@@ -1,4 +1,4 @@
-import {readFileSync,existsSync,mkdirSync,writeFileSync,renameSync} from 'node:fs';
+import {readFileSync,existsSync,mkdirSync,writeFileSync,renameSync,readdirSync,unlinkSync} from 'node:fs';
 import {parseEnv} from 'node:util';
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -22,6 +22,7 @@ const bytes=readFileSync(apk),sha256=createHash('sha256').update(bytes).digest('
 const fileName=`TripBoogie_${info[3]}.apk`;
 renameSync(apk,`android/app/build/outputs/apk/release/${fileName}`);
 mkdirSync('public/downloads',{recursive:true});
+for(const previous of readdirSync('public/downloads'))if(/^TripBoogie_\d+\.\d+\.\d+\.apk$/.test(previous)&&previous!==fileName)unlinkSync(`public/downloads/${previous}`);
 writeFileSync(`public/downloads/${fileName}`,bytes);
 // Preserve the existing install URL; the download header also uses the versioned name.
 writeFileSync('public/downloads/tripboogie.apk',bytes);

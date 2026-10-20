@@ -4,6 +4,8 @@ import ChoiceField from "./components/ChoiceField";
 import TimeField from "./components/TimeField";
 import { memoText } from "./memo";
 import { itineraryTitle } from "./booking-display";
+import {flightDurationMinutes, flightDurationLabel} from "./flight-duration";
+import ItineraryTitle from "./components/ItineraryTitle";
 import { PlaceMedia } from "./components/Media";
 import SortHandle from "./components/SortHandle";
 import { useEffect, useRef, useState } from "react";
@@ -419,6 +421,7 @@ export default function ItineraryEditor({
           const memo = r.data.entryType === "memo",
             booking = workspace.records.find((b) => b.kind === "booking" && b.id === r.data.bookingId),
             title = itineraryTitle(r, booking),
+            flightDuration = flightDurationLabel(booking ? flightDurationMinutes(booking.data) : null),
             place = places.find((p) => p.id === r.data.placeId),
             connection = connections.find((c) => c.to.id === r.id);
           if (!memo) number++;
@@ -459,13 +462,14 @@ export default function ItineraryEditor({
                     onReorder={(ids) => void reorder(ids)}
                   />
                   <div className="compact-plan-content">
-                    <span>{memo ? memoText(r.data) : title}</span>
+                    <span>{memo ? memoText(r.data) : <ItineraryTitle plan={r} booking={booking}/>}</span>
                     <small>
                       {memo
                         ? "메모"
                         : [
                             text(r.data.time),
                             place ? text(place.data.name) : "",
+                            flightDuration,
                           ]
                             .filter(Boolean)
                             .join(" · ")}
@@ -528,7 +532,7 @@ export default function ItineraryEditor({
                     {memo ? (
                       <p className="preserve memo-body">{memoText(r.data)}</p>
                     ) : (
-                      <h3>{title}</h3>
+                      <h3><ItineraryTitle plan={r} booking={booking}/></h3>
                     )}
                     <div className="row-actions">
                       {!memo && !booking && !text(r.data.time) && (
@@ -564,7 +568,7 @@ export default function ItineraryEditor({
                     <div className="plan-content">
                       <div className="plan-details">
                         <div className="plan-meta">
-                          {booking && text(r.data.time) ? <span className="booking-plan-time"><Clock size={14}/>{text(r.data.time)}</span> : text(r.data.time) && (
+                          {booking && text(r.data.time) ? <span className="booking-plan-time"><Clock size={14}/><span>{text(r.data.time)}</span></span> : text(r.data.time) && (
                             <TimeField
                               value={text(r.data.time)}
                               disabled={disabled}
@@ -591,7 +595,7 @@ export default function ItineraryEditor({
                           ) : (
                             <small>장소 미정</small>
                           )}
-                          {Number(r.data.duration) > 0 && (
+                          {flightDuration ? <small className="flight-duration">{flightDuration}</small> : booking?.data.type !== "flight" && Number(r.data.duration) > 0 && (
                             <small>{String(r.data.duration)}분</small>
                           )}
                         </div>
