@@ -18,7 +18,7 @@ function caretRect(input:HTMLTextAreaElement){
  else if(localTop-input.scrollTop<topPadding)input.scrollTop=Math.max(0,localTop-topPadding);
  return {top:rect.top+localTop-input.scrollTop,bottom:rect.top+localTop-input.scrollTop+lineHeight};
 }
-export function revealFocusedInput(container?:HTMLElement){
+export function revealFocusedInput(container?:HTMLElement,scroll=true){
  const input=document.activeElement;if(!isEditable(input))return;
  const dialog=input.closest('dialog');if(container?dialog!==container:!!dialog)return;
  const viewport=window.visualViewport,viewTop=viewport?.offsetTop||0,viewBottom=viewTop+(viewport?.height||innerHeight);
@@ -26,8 +26,13 @@ export function revealFocusedInput(container?:HTMLElement){
  let top=Math.max(viewTop+12,header?header.bottom+12:viewTop+12),bottom=viewBottom-16;
  if(container){const box=container.getBoundingClientRect();top=Math.max(top,box.top+12);bottom=Math.min(bottom,box.bottom-12);}
  const obstacles=container?.querySelectorAll<HTMLElement>('footer,form>.primary:last-child,.settings-footer')||document.querySelectorAll<HTMLElement>('.mobile-trip-nav');
- for(const element of obstacles){const box=element.getBoundingClientRect();if(/sticky|fixed/.test(getComputedStyle(element).position)&&box.height&&box.top>top&&box.top<bottom)bottom=box.top-12;}
- if(input instanceof HTMLTextAreaElement)input.style.setProperty('--memo-visible-height',`${Math.max(72,bottom-top-12)}px`);
+ let footerHeight=0;
+ for(const element of obstacles){const box=element.getBoundingClientRect();if(/sticky|fixed/.test(getComputedStyle(element).position))footerHeight=Math.max(footerHeight,box.height);}
+ // Reserve action height, not its current scroll-dependent position. Otherwise
+ // scrolling a sticky footer changes the textarea cap and causes another scroll.
+ if(footerHeight)bottom-=footerHeight+12;
+ if(input instanceof HTMLTextAreaElement&&!input.closest('.memo-composer')){const height=`${Math.max(72,Math.floor(bottom-top-12))}px`;if(input.style.getPropertyValue('--memo-visible-height')!==height)input.style.setProperty('--memo-visible-height',height);}
+ if(!scroll)return;
  const target=()=>{const box=input.getBoundingClientRect();return input instanceof HTMLTextAreaElement&&box.height>bottom-top?caretRect(input):box;};
  // A nested scroller may hit its limit. Continue through its ancestors instead
  // of stopping before the input has actually cleared the keyboard/footer.
@@ -41,19 +46,48 @@ export function revealFocusedInput(container?:HTMLElement){
 }
 export default function KeyboardFocus(){
  useEffect(()=>{
-  let frame=0,previous:HTMLElement|null=null;
-  const reveal=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{
+  let frame=0,timer=0,changing=false,nativeAnimating=false,nativeOpen:boolean|null=null,pendingScroll=false,previous:HTMLElement|null=null,lastHeight=Math.round(window.visualViewport?.height||innerHeight),fullHeight=lastHeight,lastSelection="";
+  const set=(name:string,value:string)=>{if(document.documentElement.style.getPropertyValue(name)!==value)document.documentElement.style.setProperty(name,value);};
+  const syncViewport=()=>{
+   const active=isEditable(document.activeElement)?document.activeElement:null,height=Math.round(window.visualViewport?.height||innerHeight);
+   set('--visual-viewport-height',`${height}px`);
+   set('--keyboard-page-gap',`${active&&!active.closest('dialog')?Math.max(0,innerHeight-height):0}px`);
+  };
+  const flush=()=>{
    const active=isEditable(document.activeElement)?document.activeElement:null;
    if(previous&&previous!==active)previous.style.removeProperty('--memo-visible-height');previous=active;
-   const viewport=window.visualViewport,height=viewport?.height||innerHeight;
-   document.documentElement.style.setProperty('--visual-viewport-height',`${height}px`);
-   // Safari can shrink only the visual viewport. Give the last page input room
-   // to scroll in that case; dialogs already use their own resized viewport.
-   document.documentElement.style.setProperty('--keyboard-page-gap',`${active&&!active.closest('dialog')?Math.max(0,innerHeight-height):0}px`);
-   const dialog=active?.closest('dialog');revealFocusedInput(dialog instanceof HTMLElement?dialog:undefined);
-  });};
-  const events=['focusin','focusout','input','keyup','selectionchange'];for(const event of events)document.addEventListener(event,reveal);
-  window.addEventListener('resize',reveal);window.visualViewport?.addEventListener('resize',reveal);window.visualViewport?.addEventListener('scroll',reveal);reveal();
-  return()=>{cancelAnimationFrame(frame);previous?.style.removeProperty('--memo-visible-height');document.documentElement.style.removeProperty('--keyboard-page-gap');document.documentElement.style.removeProperty('--visual-viewport-height');for(const event of events)document.removeEventListener(event,reveal);window.removeEventListener('resize',reveal);window.visualViewport?.removeEventListener('resize',reveal);window.visualViewport?.removeEventListener('scroll',reveal);};
+   syncViewport();const dialog=active?.closest('dialog');
+   revealFocusedInput(dialog instanceof HTMLElement?dialog:undefined,pendingScroll);pendingScroll=false;
+  };
+  const schedule=(scroll:boolean,delay=0)=>{
+   pendingScroll||=scroll;clearTimeout(timer);cancelAnimationFrame(frame);
+   if(nativeAnimating)return;
+   timer=window.setTimeout(()=>{changing=false;frame=requestAnimationFrame(flush);},delay);
+  };
+  const focus=()=>{const active=document.activeElement;lastSelection=active instanceof HTMLInputElement||active instanceof HTMLTextAreaElement?`${active.selectionStart}:${active.selectionEnd}`:"";changing=true;schedule(true,160);};
+  const blur=()=>{pendingScroll=false;schedule(false,160);};
+  const input=()=>schedule(true,changing?300:0);
+  const selection=()=>{
+   const active=document.activeElement;if(!(active instanceof HTMLTextAreaElement||active instanceof HTMLInputElement))return;
+   const key=`${active.selectionStart}:${active.selectionEnd}`;if(key===lastSelection)return;lastSelection=key;
+   schedule(true,changing?300:0);
+  };
+  const resize=()=>{
+   const height=Math.round(window.visualViewport?.height||innerHeight),shrinking=height<lastHeight;
+   // On keyboard dismissal, let the form grow without dragging the focused
+   // field back into view. Keep resize/scroll handling from feeding itself.
+   // Keyboard suggestion bars can shrink while the IME stays open. Preserve
+   // the pending reveal until the viewport returns to its full height.
+   fullHeight=Math.max(fullHeight,height);
+   const dismissing=height>lastHeight&&height>=fullHeight-80;
+   if(dismissing&&!nativeAnimating&&nativeOpen!==true)pendingScroll=false;lastHeight=height;changing=true;
+   syncViewport();schedule(shrinking,300);
+  };
+  const motion=(event:Event)=>{const detail=(event as CustomEvent<{running:boolean;visible:boolean}>).detail;nativeAnimating=detail.running;if(!nativeAnimating){nativeOpen=detail.visible;if(!nativeOpen)pendingScroll=false;}changing=true;schedule(false,nativeAnimating?0:100);};
+  const scrolling=()=>{if(changing&&!nativeAnimating)schedule(false,140);};
+  window.addEventListener('tripboogie:keyboard-motion',motion);document.addEventListener('scroll',scrolling,true);
+  document.addEventListener('focusin',focus);document.addEventListener('focusout',blur);document.addEventListener('input',input);document.addEventListener('selectionchange',selection);
+  window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);window.visualViewport?.addEventListener('scroll',syncViewport);syncViewport();
+  return()=>{window.removeEventListener('tripboogie:keyboard-motion',motion);document.removeEventListener('scroll',scrolling,true);clearTimeout(timer);cancelAnimationFrame(frame);previous?.style.removeProperty('--memo-visible-height');document.documentElement.style.removeProperty('--keyboard-page-gap');document.documentElement.style.removeProperty('--visual-viewport-height');document.removeEventListener('focusin',focus);document.removeEventListener('focusout',blur);document.removeEventListener('input',input);document.removeEventListener('selectionchange',selection);window.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('resize',resize);window.visualViewport?.removeEventListener('scroll',syncViewport);};
  },[]);return null;
 }

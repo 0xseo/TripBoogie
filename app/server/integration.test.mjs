@@ -1124,3 +1124,24 @@ test('route estimates persist independently, reject stale geometry and never ove
   assert.equal((await db.query("select has_function_privilege('authenticated','tripboogie_private.save_travel_time(public.trips,jsonb)','execute') as allowed")).rows[0].allowed,false);
  }finally{await db.close();}
 });
+
+
+test('memo-only itinerary edits and clearing sync every booking type through HTTP and survive reload',async()=>{
+ const {db,rpc,request}=await fixture();try{
+  let w=await rpc('owner','create',null,{data:details});const id=w.trip.id;
+  for(const type of ['flight','hotel','tour','other']){
+   w=await rpc('owner','save-booking',id,{data:{type,title:'Memo sync '+type,startDate:'2026-11-01',endDate:'2026-11-03',startTime:'09:00',endTime:'11:00',note:'Original memo',departure:'ICN',arrival:'NRT'}});
+   const booking=w.records.find(r=>r.kind==='booking'&&r.data.type===type);
+   if(type==='other')w=await rpc('owner','save-plan',id,{data:{title:'Manual link',date:'2026-11-01',bookingId:booking.id}});
+   let plan=w.records.find(r=>r.kind==='plan'&&r.data.bookingId===booking.id);
+   const original={startDate:booking.data.startDate,endDate:booking.data.endDate,startTime:booking.data.startTime,endTime:booking.data.endTime};
+   for(const note of ['Memo from itinerary only','']){
+    const response=await request(`trips/${id}/actions/save-plan`,'owner','POST',{id:plan.id,version:plan.version,data:{...plan.data,note}});
+    assert.equal(response.status,200);w=await rpc('owner','workspace',id);
+    const saved=w.records.find(r=>r.id===booking.id);plan=w.records.find(r=>r.id===plan.id);
+    assert.equal(saved.data.note,note,type);assert.ok(w.records.filter(r=>r.kind==='plan'&&r.data.bookingId===booking.id).every(r=>r.data.note===note));
+    assert.deepEqual(Object.fromEntries(Object.keys(original).map(k=>[k,saved.data[k]])),original);
+   }
+  }
+ }finally{await db.close();}
+});

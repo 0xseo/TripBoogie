@@ -31,7 +31,7 @@ const routePlans=Array.from({length:10},(_,i)=>row('plan'+i,'plan',{title:`일�
 const graph=dayGraph(routePlans,routePlaces);
 const workspace:Workspace={trip:{id:'test',title:'키보드 검증 여행',destination:'서울',startDate:'2026-11-01',endDate:'2026-11-04',currency:'KRW',timezone:'Asia/Seoul',settings:{expenseCategories:[{id:'food',label:'식비'}],checklistCategories:[{id:'prepare',label:'준비'}]},version:1,revision:1,role:'owner',memberCount:1,createdAt:'',updatedAt:''},revision:1,members:[{id:'test',name:'검증 계정',email:'test@example.invalid',role:'owner'}],files:[],records:bookings};
 // No live account, maps provider, or reservation writes are used by this test.
-window.fetch=async(input)=>Response.json(String(input).includes('auth-config')?{url:'',publishableKey:'',providers:{email:false,google:false,kakao:false}}:{places:[],holidays:[],supported:false,rate:1,date:'2026-11-01'});
+window.fetch=async(input)=>Response.json(String(input).includes('auth-config')?{url:'',publishableKey:'',providers:{email:false,google:false,kakao:false}}:{places:[],holidays:[],supported:false,time:600,rate:1,date:'2026-11-01'});
 declare global{interface Window{keyboardFixture:{show:(scene:string)=>void;saved:unknown[];memo:string;ready:boolean}}}
 window.keyboardFixture={show:noop,saved:[],memo,ready:false};
 function Fixture(){
@@ -42,6 +42,7 @@ function Fixture(){
  {scene==='travel'&&<ItineraryEditor workspace={{...workspace,records:[...routePlaces,...routePlans]}} date='2026-11-01' days={['2026-11-01']} plans={routePlans} places={routePlaces} connections={graph.connections} disabled={false} onSchedule={async()=>workspace} onEdit={noop} onRemove={noop} onAdd={noop} onError={noop} onBooking={noop} onSave={save} onEstimate={save}/>}
  {scene.startsWith('booking-')&&<BookingForm key={scene} workspace={workspace} profile={profile} type={type} record={scene.endsWith('-new')?undefined:booking} onSave={async(...args)=>{window.keyboardFixture.saved.push(args);}} onClose={noop}/>}
  {scene==='plan'&&<PlanComposer workspace={workspace} date='2026-11-01' record={row('plan','plan',{title:'일정 입력',time:'09:15',duration:60,note:memo})} onSave={save} onClose={noop} onNotice={noop} onHotel={save}/>}
+ {scene.startsWith('linked-plan-')&&<PlanComposer key={scene} workspace={workspace} date='2026-11-01' record={row('linked-plan','plan',{entryType:'plan',title:'연결된 일정',date:'2026-11-01',time:'09:15',bookingId:scene.slice('linked-plan-'.length),bookingEvent:'manual',note:memo})} onSave={async(...args)=>{window.keyboardFixture.saved.push(args);}} onClose={noop} onNotice={noop} onHotel={save}/>}
  {scene==='memo'&&<PlanComposer workspace={workspace} date='2026-11-01' record={row('memo','plan',{entryType:'memo',note:memo})} onSave={save} onClose={noop} onNotice={noop} onHotel={save}/>}
  {scene==='expense'&&<ExpenseForm workspace={workspace} profile={profile} record={row('expense','expense',{model:2,title:'검증 식사',amount:1000,tripAmount:1000,baseAmount:1000,tripCurrency:'USD',baseCurrency:'KRW',paidCurrency:'USD',exchangeRate:1,date:'2026-11-01',note:memo,payers:[{userId:'test',name:'검증 계정',amount:'1000'}],participants:[{userId:'test',name:'검증 계정',amount:'1000'}]})} categories={workspace.trip.settings.expenseCategories} initialPeriod='day' initialDate='2026-11-01' onSave={save} onClose={noop}/>}
  {scene==='trip'&&<TripForm trip={workspace.trip} onSave={save} onClose={noop}/>}
@@ -52,7 +53,7 @@ function Fixture(){
  {scene==='place'&&<Dialog mobilePage title='장소 검색' onClose={noop}><PlacePicker onChoose={noop}/></Dialog>}
  {scene==='manual'&&<ManualPlacePicker initial={{name:'장소 입력',address:'서울',lat:37.55,lng:126.97}} onChoose={noop} onClose={noop}/>}
  {scene==='search'&&<TripCollectionControls query={query} onQuery={setQuery} columns={2} onColumns={noop} sort='upcoming' onSort={noop} filter={{status:'all',ownership:'all',destination:''}} onFilter={noop} destinations={[]}/>}
- {scene==='toast'&&<Toast message='저장했어북'/>}
+ <Toast message='저장했어북'/>
  <MobileTripNav tab='plan' disabled={false} onSelect={noop}/>
  </main></ConfirmationProvider>;
 }

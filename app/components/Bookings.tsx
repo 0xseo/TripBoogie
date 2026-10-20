@@ -8,7 +8,7 @@ import DateField from "./DateField";
 import TurtleIcon from "./TurtleIcon";
 import TimeField from "./TimeField";
 import { bookingCategories } from "../booking-categories";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { airportCode, bookingTitle as displayBookingTitle, compareBookings } from "../booking-display";
 import Files, { type FileCommand } from "./Files";
 import {
@@ -33,6 +33,7 @@ import AirportInput from "./AirportInput";
 import StayDates from "./StayDates";
 import { money, CurrencySelect } from "./ui";
 import PlacePicker from "./PlacePicker";
+const bookingEventLabels: Record<string, string> = {checkin:"체크인",checkout:"체크아웃",departure:"출발",arrival:"도착",stay:"숙박"};
 export default function Bookings({
   workspace,
   profile,
@@ -66,9 +67,14 @@ export default function Bookings({
     [editing, setEditing] = useState<ItemRecord | "new" | null>(null),
     [reviewPayment, setReviewPayment] = useState(false),
     [showFiles, setShowFiles] = useState(false);
+  const scrolledTo = useRef("");
   useEffect(() => {
-    if (!focused) return;
-    const frame = requestAnimationFrame(() => document.getElementById(`booking-${focused}`)?.scrollIntoView({ block: "center" }));
+    if (!focused) { scrolledTo.current = ""; return; }
+    if (scrolledTo.current === focused) return;
+    const frame = requestAnimationFrame(() => {
+      const target = document.getElementById(`booking-${focused}`);
+      if (target) { target.scrollIntoView({ block: "center" }); scrolledTo.current = focused; }
+    });
     return () => cancelAnimationFrame(frame);
   }, [focused, type, showFiles]);
   function selectBookingCategory(id: string, files = false) {
@@ -227,7 +233,7 @@ export default function Bookings({
               <div className="booking-plan-links">
                 {workspace.records.filter((p) => p.kind === "plan" && p.data.bookingId === r.id).sort((a, b) => String(a.data.date).localeCompare(String(b.data.date)) || String(a.data.time || "").localeCompare(String(b.data.time || ""))).map((plan) => (
                   <button type="button" className="text-button" key={plan.id} onClick={() => onPlan(plan)}>
-                    <CalendarDays size={15}/>{dateLabel(text(plan.data.date))} {text(plan.data.time)} · {text(plan.data.bookingEvent) === "checkin" ? "체크인" : text(plan.data.bookingEvent) === "checkout" ? "체크아웃" : text(plan.data.bookingEvent) === "departure" ? "출발" : text(plan.data.bookingEvent) === "arrival" ? "도착" : text(plan.data.bookingEvent)==="stay" ? "숙박" : text(plan.data.bookingEvent)==="manual" ? text(plan.data.title,"연결") : "투어"} 일정 보기
+                    <CalendarDays size={15}/>{dateLabel(text(plan.data.date))} {text(plan.data.time)} · {r.data.type === "flight" || r.data.type === "hotel" ? `${bookingEventLabels[text(plan.data.bookingEvent)] || text(plan.data.title,"연결")} ` : ""}일정 보기
                   </button>
                 ))}
               </div>

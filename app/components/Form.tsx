@@ -1,6 +1,5 @@
 "use client";
 import {createContext,useContext,useState,type ComponentProps,type SubmitEvent} from "react";
-import {revealFocusedInput} from "./KeyboardFocus";
 const Errors=createContext<Record<string,string>>({});
 export const useFieldError=(id:string)=>useContext(Errors)[id];
 type Control=HTMLInputElement|HTMLTextAreaElement|HTMLSelectElement;
@@ -28,7 +27,7 @@ export default function Form({children,onSubmit,onInputCapture,...props}:Compone
    else{element.removeAttribute("aria-invalid");if(element.getAttribute("aria-describedby")===key)element.removeAttribute("aria-describedby");}
   }
   setErrors(next);setSummary(unplaced);
-  if(first){e.preventDefault();first.focus();requestAnimationFrame(()=>revealFocusedInput(first?.closest("dialog")||undefined));return;}
+  if(first){e.preventDefault();first.focus();return;}
   onSubmit?.(e);
  }
  return <Errors.Provider value={errors}><form {...props} noValidate onSubmit={submit} onInputCapture={e=>{

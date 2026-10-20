@@ -705,10 +705,10 @@ textarea {
   .dialog:not(.full-screen-dialog):not(.mobile-page-dialog) {
     position: fixed;
     inset-inline: 0;
-    top: calc(var(--dialog-top, 0px) + var(--dialog-vh, 100dvh) / 2);
-    bottom: auto;
-    margin: 0 auto;
-    transform: translateY(-50%);
+    top: var(--dialog-top, 0px);
+    bottom: calc(100dvh - var(--dialog-top, 0px) - var(--dialog-vh, 100dvh));
+    height: fit-content;
+    margin: auto;
     max-height: calc(var(--dialog-vh, 100dvh) - 24px);
     width: calc(100vw - 24px);
   }
@@ -2099,7 +2099,7 @@ html.native-app .resizable-map{--map-base-height:230px;--map-screen-limit:50dvh}
 .optional-time{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:end;gap:12px}.optional-time>.field{min-width:0}.optional-time input{width:100%}
 .booking-add-plan{display:flex;align-items:center;gap:9px;font-size:14px;min-height:44px}.booking-add-plan input{width:18px;height:18px;min-height:0;accent-color:var(--green)}.booking-room{font-size:13px;color:var(--muted);margin:4px 0}
 .field:has([aria-invalid="true"]) :is(input,textarea,select),[aria-invalid="true"]{border-color:var(--danger);box-shadow:0 0 0 2px color-mix(in srgb,var(--danger) 12%,transparent)}.field>.field-error,.field-error{color:var(--danger);font-size:12px;line-height:1.5;font-weight:500}.form-validation-summary{padding:12px 14px;background:var(--soft);border:1px solid var(--danger);border-radius:12px;color:var(--danger);font-size:13px}
-.dialog>.toast{position:fixed;top:calc(var(--dialog-top,0px) + 72px);bottom:auto;left:50%;width:max-content;max-width:min(90vw,480px);padding:12px 16px;pointer-events:none}.toast svg{flex:none}
+.dialog>.toast{position:fixed;top:auto;bottom:calc(var(--trip-nav-reserve,0px) + 16px);left:50%;width:max-content;max-width:min(90vw,480px);pointer-events:none}.toast svg{flex:none}
 textarea:focus{max-height:var(--memo-visible-height,70dvh);min-height:min(80px,var(--memo-visible-height,80px));scroll-padding:16px}.dialog .memo-composer .memo-editor-field{display:flex;flex-direction:column;min-height:0}.memo-editor-field>.field{display:flex;flex-direction:column;flex:1;min-height:0}.dialog .memo-composer .memo-editor-field textarea{flex:1;min-height:min(160px,var(--memo-visible-height,160px))}
 .dialog .memo-editor-field textarea:focus{max-height:var(--memo-visible-height,70dvh)}
 
@@ -2112,3 +2112,9 @@ body>.toast{bottom:calc(var(--trip-nav-reserve,0px) + 16px);left:50%;max-width:m
 
 body::after{content:"";display:block;height:var(--keyboard-page-gap,0px);pointer-events:none}
 .time-wheel-wrap{display:grid;gap:8px}.time-wheel-wrap>small{line-height:16px}.time-picker>span{margin-top:24px}
+
+/* Input reveal owns form scrolling while the keyboard changes the viewport. */
+.dialog,.dialog-inner,.dialog-inner>form{overflow-anchor:none}
+
+/* The memo editor fills its flex column again as soon as the keyboard closes. */
+.dialog .memo-composer .memo-editor-field textarea,.dialog .memo-composer .memo-editor-field textarea:focus{min-height:72px;max-height:none}

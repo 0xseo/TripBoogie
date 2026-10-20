@@ -631,6 +631,7 @@ function TripAppContent({
     setAccountScreen(null);
     setDate(trip.startDate);
     setTab(destination);
+    setBookingFocus("");
     setSelected("");
     setModal(null);
     setAtHome(false);
@@ -872,12 +873,13 @@ function TripAppContent({
     setError("");
     setModal(null);
   }
-  function goTab(next: TripTab) {
+  function goTab(next: TripTab, focusedBooking = "") {
     if (profile?.withdrawnAt) {
       setAccountScreen("profile");
       setNotice("계정을 먼저 복구해북");
       return;
     }
+    setBookingFocus(next === "bookings" ? focusedBooking : "");
     if ((!atHome && !accountScreen && tab === next) || next === "settings")
       resetSurface(next);
     if (next === "settings") {
@@ -1148,7 +1150,7 @@ function TripAppContent({
                           if (profileState.getSnapshot()?.id !== myProfile.id) throw new Error("계정이 바뀌었습니다.");
                           await profileState.save({mapHeightScale}, payload=>api<Profile>("/api/profile",jsonRequest(payload)));
                         } : undefined}
-                        onBooking={(id) => { setBookingFocus(id); goTab("bookings"); }}
+                        onBooking={(id) => goTab("bookings", id)}
                         workspace={workspace}
                         date={currentDate}
                         days={allDays}
@@ -1449,7 +1451,7 @@ function TripAppContent({
               onClose={() => setModal(null)}
               onSave={async (data, place) => {
                 const id = editing?.id ?? crypto.randomUUID();
-                void commit(
+                await commit(
                   {
                     data,
                     id,
@@ -1457,7 +1459,8 @@ function TripAppContent({
                     ...(place ? { place } : {}),
                   },
                   "save-plan", previewSave("plan", data, id)
-                ).then(() => setNotice("저장했어북")).catch(() => {});
+                );
+                setNotice("저장했어북");
               }}
             />
           )}

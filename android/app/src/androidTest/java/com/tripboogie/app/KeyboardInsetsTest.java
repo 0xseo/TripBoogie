@@ -11,6 +11,9 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import java.util.concurrent.CountDownLatch;
+import java.util.ArrayList;
+import java.util.List;
+import android.view.View;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
@@ -27,12 +30,12 @@ public class KeyboardInsetsTest {
     }
     @Test public void keyboardResizesTheActualWebView() throws Exception {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
-            scenario.onActivity(a -> a.getBridge().getWebView().loadDataWithBaseURL("https://localhost/",
-                "<!doctype html><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{margin:0}textarea{position:fixed;bottom:20px;left:16px;width:300px;height:120px;font-size:16px}</style><textarea id='memo'>예약 메모 키보드 검증</textarea>","text/html","UTF-8",null));
+            KeyboardTestHost.html(scenario,
+                "<!doctype html><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{margin:0}textarea{position:fixed;bottom:20px;left:16px;width:300px;height:120px;font-size:16px}</style><textarea id='memo'>예약 메모 키보드 검증</textarea>");
             for (int i=0;i<40 && !js(scenario,"!!document.getElementById('memo')").equals("true");i++) SystemClock.sleep(100);
             int[] originalHeight={0};scenario.onActivity(a->originalHeight[0]=a.getBridge().getWebView().getHeight());
             js(scenario,"document.getElementById('memo').focus();true");
-            scenario.onActivity(a -> {WebView w=a.getBridge().getWebView();w.requestFocus();((InputMethodManager)a.getSystemService(Context.INPUT_METHOD_SERVICE)).showSoftInput(w,InputMethodManager.SHOW_IMPLICIT);});
+            KeyboardTestHost.keyboard(scenario);
             AtomicReference<String> bounds = new AtomicReference<>();
             boolean[] visible={false};
             for(int i=0;i<60;i++){
@@ -53,4 +56,28 @@ public class KeyboardInsetsTest {
             assertTrue("Closing the keyboard must restore the full WebView height",restored[0]);
         }
     }
+    @Test public void keyboardHeightMovesInOneDirectionWhileOpeningAndClosing() throws Exception {
+        try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
+            KeyboardTestHost.html(scenario,"<!doctype html><meta name='viewport' content='width=device-width,initial-scale=1'><textarea id='memo' style='font-size:16px'>keyboard animation</textarea>");
+            for(int i=0;i<40&&!js(scenario,"!!document.getElementById('memo')").equals("true");i++)SystemClock.sleep(100);
+            List<Integer> opening=new ArrayList<>(),closing=new ArrayList<>();
+            View.OnLayoutChangeListener openListener=(v,l,t,r,b,ol,ot,or,ob)->opening.add(b-t);
+            View.OnLayoutChangeListener closeListener=(v,l,t,r,b,ol,ot,or,ob)->closing.add(b-t);
+            scenario.onActivity(a->{WebView w=a.getBridge().getWebView();opening.add(w.getHeight());w.addOnLayoutChangeListener(openListener);});
+            js(scenario,"document.getElementById('memo').focus();true");
+            KeyboardTestHost.keyboard(scenario);
+            SystemClock.sleep(1200);
+            scenario.onActivity(a->{WebView w=a.getBridge().getWebView();w.removeOnLayoutChangeListener(openListener);closing.add(w.getHeight());w.addOnLayoutChangeListener(closeListener);((InputMethodManager)a.getSystemService(Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(w.getWindowToken(),0);});
+            SystemClock.sleep(1200);
+            scenario.onActivity(a->a.getBridge().getWebView().removeOnLayoutChangeListener(closeListener));
+            int openBacktrack=0,closeBacktrack=0;
+            for(int i=1;i<opening.size();i++)openBacktrack=Math.max(openBacktrack,opening.get(i)-opening.get(i-1));
+            for(int i=1;i<closing.size();i++)closeBacktrack=Math.max(closeBacktrack,closing.get(i-1)-closing.get(i));
+            System.out.println("KEYBOARD_MOTION opening="+opening+", closing="+closing+", openBacktrack="+openBacktrack+", closeBacktrack="+closeBacktrack);
+            assertTrue("Keyboard must actually resize the WebView",opening.get(0)-opening.get(opening.size()-1)>100);
+            assertTrue("Opening must not repeatedly expand the WebView: "+opening,openBacktrack<=3);
+            assertTrue("Closing must not repeatedly collapse the WebView: "+closing,closeBacktrack<=3);
+        }
+    }
+
 }
