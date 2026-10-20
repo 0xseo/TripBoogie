@@ -53,7 +53,8 @@ import Tools from "./components/Tools";
 import { Dialog, CalendarCountry, text } from "./components/ui";
 import { SearchLanguage } from "./components/SearchLanguage";
 import { profileSearchLanguage } from "./search-language";
-import { comparePlans, itineraryDays } from "./planning";
+import {travelEstimateKey} from "./route-time";
+import { comparePlans, itineraryDays,placePoint } from "./planning";
 import { WorkspaceMutations } from "./workspace-mutations";
 import { isNativeApp } from "./runtime";
 import {
@@ -1171,6 +1172,14 @@ function TripAppContent({
                         }}
                         onError={setError}
                         onSave={(r, data) => save("plan", data, r)}
+                        onEstimate={async(plan,fromId,key,mode,minutes)=>{
+                          await commit({id:plan.id,fromId,key,mode,minutes},"save-travel-time",current=>{
+                            const target=current.records.find(r=>r.id===plan.id),source=current.records.find(r=>r.id===fromId);
+                            const a=placePoint(current.records.find(r=>r.id===source?.data.placeId)),b=placePoint(current.records.find(r=>r.id===target?.data.placeId));
+                            if(!target||!source||!a||!b||travelEstimateKey(mode,fromId,plan.id,a,b)!==key||text(target.data.transportMode,"walk")!==mode||target.data.travelMinutes!==undefined&&target.data.travelFromId===fromId&&target.data.travelTimeSource!=="estimate")return current;
+                            return {...current,records:current.records.map(r=>r.id===plan.id?{...r,data:{...r.data,travelMinutes:minutes,travelFromId:fromId,travelEstimateKey:key,travelTimeSource:"estimate"}}:r)};
+                          });
+                        }}
                       />
                     </>
                   )}

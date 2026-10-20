@@ -67,6 +67,7 @@ export function createApiHandler(deps: Dependencies) {
         method === "POST" &&
         [
           "save-plan",
+          "save-travel-time",
           "save-booking",
           "ensure-hotel-plan",
           "update-settings",

@@ -1096,3 +1096,31 @@ test('hotel migration backfills every date without changing existing customized 
   const permissions=await db.query("select bool_or(has_function_privilege('authenticated',p.oid,'execute') or has_function_privilege('anon',p.oid,'execute')) as allowed from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='tripboogie_private' and p.proname in ('bind_plan_booking','sync_booking_event','shift_booking_anchors')");assert.equal(permissions.rows[0].allowed,false);
  }finally{await db.close();}
 });
+
+test('route estimates persist independently, reject stale geometry and never overwrite manual times',async()=>{
+ const {db,rpc,request}=await fixture();try{
+  let w=await rpc('owner','create',null,{data:details});const id=w.trip.id;
+  await rpc('owner','create-invite',id,{role:'viewer',token:'ab'.repeat(32)});await rpc('viewer','join',null,{token:'ab'.repeat(32)});
+  w=await rpc('owner','save-plan',id,{data:{title:'Origin',date:details.startDate},place:{name:'Origin',lat:35,lng:139}});const from=w.records.find(r=>r.kind==='plan');
+  w=await rpc('owner','save-plan',id,{data:{title:'Destination',date:details.startDate},place:{name:'Destination',lat:35.1,lng:139.2}});let target=w.records.find(r=>r.kind==='plan'&&r.id!==from.id);
+  const key=JSON.stringify(['walk',from.id,target.id,35,139,35.1,139.2]);const payload=()=>({id:target.id,version:target.version,fromId:from.id,key,mode:'walk',minutes:25});
+  const response=await request(`trips/${id}/actions/save-travel-time`,'owner','POST',payload());assert.equal(response.status,200);w=response.body;target=w.records.find(r=>r.id===target.id);assert.equal(target.data.travelMinutes,25);assert.equal(target.data.travelTimeSource,'estimate');assert.equal(target.data.travelEstimateKey,key);
+  assert.equal((await rpc('owner','workspace',id)).records.find(r=>r.id===target.id).data.travelMinutes,25);
+  const version=target.version,revision=w.revision;w=await rpc('owner','save-travel-time',id,payload());assert.equal(w.revision,revision);assert.equal(w.records.find(r=>r.id===target.id).version,version);
+  await assert.rejects(rpc('viewer','save-travel-time',id,payload()),{code:'PT403'});
+  await assert.rejects(rpc('owner','save-travel-time',id,{...payload(),minutes:100001}),{code:'PT400'});
+  w=await rpc('owner','save-plan',id,{id:target.id,version:target.version,data:{...target.data,title:'Newer name',travelMinutes:7,travelTimeSource:'manual',travelEstimateKey:undefined}});target=w.records.find(r=>r.id===target.id);
+  w=await rpc('owner','save-travel-time',id,{...payload(),version,minutes:99});assert.equal(w.records.find(r=>r.id===target.id).data.title,'Newer name');assert.equal(w.records.find(r=>r.id===target.id).data.travelMinutes,7);
+  w=await rpc('owner','save-travel-time',id,{...payload(),minutes:99});assert.equal(w.records.find(r=>r.id===target.id).data.travelMinutes,7);
+  w=await rpc('owner','save-plan',id,{id:target.id,version:target.version,data:{...target.data,transportMode:'drive',travelMinutes:undefined,travelTimeSource:undefined,travelEstimateKey:undefined}});target=w.records.find(r=>r.id===target.id);
+  w=await rpc('owner','save-travel-time',id,payload());assert.equal(w.records.find(r=>r.id===target.id).data.travelMinutes,undefined);
+  let location=w.records.find(r=>r.id===target.data.placeId);w=await rpc('owner','mutate',id,{kind:'place',action:'upsert',id:location.id,version:location.version,data:{...location.data,lat:36}});
+  w=await rpc('owner','save-travel-time',id,{...payload(),mode:'drive',key:JSON.stringify(['drive',from.id,target.id,35,139,35.1,139.2])});assert.equal(w.records.find(r=>r.id===target.id).data.travelMinutes,undefined);
+  const driveKey=JSON.stringify(['drive',from.id,target.id,35,139,36,139.2]);w=await rpc('owner','save-travel-time',id,{...payload(),mode:'drive',key:driveKey,minutes:18});target=w.records.find(r=>r.id===target.id);assert.equal(target.data.travelMinutes,18);
+  // Booking memo synchronization preserves the schedule's route choice and estimate.
+  w=await rpc('owner','save-booking',id,{data:{type:'hotel',title:'Hotel',startDate:details.startDate,endDate:'2026-11-02'},place:{name:'Hotel',lat:35.3,lng:139.5}});let hotel=w.records.find(r=>r.kind==='booking'),checkin=w.records.find(r=>r.data.bookingId===hotel.id&&r.data.bookingEvent==='checkin');
+  const stayKey=JSON.stringify(['walk',from.id,checkin.id,35,139,35.3,139.5]);w=await rpc('owner','save-travel-time',id,{id:checkin.id,version:checkin.version,fromId:from.id,mode:'walk',key:stayKey,minutes:32});checkin=w.records.find(r=>r.id===checkin.id);
+  w=await rpc('owner','save-booking',id,{id:hotel.id,version:hotel.version,data:{...hotel.data,note:'Shared later memo'}});checkin=w.records.find(r=>r.id===checkin.id);assert.equal(checkin.data.travelMinutes,32);assert.equal(checkin.data.travelTimeSource,'estimate');assert.equal(checkin.data.travelEstimateKey,stayKey);assert.equal(checkin.data.note,'Shared later memo');
+  assert.equal((await db.query("select has_function_privilege('authenticated','tripboogie_private.save_travel_time(public.trips,jsonb)','execute') as allowed")).rows[0].allowed,false);
+ }finally{await db.close();}
+});

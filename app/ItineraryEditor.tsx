@@ -6,6 +6,7 @@ import { memoText } from "./memo";
 import { itineraryTitle } from "./booking-display";
 import {flightDurationMinutes, flightDurationLabel} from "./flight-duration";
 import ItineraryTitle from "./components/ItineraryTitle";
+import {connectionEstimateKey,savedTravelMinutes,type SaveTravelTime} from "./route-time";
 import BookingIcon from "./components/BookingIcon";
 import { PlaceMedia } from "./components/Media";
 import SortHandle from "./components/SortHandle";
@@ -75,7 +76,9 @@ function LegEditor({
   connection,
   disabled,
   onSave,
+  onEstimate,
 }: {
+  onEstimate?:SaveTravelTime;
   connection: Connection;
   disabled: boolean;
   onSave: (r: ItemRecord, data: Record<string, unknown>) => Promise<void>;
@@ -93,19 +96,8 @@ function LegEditor({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const mode = pendingMode ?? text(plan.data.transportMode, "walk"),
-    saved =
-      plan.data.travelFromId === from.id &&
-      plan.data.travelMinutes !== undefined &&
-      plan.data.travelMinutes !== null
-        ? String(plan.data.travelMinutes)
-        : "";
-  const estimateKey = JSON.stringify([
-      mode,
-      leg?.from.lat,
-      leg?.from.lng,
-      leg?.to.lat,
-      leg?.to.lng,
-    ]),
+    saved=savedTravelMinutes(connection,mode);
+  const estimateKey=connectionEstimateKey(connection,mode),
     canEstimate = !!leg && ["walk", "drive", "bicycle"].includes(mode);
   const auto = automatic?.key === estimateKey ? automatic.minutes : null;
   const minutes =
@@ -128,12 +120,13 @@ function LegEditor({
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
-    if (!visible || !canEstimate || !leg) return;
+    if (!visible || !canEstimate || !leg || saved!=="" || draft!==null || pendingMode!==null) return;
     const controller = new AbortController();
     estimate(leg, mode, controller.signal)
-      .then((n) => {
-        if (!controller.signal.aborted)
-          setAutomatic({ key: estimateKey, minutes: n });
+      .then(async(n) => {
+        if(controller.signal.aborted)return;
+        setAutomatic({key:estimateKey,minutes:n});
+        if(!disabled&&onEstimate)await onEstimate(plan,from.id,estimateKey,mode,n);
       })
       .catch(() => {})
       .finally(() => {
@@ -142,7 +135,7 @@ function LegEditor({
     return () => controller.abort();
     // A located connection and its mode own one estimate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, mode, estimateKey, canEstimate]);
+  }, [visible, mode, estimateKey, canEstimate, saved, draft, pendingMode, disabled]);
   async function save(data: Record<string, unknown>, remove = false) {
     setBusy(true);
     setError("");
@@ -151,8 +144,11 @@ function LegEditor({
       if (remove) {
         delete next.travelFromId;
         delete next.travelMinutes;
+        delete next.travelTimeSource;
+        delete next.travelEstimateKey;
       } else next.travelFromId = from.id;
       await onSave(plan, next);
+      setDraft(null);
       return true;
     } catch (e) {
       setError((e as Error).message);
@@ -166,7 +162,7 @@ function LegEditor({
     setPendingMode(value);
     setDraft(null);
     setAutomatic(null);
-    await save({ transportMode: value, travelMinutes: undefined });
+    await save({ transportMode: value, travelMinutes: undefined,travelTimeSource:undefined,travelEstimateKey:undefined });
     setPendingMode(null);
   }
   return (
@@ -181,7 +177,7 @@ function LegEditor({
         onChange={(value) => void changeMode(value)}
       />
       <label className="manual-time">
-        {draft === null && !saved && auto !== null && (
+        {draft === null && (saved!==""?plan.data.travelTimeSource==="estimate":auto!==null) && (
           <span className="approximate">약</span>
         )}
         <input
@@ -208,6 +204,8 @@ function LegEditor({
             }
             void save({
               travelMinutes: draft === "" ? undefined : Number(draft),
+              travelTimeSource:draft===""?undefined:"manual",
+              travelEstimateKey:undefined,
             });
           }}
         />
@@ -265,7 +263,9 @@ export default function ItineraryEditor({
   onSave,
   focused,
   onBooking,
+  onEstimate,
 }: {
+  onEstimate?:SaveTravelTime;
   focused?: string;
   onBooking: (id: string) => void;
   workspace: Workspace;
@@ -492,8 +492,9 @@ export default function ItineraryEditor({
                 (connection.leg ||
                 r.data.travelFromId === connection.from.id ? (
                   <LegEditor
-                    key={`${r.id}-${r.version}`}
+                    key={`${r.id}-${connection.from.id}`}
                     connection={connection}
+                    onEstimate={onEstimate}
                     disabled={disabled}
                     onSave={onSave}
                   />

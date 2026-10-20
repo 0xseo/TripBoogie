@@ -3,6 +3,7 @@ import { memoText } from "../memo";
 import { itineraryTitle } from "../booking-display";
 import {flightDurationMinutes, flightDurationLabel} from "../flight-duration";
 import ItineraryTitle from "./ItineraryTitle";
+import type {SaveTravelTime} from "../route-time";
 import BookingIcon from "./BookingIcon";
 import {Pencil} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -38,10 +39,12 @@ export default function TripPlan({
   onAdd,
   onError,
   onSave,
+  onEstimate,
   onBooking,
   mapHeightScale,
   onMapHeight,
 }: {
+  onEstimate?:SaveTravelTime;
   workspace: Workspace;
   date: string;
   days: string[];
@@ -127,6 +130,7 @@ export default function TripPlan({
         onAdd={onAdd}
         onError={onError}
         onSave={onSave}
+        onEstimate={onEstimate}
         focused={selected}
       />
       {expanded && (
