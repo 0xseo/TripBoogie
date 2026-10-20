@@ -13,6 +13,7 @@ export type OverviewCandidate = {
   sourceIds: string[];
   hotel: boolean;
 };
+export type OverviewSeparator = " · " | "\n";
 export const emptyOverview = (): OverviewDraft => ({ schema: 1, days: {} });
 
 /** Drafts are account/trip scoped, and never enter the workspace mutation API. */
@@ -45,6 +46,12 @@ const string = (value: unknown) => typeof value === "string" ? value : "";
 const clock = (plan: ItemRecord, times: boolean) => times && string(plan.data.time) ? `${plan.data.time} ` : "";
 const customTitle = (plan: ItemRecord) => Array.isArray(plan.data.bookingOverrides) ? plan.data.bookingOverrides.includes("title") : plan.data.bookingManaged === false;
 
+export function overviewDuration(value: unknown) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) return "";
+  const hours = Math.floor(value / 60), minutes = value % 60;
+  return ` (${[hours ? `${hours}시간` : "", minutes ? `${minutes}분` : ""].filter(Boolean).join(" ")})`;
+}
+
 export function overviewCandidates(workspace: Workspace, date: string, times = true): OverviewCandidate[] {
   const bookings = new Map(workspace.records.filter(r => r.kind === "booking").map(r => [r.id, r]));
   const plans = workspace.records.filter(r => r.kind === "plan" && r.data.date === date).sort(comparePlans);
@@ -55,7 +62,8 @@ export function overviewCandidates(workspace: Workspace, date: string, times = t
     const booking = bookings.get(string(plan.data.bookingId));
     const hotel = booking?.data.type === "hotel";
     const sourceIds = [plan.id];
-    let text = `${clock(plan, times)}${string(plan.data.title)}`;
+    const duration = overviewDuration(plan.data.duration);
+    let text = `${clock(plan, times)}${string(plan.data.title)}${duration}`;
     if (plan.data.entryType === "memo") text = memoText(plan.data);
     else if (booking?.data.type === "flight" && ["departure", "arrival"].includes(string(plan.data.bookingEvent))) {
       const overridden = customTitle(plan);
@@ -64,10 +72,10 @@ export function overviewCandidates(workspace: Workspace, date: string, times = t
       if (pair) {
         consumed.add(next.id);
         sourceIds.push(next.id);
-        text = `항공 · ${clock(plan, times)}${airportLabel(booking.data.departureAirport, booking.data.departure)} → ${clock(next, times)}${airportLabel(booking.data.arrivalAirport, booking.data.arrival)}`;
+        text = `${clock(plan, times)}${airportLabel(booking.data.departureAirport, booking.data.departure)}${duration} → ${clock(next, times)}${airportLabel(booking.data.arrivalAirport, booking.data.arrival)}${overviewDuration(next.data.duration)}`;
       } else if (!overridden) {
         const departure = plan.data.bookingEvent === "departure";
-        text = `항공 · ${clock(plan, times)}${airportLabel(departure ? booking.data.departureAirport : booking.data.arrivalAirport, departure ? booking.data.departure : booking.data.arrival)} ${departure ? "출발" : "도착"}`;
+        text = `${clock(plan, times)}${airportLabel(departure ? booking.data.departureAirport : booking.data.arrivalAirport, departure ? booking.data.departure : booking.data.arrival)} ${departure ? "출발" : "도착"}${duration}`;
       }
     }
     result.push({ id: plan.id, date, text: hotel ? `숙소: ${text}` : text, sourceIds, hotel });
@@ -76,7 +84,7 @@ export function overviewCandidates(workspace: Workspace, date: string, times = t
 }
 
 /** Whole-trip imports are atomic: an overlong row leaves every previous row intact. */
-export function importOverview(draft: OverviewDraft, candidates: OverviewCandidate[], mode: "append" | "replace", separator: " · " | "\n"): OverviewDraft {
+export function importOverview(draft: OverviewDraft, candidates: OverviewCandidate[], mode: "append" | "replace", separator: OverviewSeparator = "\n"): OverviewDraft {
   const grouped = new Map<string, OverviewCandidate[]>();
   for (const candidate of candidates) grouped.set(candidate.date, [...(grouped.get(candidate.date) ?? []), candidate]);
   const days = { ...draft.days };

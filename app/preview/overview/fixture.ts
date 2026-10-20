@@ -32,7 +32,7 @@ flight("flight-1", "2026-11-24", "seoul", "auckland", "18:25", "09:55", "2026-11
 flight("flight-2", "2026-11-26", "auckland", "rotorua", "18:20", "19:05");
 record("booking", "hotel-1", { type: "hotel", title: "로토루아 숙소", startDate: "2026-11-26", endDate: "2026-11-28" });
 plan("2026-11-26", "로토루아 숙소 · 체크인", "", "rotorua", { bookingId: "hotel-1", bookingEvent: "checkin" });
-plan("2026-11-27", "캐노피 투어", "08:30");
+plan("2026-11-27", "캐노피 투어", "08:30", "rotorua", { duration: 180 });
 plan("2026-11-27", "루지 탑승", "12:00");
 plan("2026-11-27", "점심 + 숙소에서 정비");
 plan("2026-11-27", "블루스프링", "15:30");
@@ -44,7 +44,7 @@ flight("flight-3", "2026-11-28", "rotorua", "wellington", "11:55", "13:10");
 flight("flight-4", "2026-11-28", "wellington", "queenstown", "13:55", "15:20");
 plan("2026-11-28", "렌터카로 와나카 → 페얼리", "", "queenstown");
 plan("2026-11-29", "테카포 → 퀸스타운 · 관광/쇼핑", "", "queenstown");
-plan("2026-11-29", "온센 핫풀", "20:00", "queenstown");
+plan("2026-11-29", "온센 핫풀", "20:00", "queenstown", { duration: 105 });
 plan("2026-11-30", "퀸스타운 투어 · 밀포드 사운드", "", "queenstown");
 plan("2026-12-01", "마운트쿡 투어", "06:30", "queenstown");
 flight("flight-5", "2026-12-02", "queenstown", "christchurch", "10:25", "11:20");
@@ -60,4 +60,4 @@ export const overviewPreviewWorkspace: Workspace = {
   records, members: [], files: [], revision: 1,
 };
 export const overviewPreviewDays = itineraryDays(overviewPreviewWorkspace.trip, records);
-export const overviewPreviewDraft = importOverview(emptyOverview(), overviewPreviewDays.flatMap(date => overviewCandidates(overviewPreviewWorkspace, date).filter(item => !item.hotel)), "replace", " · ");
+export const overviewPreviewDraft = importOverview(emptyOverview(), overviewPreviewDays.flatMap(date => overviewCandidates(overviewPreviewWorkspace, date).filter(item => !item.hotel)), "replace");

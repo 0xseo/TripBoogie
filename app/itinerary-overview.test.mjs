@@ -33,7 +33,8 @@ test('import, free edits and removal leave every source record and booking uncha
   assert.equal(candidates[0].text, '점심');
   const imported = overview.importOverview(overview.emptyOverview(), candidates, 'replace', ' · ');
   const edited = overview.writeOverviewDay(imported, date, '자유 입력 → 쇼핑\n저녁');
-  assert.equal(imported.days[date].text.includes('항공'), true);
+  assert.equal(imported.days[date].text.includes('항공'), false);
+  assert.match(imported.days[date].text, /18:15.*→.*19:05/);
   assert.equal(edited.days[date].text, '자유 입력 → 쇼핑\n저녁');
   assert.notEqual(imported.days[date].sourceIds, edited.days[date].sourceIds);
   assert.equal(overview.writeOverviewDay(edited, date, '').days[date].text, '');
@@ -90,6 +91,21 @@ test('draft persistence round-trips, accounts/trips are isolated and invalid sto
   assert.notEqual(overview.overviewStorageKey('alice', 'trip'), overview.overviewStorageKey('bob', 'trip'));
   assert.notEqual(overview.overviewStorageKey('alice:trip', 'one'), overview.overviewStorageKey('alice', 'trip:one'));
   for (const input of ['broken', '{"schema":2,"days":{}}', '{"schema":1,"days":[]}', '{"schema":1,"days":{"2026-11-26":{"text":42,"sourceIds":[]}}}']) assert.throws(() => overview.parseOverview(input));
+});
+
+test('every activity occupies its own line, including activities without a scheduled time', () => {
+  const workspace = {records: [record('tour', 'plan', {date, position: 1, time: '08:30', title: '캐노피 투어', duration: 180}), record('luge', 'plan', {date, position: 2, time: '12:00', title: '루지'}), record('lunch', 'plan', {date, position: 3, title: '점심 + 정비'}), record('spring', 'plan', {date, position: 4, time: '15:30', title: '블루스프링', duration: 45})]};
+  const candidates = overview.overviewCandidates(workspace, date);
+  assert.equal(overview.importOverview(overview.emptyOverview(), candidates, 'replace').days[date].text, '08:30 캐노피 투어 (3시간)\n12:00 루지\n점심 + 정비\n15:30 블루스프링 (45분)');
+  const noClocks = overview.overviewCandidates(workspace, date, false);
+  assert.equal(overview.importOverview(overview.emptyOverview(), noClocks, 'replace').days[date].text, '캐노피 투어 (3시간)\n루지\n점심 + 정비\n블루스프링 (45분)');
+});
+
+test('durations display stored hours and minutes without inventing zero or missing durations', () => {
+  assert.equal(overview.overviewDuration(105), ' (1시간 45분)');
+  assert.equal(overview.overviewDuration(60), ' (1시간)');
+  assert.equal(overview.overviewDuration(30), ' (30분)');
+  for (const duration of [undefined, null, 0, -5, NaN, Infinity, '60']) assert.equal(overview.overviewDuration(duration), '');
 });
 
 test('long export days continue on multiple pages with every line preserved, including empty days', () => {
