@@ -63,13 +63,13 @@ public class FormKeyboardTest {
         String script=new String(context.getAssets().open("fixture.js").readAllBytes(),StandardCharsets.UTF_8);
         String css=new String(context.getAssets().open("fixture.css").readAllBytes(),StandardCharsets.UTF_8);
         try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
-            expect(scenario,"document.readyState==='complete'&&!!document.getElementById('root')");
             scenario.onActivity(a->{
                 WebView web=a.getBridge().getWebView();web.stopLoading();
                 web.setWebChromeClient(new WebChromeClient(){@Override public boolean onConsoleMessage(ConsoleMessage message){System.out.println("FIXTURE_CONSOLE "+message.message().substring(0,Math.min(700,message.message().length())));return true;}});
-                web.loadDataWithBaseURL("https://localhost/","<!doctype html><html class='native-app'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><style>"+css+"</style><body><div id='root'></div><div id='fixture-loaded'></div></body></html>","text/html","UTF-8",null);
+                web.loadDataWithBaseURL("https://localhost/","<!doctype html><html class='native-app'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><body><div id='root'></div><div id='fixture-loaded'></div></body></html>","text/html","UTF-8",null);
             });
             expect(scenario,"document.readyState==='complete'&&!!document.getElementById('fixture-loaded')");
+            js(scenario,"(()=>{const style=document.createElement('style');style.textContent="+JSONObject.quote(css)+";document.head.appendChild(style);return true})()");
             js(scenario,script);
             expect(scenario,"!!window.keyboardFixture?.ready");
             expect(scenario,"(()=>{const t=document.querySelector('body>.toast')?.getBoundingClientRect(),n=document.querySelector('.mobile-trip-nav')?.getBoundingClientRect();return !!t&&!!n&&t.bottom<n.top})()");
