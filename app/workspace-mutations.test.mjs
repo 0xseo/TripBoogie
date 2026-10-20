@@ -70,3 +70,11 @@ test('flight events show the route, local event and flight number independently 
  assert.equal(airportLabel(null,'직접 입력한 공항'),'직접 입력한 공항');
  assert.equal(airportLabel({icao:'ZZZZ',iata:'ZZZ',name:'Example International Airport'}),'Example(ZZZ)');
 });
+
+test('custom linked flight names survive while place-only edits retain the airport route heading',()=>{
+ const booking={id:'booking',kind:'booking',data:{type:'flight',departure:'ICN',arrival:'AKL',flightNumber:'KE411'}};
+ const plan={id:'plan',kind:'plan',data:{title:'My airport meeting',bookingId:'booking',bookingEvent:'departure',bookingManaged:false,bookingOverrides:['title']}};
+ assert.equal(flightEventTitle(plan,booking),null);assert.equal(itineraryTitle(plan,booking),'My airport meeting');
+ const placeOnly={...plan,data:{...plan.data,bookingOverrides:['placeId']}};
+ assert.equal(flightEventTitle(placeOnly,booking).detail,'출발 · KE411');assert.match(itineraryTitle(placeOnly,booking),/인천\(ICN\).*오클랜드\(AKL\)/);
+});

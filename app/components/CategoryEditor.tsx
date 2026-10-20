@@ -1,4 +1,5 @@
 "use client";
+import Form from "./Form";
 import { useState } from "react";
 import {fixedBookingCategory} from "../booking-categories";
 import type { BookingCategory } from "../types";
@@ -26,7 +27,7 @@ export default function CategoryEditor({
     [busy, setBusy] = useState(false);
   return (
     <Dialog mobilePage title={title} onClose={onClose}>
-      <form
+      <Form
         className="stack"
         onSubmit={async (e) => {
           e.preventDefault();
@@ -95,7 +96,7 @@ export default function CategoryEditor({
         <button className="primary" disabled={busy}>
           {busy ? "저장 중…" : `${noun} 저장`}
         </button>
-      </form>
+      </Form>
     </Dialog>
   );
 }

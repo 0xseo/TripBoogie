@@ -1,4 +1,5 @@
 "use client";
+import Form from "./Form";
 import { useEffect, useRef, useState } from "react";
 import { Pencil, Trash2, ArrowRightLeft } from "lucide-react";
 import type { Workspace, ItemRecord, Profile } from "../types";
@@ -466,7 +467,7 @@ export function ExpenseForm({
       onClose={onClose}
       wide
     >
-      <form
+      <Form
         className="stack wizard"
         onSubmit={async (e) => {
           e.preventDefault();
@@ -855,7 +856,7 @@ export function ExpenseForm({
             </button>
           </footer>
         )}
-      </form>
+      </Form>
     </Dialog>
   );
 }

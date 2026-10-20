@@ -1,4 +1,5 @@
 "use client";
+import Form from "./Form";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, MapPin, Search, Trash2, Copy } from "lucide-react";
 import { countryName } from "../countries";
@@ -190,7 +191,7 @@ export default function TripForm({
           }}
         />
       )}
-      <form
+      <Form
         className="stack wizard"
         onSubmit={(e) => {
           e.preventDefault();
@@ -527,7 +528,7 @@ export default function TripForm({
             </footer>
           </>
         )}
-      </form>
+      </Form>
     </Dialog>
   );
 }

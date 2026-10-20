@@ -4,7 +4,7 @@ export function itineraryDays(trip: Pick<Trip, "startDate" | "endDate">, records
   const dates = new Set<string>();
   const start = Date.parse(`${trip.startDate}T12:00:00Z`), end = Date.parse(`${trip.endDate}T12:00:00Z`);
   for (let stamp = start; stamp <= end && dates.size < 365; stamp += 86400000) dates.add(new Date(stamp).toISOString().slice(0, 10));
-  const flights = new Set(records.filter(r => r.kind === "booking" && r.data.type === "flight").map(r => r.id));
+  const flights = new Set(records.filter(r => r.kind === "booking" && ["flight","hotel"].includes(String(r.data.type))).map(r => r.id));
   for (const record of records) {
     const date = record.data.date;
     if (record.kind === "plan" && flights.has(String(record.data.bookingId)) && typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(`${date}T12:00:00Z`))) dates.add(date);

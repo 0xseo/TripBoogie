@@ -1,4 +1,5 @@
 "use client";
+import Form from "./Form";
 import ChoiceField from "./ChoiceField";
 import AddButton from "./AddButton";
 import FeatureToolbar from "./FeatureToolbar";
@@ -50,7 +51,8 @@ export default function Bookings({
     record?: ItemRecord,
     place?: MapPlace,
     expense?: BookingExpenseChange | null,
-    expenseVersion?: number
+    expenseVersion?: number,
+    addToPlan?: boolean
   ) => Promise<void>;
   onDelete: (r: ItemRecord) => void;
   fileCommand: FileCommand;
@@ -184,6 +186,7 @@ export default function Bookings({
                 {dateLabel(text(r.data.startDate))} {text(r.data.startTime)} →{" "}
                 {dateLabel(text(r.data.endDate))} {text(r.data.endTime)}
               </p>
+              {r.data.type==="hotel"&&Boolean(r.data.roomName)&&<p className="booking-room">방 · {text(r.data.roomName)}</p>}
               {Boolean(r.data.platform) && (
                 <p className="booking-platform">
                   예약 플랫폼 · {text(r.data.platform)}
@@ -224,7 +227,7 @@ export default function Bookings({
               <div className="booking-plan-links">
                 {workspace.records.filter((p) => p.kind === "plan" && p.data.bookingId === r.id).sort((a, b) => String(a.data.date).localeCompare(String(b.data.date)) || String(a.data.time || "").localeCompare(String(b.data.time || ""))).map((plan) => (
                   <button type="button" className="text-button" key={plan.id} onClick={() => onPlan(plan)}>
-                    <CalendarDays size={15}/>{dateLabel(text(plan.data.date))} {text(plan.data.time)} · {text(plan.data.bookingEvent) === "checkin" ? "체크인" : text(plan.data.bookingEvent) === "checkout" ? "체크아웃" : text(plan.data.bookingEvent) === "departure" ? "출발" : text(plan.data.bookingEvent) === "arrival" ? "도착" : "투어"} 일정 보기
+                    <CalendarDays size={15}/>{dateLabel(text(plan.data.date))} {text(plan.data.time)} · {text(plan.data.bookingEvent) === "checkin" ? "체크인" : text(plan.data.bookingEvent) === "checkout" ? "체크아웃" : text(plan.data.bookingEvent) === "departure" ? "출발" : text(plan.data.bookingEvent) === "arrival" ? "도착" : text(plan.data.bookingEvent)==="stay" ? "숙박" : text(plan.data.bookingEvent)==="manual" ? text(plan.data.title,"연결") : "투어"} 일정 보기
                   </button>
                 ))}
               </div>
@@ -259,13 +262,14 @@ export default function Bookings({
           reviewPayment={reviewPayment}
           record={editing === "new" ? undefined : editing}
           onClose={() => setEditing(null)}
-          onSave={(data, place, expense, expenseVersion) =>
+          onSave={(data, place, expense, expenseVersion, addToPlan) =>
             onSave(
               data,
               editing === "new" ? undefined : editing,
               place,
               expense,
-              expenseVersion
+              expenseVersion,
+              addToPlan
             )
           }
         />
@@ -300,7 +304,8 @@ export function BookingForm({
     data: Record<string, unknown>,
     place?: MapPlace,
     expense?: BookingExpenseChange | null,
-    expenseVersion?: number
+    expenseVersion?: number,
+    addToPlan?: boolean
   ) => Promise<void>;
   onClose: () => void;
 }) {
@@ -321,6 +326,7 @@ export function BookingForm({
       endTime: text(d.endTime),
       reference: text(d.reference),
       platform: text(d.platform),
+      roomName: text(d.roomName),
       note: text(d.note),
       flightNumber: text(d.flightNumber),
       flightRole: text(d.flightRole, initialFlightRole),
@@ -344,6 +350,8 @@ export function BookingForm({
       departureAirport: d.departureAirport as Airport | undefined,
       arrivalAirport: d.arrivalAirport as Airport | undefined,
     }),
+    [addToPlan,setAddToPlan]=useState(["flight","hotel","tour"].includes(text(d.type,type))),
+    [showRoom,setShowRoom]=useState(!!d.roomName),
     [showPlatform, setShowPlatform] = useState(!!d.platform),
     [showReference, setShowReference] = useState(!!d.reference),
     [paid, setPaid] = useState(d.isPaid === true && !!linked),
@@ -458,7 +466,8 @@ export function BookingForm({
       { ...form, title: bookingTitle, ...airports, isPaid: paid, ...updated },
       place,
       expense,
-      linked?.version
+      linked?.version,
+      addToPlan
     );
   }
   if (payment)
@@ -505,7 +514,7 @@ export function BookingForm({
           }}
         />
       ) : (
-        <form
+        <Form
           className="stack wizard booking-form"
           onSubmit={async (e) => {
             e.preventDefault();
@@ -576,36 +585,16 @@ export function BookingForm({
                     label="예약 분류"
                     value={form.category}
                     options={bookingCategories(workspace.trip.settings)}
-                    onChange={(category) =>
-                      setForm((f) => ({
-                        ...f,
-                        category,
-                        type: bookingCategories(workspace.trip.settings).find(
-                          (c) => c.id === category
-                        )!.kind,
-                      }))
-                    }
+                    onChange={(category) => {
+                      const kind=bookingCategories(workspace.trip.settings).find(c=>c.id===category)!.kind;
+                      setForm(f=>({...f,category,type:kind}));
+                      setAddToPlan(["flight","hotel","tour"].includes(kind));
+                    }}
                   />
                 </Field>
                 {form.type === "flight" && (
                   <Field label="이동 종류">
-                    <div className="flight-tags">
-                      {[
-                        { id: "outbound", label: "출발" },
-                        { id: "inbound", label: "도착" },
-                        { id: "transfer", label: "여행 중 이동" },
-                      ].map((r) => (
-                        <button
-                          type="button"
-                          key={r.id}
-                          aria-label={r.label}
-                          aria-pressed={form.flightRole === r.id}
-                          onClick={() => set("flightRole", r.id)}
-                        >
-                          {r.label}
-                        </button>
-                      ))}
-                    </div>
+                    <ChoiceField label="이동 종류" value={form.flightRole} options={[{id:"outbound",label:"출발"},{id:"inbound",label:"도착"},{id:"transfer",label:"여행 중 이동"}]} onChange={value=>set("flightRole",value)}/>
                   </Field>
                 )}
               </div>
@@ -709,6 +698,7 @@ export function BookingForm({
           {((form.type === "flight" && step === 1) ||
             (form.type !== "flight" && step === 0)) && (
             <div className="stack booking-details">
+              {form.type==="hotel"&&<div className="booking-optional-field"><button type="button" className="text-button" aria-expanded={showRoom} onClick={()=>setShowRoom(v=>!v)}>{showRoom?<Minus size={15}/>:<Plus size={15}/>} 방 이름</button>{showRoom&&<input aria-label="방 이름" value={form.roomName} maxLength={200} onChange={e=>set("roomName",e.target.value)} placeholder="예: 디럭스 트윈"/>}</div>}
               <div className="booking-optional-field">
                 <button
                   type="button"
@@ -763,6 +753,7 @@ export function BookingForm({
             </div>
           )}
 
+          {step===(form.type==="flight"?0:1)&&<label className="booking-add-plan"><input type="checkbox" checked={addToPlan} onChange={e=>setAddToPlan(e.target.checked)}/>일정에도 추가하기</label>}
           {step === 1 && form.type !== "flight" && (
             <>
               {form.type === "hotel" ? (
@@ -864,6 +855,7 @@ export function BookingForm({
               {error}
             </p>
           )}
+
           <footer className="wizard-footer">
             <button
               className="primary"
@@ -878,7 +870,7 @@ export function BookingForm({
                 : "예약 저장"}
             </button>
           </footer>
-        </form>
+        </Form>
       )}
     </Dialog>
   );

@@ -3,6 +3,8 @@ import { memoText } from "../memo";
 import { itineraryTitle } from "../booking-display";
 import {flightDurationMinutes, flightDurationLabel} from "../flight-duration";
 import ItineraryTitle from "./ItineraryTitle";
+import BookingIcon from "./BookingIcon";
+import {Pencil} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   Maximize2,
@@ -11,7 +13,6 @@ import {
   ChevronRight,
   MapPin,
   StickyNote,
-  Ticket,
 } from "lucide-react";
 import type { ItemRecord, Workspace } from "../types";
 import { travelContext } from "../travel-context";
@@ -379,14 +380,15 @@ function MapCards({
                 ) : (
                   <h3><ItineraryTitle plan={r} booking={booking}/></h3>
                 )}
+                {booking&&<button type="button" className="text-button booking-open-button" aria-label="예약 열기" onClick={()=>onBooking(booking.id)}><BookingIcon type={booking.data.type} size={17}/></button>}
                 <button
                   type="button"
                   className="text-button"
-                  disabled={booking ? false : disabled}
-                  aria-label={booking ? "예약 열기" : "일정 수정"}
-                  onClick={() => booking ? onBooking(booking.id) : onEdit(r)}
+                  disabled={disabled}
+                  aria-label="일정 수정"
+                  onClick={() => onEdit(r)}
                 >
-                  {booking ? <Ticket size={18}/> : "수정"}
+                  <Pencil size={17}/>
                 </button>
               </div>
               <div className="map-card-meta">

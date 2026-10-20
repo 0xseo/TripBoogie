@@ -2093,3 +2093,14 @@ html.native-app .resizable-map{--map-base-height:230px;--map-screen-limit:50dvh}
 .map-flight-duration{display:block;margin:7px 0 0 34px;font-size:12px;color:var(--muted)}
 .workspace-loading{min-height:45dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);font-size:13px}
 .workspace-loading svg{color:var(--green)}
+
+/* Reservation-linked schedule editing and validation use the same form controls. */
+.plan-place-actions{display:flex;align-items:stretch;gap:8px}.plan-place-actions .place-input{flex:1;min-width:0}.stay-shortcut{display:flex;align-items:center;justify-content:center;gap:6px;padding:0 12px;flex:none;border:1px solid var(--line);border-radius:12px;color:var(--green);background:var(--soft);font-size:13px}.hotel-shortcut-options{display:flex;flex-direction:column;gap:6px}.hotel-shortcut-options button{display:flex;align-items:center;gap:8px;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.optional-time{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:end;gap:12px}.optional-time>.field{min-width:0}.optional-time input{width:100%}
+.booking-add-plan{display:flex;align-items:center;gap:9px;font-size:14px;min-height:44px}.booking-add-plan input{width:18px;height:18px;min-height:0;accent-color:var(--green)}.booking-room{font-size:13px;color:var(--muted);margin:4px 0}
+.field:has([aria-invalid="true"]) :is(input,textarea,select),[aria-invalid="true"]{border-color:var(--danger);box-shadow:0 0 0 2px color-mix(in srgb,var(--danger) 12%,transparent)}.field>.field-error,.field-error{color:var(--danger);font-size:12px;line-height:1.5;font-weight:500}.form-validation-summary{padding:12px 14px;background:var(--soft);border:1px solid var(--danger);border-radius:12px;color:var(--danger);font-size:13px}
+.dialog>.toast{position:fixed;top:calc(var(--dialog-top,0px) + 72px);bottom:auto;left:50%;width:max-content;max-width:min(90vw,480px);padding:12px 16px;pointer-events:none}.toast svg{flex:none}
+textarea:focus{max-height:var(--memo-visible-height,70dvh);min-height:min(80px,var(--memo-visible-height,80px));scroll-padding:16px}.dialog .memo-composer .memo-editor-field{display:flex;flex-direction:column;min-height:0}.memo-editor-field>.field{display:flex;flex-direction:column;flex:1;min-height:0}.dialog .memo-composer .memo-editor-field textarea{flex:1;min-height:min(160px,var(--memo-visible-height,160px))}.dialog .memo-composer:focus-within{min-height:0}
+.dialog .memo-editor-field textarea:focus{max-height:var(--memo-visible-height,70dvh)}
+
+.booking-open-button{color:var(--green)}

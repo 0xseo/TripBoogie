@@ -1,6 +1,6 @@
 export const appInfo = {
   developer: "0xseo94@gmail.com",
-  version: "0.1.4",
+  version: "0.1.5",
 } as const;
 export const openSources = [
   {
@@ -9,11 +9,6 @@ export const openSources = [
     detail: "지도 데이터 © OpenStreetMap 기여자 · ODbL",
   },
   { label: "장소", name: "Geoapify · Open-Meteo Geocoding", detail: "장소·도시 검색 · GeoNames CC BY 4.0 · 이동 시간" },
-  {
-    label: "공개사진",
-    name: "Wikimedia Commons",
-    detail: "저작자·라이선스는 각 사진에 표시",
-  },
   { label: "날씨", name: "Open-Meteo", detail: "CC BY 4.0" },
   {
     label: "환율",

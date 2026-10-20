@@ -1,4 +1,5 @@
 "use client";
+import Form from "./Form";
 import { useState } from "react";
 import { Pencil, Trash2, Check } from "lucide-react";
 import type { Workspace, ItemRecord } from "../types";
@@ -212,7 +213,7 @@ function CheckForm({
     [busy, setBusy] = useState(false);
   return (
     <Dialog mobilePage title={record ? "할 일 수정" : "할 일 추가"} onClose={onClose}>
-      <form
+      <Form
         className="stack"
         onSubmit={async (e) => {
           e.preventDefault();
@@ -259,7 +260,7 @@ function CheckForm({
         <button className="primary" disabled={busy}>
           {busy ? "저장 중…" : "저장"}
         </button>
-      </form>
+      </Form>
     </Dialog>
   );
 }

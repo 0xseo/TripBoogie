@@ -17,10 +17,11 @@ import {
   useCancelConfirmation,
 } from "./components/Confirmation";
 import Members from "./components/Members";
+import Toast from "./components/Toast";
 import KeyboardFocus from "./components/KeyboardFocus";
 import TripGrid from "./components/TripGrid";
 import { saveDownload } from "./download";
-import { Plus, Users, RefreshCw, Check, LoaderCircle } from "lucide-react";
+import { Plus, Users, RefreshCw, LoaderCircle } from "lucide-react";
 import type {
   CurrentUser,
   Trip,
@@ -148,6 +149,7 @@ function TripAppContent({
     [date, setDate] = useState(""),
     [modal, setModal] = useState<Modal>(null),
     [editing, setEditing] = useState<ItemRecord | undefined>(),
+    [planBooking,setPlanBooking]=useState<string>(),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState(""),
     [error, setError] = useState(""),
@@ -555,7 +557,10 @@ function TripAppContent({
     return (current: Workspace): Workspace => {
       const existing = current.records.find((r) => r.id === id);
       const record: ItemRecord = { id, kind, version: 1, updatedAt: new Date().toISOString(), updatedBy: userId || "", createdBy: userId || "", createdName: user?.name, ...existing, data: { ...existing?.data, ...data } };
-      return { ...current, records: existing ? current.records.map((r) => r.id === id ? record : r) : [...current.records, record] };
+      if(kind==="plan"&&record.data.bookingId&&existing?.data.title!==data.title){record.data.bookingOverrides=[...new Set([...(Array.isArray(existing?.data.bookingOverrides)?existing.data.bookingOverrides:[]),"title"])];}
+      const records=existing?current.records.map(r=>r.id===id?record:r):[...current.records,record];
+      const bookingId=kind==="booking"?id:kind==="plan"?record.data.bookingId:undefined;
+      return {...current,records:bookingId&&Object.hasOwn(data,"note")?records.map(r=>(r.id===bookingId&&r.kind==="booking"||r.kind==="plan"&&r.data.bookingId===bookingId)?{...r,data:{...r.data,note:data.note}}:r):records};
     };
   }
   async function save(
@@ -575,7 +580,7 @@ function TripAppContent({
   async function remove(record: ItemRecord) {
     if (
       !(await confirm(
-        `“${text(
+        record.kind==="plan"&&record.data.entryType==="memo"?"메모를 삭제할까요?":`“${text(
           record.data.title,
           text(record.data.name)
         )}” 항목을 삭제할까북?${
@@ -1154,11 +1159,13 @@ function TripAppContent({
                         onDate={setDate}
                         onSchedule={schedule}
                         onEdit={(r) => {
+                          setPlanBooking(undefined);
                           setEditing(r);
                           setModal("plan");
                         }}
                         onRemove={(r) => void remove(r)}
                         onAdd={() => {
+                          setPlanBooking(undefined);
                           setEditing(undefined);
                           setModal("plan");
                         }}
@@ -1249,10 +1256,11 @@ function TripAppContent({
                         r,
                         place,
                         expense,
-                        expenseVersion
+                        expenseVersion,
+                        addToPlan
                       ) => {
                         const id = r?.id ?? crypto.randomUUID();
-                        void commit(
+                        const saving=commit(
                           {
                             data,
                             id,
@@ -1263,7 +1271,8 @@ function TripAppContent({
                               : {}),
                           },
                           "save-booking", previewSave("booking", data, id)
-                        ).catch(() => {});
+                        );
+                        if(addToPlan){const next=await saving;const linked=next.records.filter(p=>p.kind==="plan"&&p.data.bookingId===id);const plan=linked.find(p=>["departure","checkin","tour"].includes(String(p.data.bookingEvent)))||linked[0];goTab("plan");setDate(text(plan?.data.date,text(data.startDate)));setPlanBooking(id);setEditing(plan);setModal("plan");}else void saving.catch(()=>{});
                       }}
                       onDelete={(r) => void remove(r)}
                       fileCommand={fileCommand}
@@ -1329,12 +1338,7 @@ function TripAppContent({
               if (file) void importJson(file);
             }}
           />
-          {notice && (
-            <div className="toast" role="status">
-              <Check size={19} />
-              {notice}
-            </div>
-          )}
+          {notice&&<Toast message={notice}/>}
           {(modal === "create" || modal === "trip") && (
             <TripForm
               trip={modal === "trip" ? workspace?.trip : undefined}
@@ -1430,6 +1434,9 @@ function TripAppContent({
               workspace={workspace}
               date={currentDate}
               record={editing}
+              initialBookingId={planBooking}
+              onNotice={setNotice}
+              onHotel={async(booking,day)=>{let next=wsRef.current!;let plan=next.records.find(p=>p.kind==="plan"&&p.data.bookingId===booking.id&&p.data.date===day);if(!plan){next=await commit({bookingId:booking.id,date:day},"ensure-hotel-plan");plan=next.records.find(p=>p.kind==="plan"&&p.data.bookingId===booking.id&&p.data.date===day);}setDate(day);if(plan)setSelected(plan.id);}}
               onClose={() => setModal(null)}
               onSave={async (data, place) => {
                 const id = editing?.id ?? crypto.randomUUID();

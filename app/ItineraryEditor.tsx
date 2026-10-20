@@ -6,6 +6,7 @@ import { memoText } from "./memo";
 import { itineraryTitle } from "./booking-display";
 import {flightDurationMinutes, flightDurationLabel} from "./flight-duration";
 import ItineraryTitle from "./components/ItineraryTitle";
+import BookingIcon from "./components/BookingIcon";
 import { PlaceMedia } from "./components/Media";
 import SortHandle from "./components/SortHandle";
 import { useEffect, useRef, useState } from "react";
@@ -17,7 +18,6 @@ import {
   StickyNote,
   SlidersHorizontal,
   LoaderCircle,
-  Ticket,
   Clock,
 } from "lucide-react";
 import type { Workspace, ItemRecord } from "./types";
@@ -522,9 +522,7 @@ export default function ItineraryEditor({
                 data-sort-id={r.id}
                 data-sort-group="itinerary"
               >
-                <div className="plan-number">
-                  {memo ? <StickyNote size={18} /> : number}
-                </div>
+                <div className="plan-number">{memo?<StickyNote size={18}/>:number}</div>
                 <div className="plan-card" data-booking-linked={!!booking} data-flight-linked={booking?.data.type === "flight"} role={booking ? "link" : undefined} tabIndex={booking ? 0 : undefined} aria-label={booking ? `${title} 예약 열기` : undefined}
                   onClick={booking ? (e) => { if (!(e.target as HTMLElement).closest("button,a,input,textarea")) onBooking(booking.id); } : undefined}
                   onKeyDown={booking ? (e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onBooking(booking.id); } } : undefined}>
@@ -546,13 +544,14 @@ export default function ItineraryEditor({
                           }}
                         />
                       )}
+                      {booking&&<button type="button" className="icon booking-open-button" aria-label={`${title} 예약 열기`} onClick={()=>onBooking(booking.id)}><BookingIcon type={booking.data.type} size={17}/></button>}
                       <button
                         className="icon"
-                        disabled={booking ? false : disabled}
-                        aria-label={`${title} ${booking ? "예약 열기" : "수정"}`}
-                        onClick={() => booking ? onBooking(booking.id) : onEdit(r)}
+                        disabled={disabled}
+                        aria-label={`${title} 일정 수정`}
+                        onClick={() => onEdit(r)}
                       >
-                        {booking ? <Ticket size={17}/> : <Pencil size={17} />}
+                        <Pencil size={17} />
                       </button>
                       <button
                         className="icon"

@@ -464,10 +464,10 @@ test("detailed workspace persists memo boundaries, per-member checks, expense sn
   await assert.rejects(rpc("editor","mutate",id,{action:"upsert",kind:"expense",data:{...expense,payers:[{userId:users.owner.id,name:"owner",amount:"999"}]}}),{code:"PT400"});
   w=await rpc("owner","mutate",id,{action:"upsert",kind:"expense",id:e.id,version:e.version,data:{...e.data,baseAmount:"9400"}});e=w.records.find(r=>r.id===e.id);assert.equal(e.data.tripAmount,"1000");assert.equal(e.data.baseAmount,"9400");
   const booking={type:"hotel",title:"Tokyo Hotel",startDate:details.startDate,endDate:"2026-11-03",startTime:"15:00",endTime:"11:00"};
-  w=await rpc("owner","save-booking",id,{data:booking,place:{name:"Hotel",lat:35.69,lng:139.77}});let b=w.records.find(r=>r.kind==="booking");let autos=w.records.filter(r=>r.data.bookingId===b.id);assert.equal(autos.length,2);assert.equal(autos[0].data.bookingManaged,true);
+  w=await rpc("owner","save-booking",id,{data:booking,place:{name:"Hotel",lat:35.69,lng:139.77}});let b=w.records.find(r=>r.kind==="booking");let autos=w.records.filter(r=>r.data.bookingId===b.id);assert.equal(autos.length,3);assert.equal(autos[0].data.bookingManaged,true);
   const manual=autos[0];w=await rpc("editor","mutate",id,{action:"upsert",kind:"plan",id:manual.id,version:manual.version,data:{...manual.data,title:"My custom check-in"}});
   b=w.records.find(r=>r.id===b.id);w=await rpc("owner","mutate",id,{action:"upsert",kind:"booking",id:b.id,version:b.version,data:{...b.data,title:"Renamed Hotel"}});assert.equal(w.records.find(r=>r.id===manual.id).data.title,"My custom check-in");
-  assert.equal(w.records.filter(r=>r.data.bookingId===b.id).length,2);
+  assert.equal(w.records.filter(r=>r.data.bookingId===b.id).length,3);
   await assert.rejects(rpc("viewer","prepare-file",id,{name:"a.pdf",mime:"application/pdf",size:10,bookingId:b.id}),{code:"PT403"});
   const prepared=await rpc("editor","prepare-file",id,{name:"a.pdf",mime:"application/pdf",size:10,bookingId:b.id}),f=prepared.file;
   await assert.rejects(rpc("editor","finish-file",id,{id:f.id}),{code:"PT409"});
@@ -743,7 +743,7 @@ test("custom booking categories preserve booking semantics, reject removal while
   await assert.rejects(rpc('owner','mutate',id,{action:'upsert',kind:'booking',data:{type:'other',category:'unknown',title:'bad',startDate:details.startDate,endDate:details.startDate}}),e=>e.code==='PT400');
   await assert.rejects(rpc('owner','update-settings',id,{revision:w.revision,bookingCategories:[]}),e=>e.code==='PT400');
   w=await rpc('owner','mutate',id,{action:'upsert',kind:'booking',data:{type:'hotel',title:'Old-compatible hotel',startDate:details.startDate,endDate:details.endDate}});
-  assert.equal(w.records.filter(r=>r.kind==='plan').length,2);
+  assert.equal(w.records.filter(r=>r.kind==='plan').length,5);
   const imported=await rpc('owner','import',null,{key:crypto.randomUUID(),trip:w.trip,records:w.records});
   assert.equal(imported.records.find(r=>r.data.title==='주차장').data.category,'parking');
  }finally{await db.close();}
@@ -980,29 +980,29 @@ test('flight, hotel and tour reservations synchronize event dates both ways with
   assert.deepEqual(events.map(r=>r.data.bookingEvent).sort(),['arrival','departure']);
   const departure=events.find(r=>r.data.bookingEvent==='departure');
   w=await rpc('editor','save-plan',id,{id:departure.id,version:departure.version,data:{...departure.data,time:'10:00'}});
-  booking=w.records.find(r=>r.id===booking.id);assert.equal(booking.data.startTime,'10:00');
+  booking=w.records.find(r=>r.id===booking.id);assert.equal(booking.data.startTime,'09:00');
   const arrival=w.records.find(r=>r.data.bookingEvent==='arrival');
-  await assert.rejects(rpc('owner','save-plan',id,{id:arrival.id,version:arrival.version,data:{...arrival.data,time:'08:00'}}),{code:'PT400'});
+  w=await rpc('owner','save-plan',id,{id:arrival.id,version:arrival.version,data:{...arrival.data,time:'08:00'}});
   assert.equal((await rpc('owner','workspace',id)).records.find(r=>r.id===booking.id).data.endTime,'11:00');
   w=await rpc('owner','save-booking',id,{id:booking.id,version:booking.version,data:{...booking.data,startTime:'09:30',endTime:'12:00'}});
-  assert.equal(w.records.find(r=>r.id===departure.id).data.time,'09:30');assert.equal(w.records.find(r=>r.id===arrival.id).data.time,'12:00');
+  assert.equal(w.records.find(r=>r.id===departure.id).data.time,'10:00');assert.equal(w.records.find(r=>r.id===arrival.id).data.time,'08:00');
   w=await rpc('owner','schedule',id,{revision:w.revision,operation:'move',ids:[departure.id,arrival.id],sourceDate:'2026-11-01',targetDate:'2026-11-02'});
   booking=w.records.find(r=>r.id===booking.id);assert.equal(booking.data.startDate,'2026-11-02');assert.equal(booking.data.endDate,'2026-11-02');
   w=await rpc('owner','save-booking',id,{data:{type:'tour',title:'City tour',startDate:'2026-11-02',endDate:'2026-11-03',startTime:'13:00',endTime:'17:00'}});
   let tour=w.records.find(r=>r.kind==='booking'&&r.data.type==='tour');let tourPlan=w.records.find(r=>r.kind==='plan'&&r.data.bookingId===tour.id);
   assert.equal(tourPlan.data.bookingEvent,'tour');
   w=await rpc('owner','save-plan',id,{id:tourPlan.id,version:tourPlan.version,data:{...tourPlan.data,date:'2026-11-03',time:'14:00'}});
-  tour=w.records.find(r=>r.id===tour.id);assert.equal(tour.data.startDate,'2026-11-03');assert.equal(tour.data.endDate,'2026-11-04');assert.equal(tour.data.startTime,'14:00');
+  tour=w.records.find(r=>r.id===tour.id);assert.equal(tour.data.startDate,'2026-11-03');assert.equal(tour.data.endDate,'2026-11-04');assert.equal(tour.data.startTime,'13:00');
   w=await rpc('owner','save-booking',id,{data:{type:'hotel',title:'Hotel',startDate:'2026-11-01',endDate:'2026-11-04',startTime:'15:00',endTime:'11:00'}});
   const hotel=w.records.find(r=>r.kind==='booking'&&r.data.type==='hotel');const checkin=w.records.find(r=>r.data.bookingId===hotel.id&&r.data.bookingEvent==='checkin');
   w=await rpc('owner','save-plan',id,{id:checkin.id,version:checkin.version,data:{...checkin.data,date:'2026-11-02',time:'16:00',title:'Custom check-in'}});
-  assert.equal(w.records.find(r=>r.id===hotel.id).data.startDate,'2026-11-02');assert.equal(w.records.find(r=>r.id===hotel.id).data.startTime,'16:00');
+  assert.equal(w.records.find(r=>r.id===hotel.id).data.startDate,'2026-11-02');assert.equal(w.records.find(r=>r.id===hotel.id).data.startTime,'15:00');
   let current=w.records.find(r=>r.id===hotel.id);w=await rpc('owner','save-booking',id,{id:current.id,version:current.version,data:{...current.data,startTime:'17:00'}});
-  assert.equal(w.records.find(r=>r.id===checkin.id).data.time,'17:00');assert.equal(w.records.find(r=>r.id===checkin.id).data.title,'Custom check-in');
-  // A user-deleted event stays deleted after editing the booking.
+  assert.equal(w.records.find(r=>r.id===checkin.id).data.time,'16:00');assert.equal(w.records.find(r=>r.id===checkin.id).data.title,'Custom check-in');
+  // Saving the reservation restores its mandatory event.
   tourPlan=w.records.find(r=>r.id===tourPlan.id);w=await rpc('owner','mutate',id,{action:'delete',kind:'plan',id:tourPlan.id,version:tourPlan.version});
   tour=w.records.find(r=>r.id===tour.id);w=await rpc('owner','save-booking',id,{id:tour.id,version:tour.version,data:{...tour.data,title:'Renamed tour'}});
-  assert.equal(w.records.filter(r=>r.kind==='plan'&&r.data.bookingId===tour.id).length,0);
+  assert.equal(w.records.filter(r=>r.kind==='plan'&&r.data.bookingId===tour.id).length,1);
   // Viewers cannot alter shared reservation dates, or invoke synchronization helpers.
   await assert.rejects(rpc('viewer','save-plan',id,{id:checkin.id,version:w.records.find(r=>r.id===checkin.id).version,data:{...checkin.data,time:'18:00'}}),{code:'PT403'});
   const guards=await db.query("select has_function_privilege('authenticated','tripboogie_private.sync_plan_booking(public.trips,public.trip_records,public.trip_records)','execute') as allowed");assert.equal(guards.rows[0].allowed,false);
@@ -1051,5 +1051,48 @@ test('checklist ordering persists per category, preserves checks and survives ed
   const edited=w.records.find(r=>r.id===tasks[0].id);w=await rpc('owner','mutate',id,{action:'upsert',kind:'checklist',id:edited.id,version:edited.version,data:{title:'Passport changed',category:'documents',scope:'all',done:false}});assert.equal(w.records.find(r=>r.id===edited.id).data.position,1);
   w=await rpc('owner','mutate',id,{action:'upsert',kind:'checklist',data:{title:'Wallet',category:'documents',scope:'once',done:false}});
   assert.deepEqual((await rpc('owner','workspace',id)).records.filter(r=>r.kind==='checklist').sort((a,b)=>a.data.position-b.data.position).map(r=>r.data.title),['Tickets','Passport changed','Charger','Wallet']);
+ }finally{await db.close();}
+});
+
+test('daily hotel stays, manual reservation links and shared notes preserve independent schedule edits',async()=>{
+ const {db,rpc,request}=await fixture();try{
+  let w=await rpc('owner','create',null,{data:details});const id=w.trip.id;
+  await rpc('owner','create-invite',id,{role:'viewer',token:'cd'.repeat(32)});await rpc('viewer','join',null,{token:'cd'.repeat(32)});
+  w=await rpc('owner','save-booking',id,{data:{type:'hotel',title:'Daily hotel',roomName:'Twin room',startDate:'2026-11-01',endDate:'2026-11-04',startTime:'15:00',endTime:'11:00',note:'Shared note'},place:{name:'Hotel location',lat:35,lng:139}});
+  let hotel=w.records.find(r=>r.kind==='booking');const linked=()=>w.records.filter(r=>r.kind==='plan'&&r.data.bookingId===hotel.id);
+  assert.equal(hotel.data.roomName,'Twin room');assert.deepEqual(linked().map(r=>r.data.date).sort(),['2026-11-01','2026-11-02','2026-11-03','2026-11-04']);assert.equal(linked().filter(r=>r.data.bookingEvent==='stay').length,2);
+  let stay=linked().find(r=>r.data.date==='2026-11-02');const stayId=stay.id;
+  w=await rpc('owner','save-plan',id,{id:stay.id,version:stay.version,data:{...stay.data,title:'My hotel stop',time:'20:30',duration:90,note:'Memo from itinerary'},place:{name:'Independent meeting spot',lat:36,lng:140}});
+  hotel=w.records.find(r=>r.id===hotel.id);stay=w.records.find(r=>r.id===stayId);const ownPlace=stay.data.placeId;
+  assert.equal(hotel.data.note,'Memo from itinerary');assert.equal(hotel.data.startTime,'15:00');assert.notEqual(hotel.data.placeId,ownPlace);assert.ok(linked().every(r=>r.data.note===hotel.data.note));
+  w=await rpc('owner','save-plan',id,{id:stay.id,version:stay.version,data:{...stay.data,date:'2026-11-03'}});
+  hotel=w.records.find(r=>r.id===hotel.id);stay=w.records.find(r=>r.id===stayId);assert.equal(hotel.data.startDate,'2026-11-02');assert.equal(hotel.data.endDate,'2026-11-05');assert.equal(stay.data.date,'2026-11-03');assert.equal(stay.data.title,'My hotel stop');assert.equal(stay.data.time,'20:30');assert.equal(stay.data.placeId,ownPlace);assert.equal(stay.data.duration,90);assert.deepEqual(linked().map(r=>r.data.date).sort(),['2026-11-02','2026-11-03','2026-11-04','2026-11-05']);
+  w=await rpc('owner','save-booking',id,{id:hotel.id,version:hotel.version,data:{...hotel.data,startDate:'2026-11-01',endDate:'2026-11-04',note:'Memo from booking',startTime:'16:00'}});
+  hotel=w.records.find(r=>r.id===hotel.id);stay=w.records.find(r=>r.id===stayId);assert.equal(stay.data.date,'2026-11-02');assert.equal(stay.data.time,'20:30');assert.equal(stay.data.placeId,ownPlace);assert.ok(linked().every(r=>r.data.note==='Memo from booking'));
+  const gone=linked().find(r=>r.data.date==='2026-11-03');w=await rpc('owner','mutate',id,{action:'delete',kind:'plan',id:gone.id,version:gone.version});
+  assert.equal((await request(`trips/${id}/actions/ensure-hotel-plan`,'owner','POST',{bookingId:hotel.id,date:'2026-11-03'})).status,200);
+  w=await rpc('owner','workspace',id);assert.equal(linked().length,4);const snapshot=linked().map(r=>[r.id,r.version]).sort();w=await rpc('owner','ensure-hotel-plan',id,{bookingId:hotel.id,date:'2026-11-03'});assert.deepEqual(linked().map(r=>[r.id,r.version]).sort(),snapshot);
+  await assert.rejects(rpc('viewer','ensure-hotel-plan',id,{bookingId:hotel.id,date:'2026-11-03'}),{code:'PT403'});await assert.rejects(rpc('owner','ensure-hotel-plan',id,{bookingId:hotel.id,date:'2026-11-05'}),{code:'PT400'});
+  w=await rpc('owner','save-booking',id,{data:{type:'other',category:'other',title:'No location reservation',startDate:'2026-11-02',endDate:'2026-11-02',startTime:'09:00',note:'Other memo'}});let other=w.records.find(r=>r.kind==='booking'&&r.data.type==='other');
+  w=await rpc('owner','save-plan',id,{data:{title:'Meeting place',entryType:'plan',date:'2026-11-02',bookingId:other.id},place:{name:'Station',lat:35,lng:139}});let manual=w.records.find(r=>r.kind==='plan'&&r.data.bookingId===other.id);assert.equal(manual.data.bookingEvent,'manual');assert.equal(manual.data.time,'09:00');assert.equal(manual.data.note,'Other memo');assert.equal(other.data.placeId,'');
+  w=await rpc('owner','save-plan',id,{id:manual.id,version:manual.version,data:{...manual.data,date:'2026-11-03',time:'12:00',note:''}});other=w.records.find(r=>r.id===other.id);manual=w.records.find(r=>r.id===manual.id);assert.equal(other.data.startDate,'2026-11-03');assert.equal(other.data.endDate,'2026-11-03');assert.equal(other.data.startTime,'09:00');assert.equal(other.data.note,'');assert.equal(manual.data.date,'2026-11-03');
+  // Unlink explicitly; later reservation edits cannot change the detached plan.
+  w=await rpc('owner','save-plan',id,{id:manual.id,version:manual.version,data:{...manual.data,bookingId:''}});assert.equal(w.records.find(r=>r.id===manual.id).data.bookingId,undefined);
+  const copy=await rpc('owner','import',null,{key:crypto.randomUUID(),trip:w.trip,records:w.records});assert.equal(copy.records.filter(r=>r.kind==='plan'&&r.data.bookingEvent==='stay').length,2);assert.ok(copy.records.find(r=>r.data.title==='My hotel stop').data.bookingOverrides.includes('title'));assert.equal(copy.records.find(r=>r.kind==='booking'&&r.data.type==='hotel').data.roomName,'Twin room');
+  const foreign=(await rpc('owner','create',null,{data:details}));let fw=await rpc('owner','save-booking',foreign.trip.id,{data:{type:'other',title:'Foreign',startDate:details.startDate,endDate:details.startDate}});const fb=fw.records.find(r=>r.kind==='booking');
+  for(const data of [{title:'Bad',date:details.startDate,bookingId:fb.id},{title:'Memo',entryType:'memo',date:details.startDate,bookingId:hotel.id}])await assert.rejects(rpc('owner','save-plan',id,{data}),{code:'PT400'});
+  hotel=w.records.find(r=>r.id===hotel.id);await assert.rejects(rpc('owner','save-booking',id,{id:hotel.id,version:hotel.version,data:{...hotel.data,roomName:'x'.repeat(201)}}),{code:'PT400'});
+  w=await rpc('owner','mutate',id,{action:'delete',kind:'booking',id:hotel.id,version:hotel.version});assert.ok(w.records.find(r=>r.id===stayId));assert.equal(w.records.find(r=>r.id===stayId).data.bookingId,undefined);assert.equal(w.records.filter(r=>r.data.bookingId===hotel.id).length,0);
+ }finally{await db.close();}
+});
+
+test('hotel migration backfills every date without changing existing customized titles or times',async()=>{
+ const {db,rpc}=await fixture({beforeMigration:'_hotel_stays_and_manual_booking_links.sql'});try{
+  let w=await rpc('owner','create',null,{data:details});const id=w.trip.id;
+  w=await rpc('owner','save-booking',id,{data:{type:'hotel',title:'Existing',startDate:'2026-11-01',endDate:'2026-11-04',startTime:'15:00',endTime:'11:00',note:'Booking memo'}});let plan=w.records.find(r=>r.data.bookingEvent==='checkin');
+  w=await rpc('owner','save-plan',id,{id:plan.id,version:plan.version,data:{...plan.data,title:'Custom stay',time:'16:00'}});
+  const file=(await readdir(new URL('../../supabase/migrations/',import.meta.url))).find(n=>n.endsWith('_hotel_stays_and_manual_booking_links.sql'));await db.exec(await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
+  w=await rpc('owner','workspace',id);assert.equal(w.records.filter(r=>r.kind==='plan').length,4);plan=w.records.find(r=>r.id===plan.id);assert.equal(plan.data.title,'Custom stay');assert.equal(plan.data.time,'16:00');assert.ok(w.records.filter(r=>r.kind==='plan').every(r=>r.data.note==='Booking memo'));
+  const permissions=await db.query("select bool_or(has_function_privilege('authenticated',p.oid,'execute') or has_function_privilege('anon',p.oid,'execute')) as allowed from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='tripboogie_private' and p.proname in ('bind_plan_booking','sync_booking_event','shift_booking_anchors')");assert.equal(permissions.rows[0].allowed,false);
  }finally{await db.close();}
 });

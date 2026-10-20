@@ -4,10 +4,12 @@ import {
   useContext,
   useEffect,
   useState,
+  useId,
   type ReactNode,
 } from "react";
 import { apiFetch as api, jsonRequest } from "../client-api";
 import ChoiceField from "./ChoiceField";
+import {useFieldError} from "./Form";
 import { shortDate } from "../calendar";
 import { DayPicker, type DateRange } from "react-day-picker";
 import { ko } from "react-day-picker/locale";
@@ -96,10 +98,12 @@ export function Field({
   label: string;
   children: ReactNode;
 }) {
+  const id=useId(),error=useFieldError(id);
   return (
-    <label className="field">
+    <label className="field" data-validation-field={id} data-validation-label={label}>
       <span>{label}</span>
       {children}
+      {error&&<span id={id} className="field-error" role="alert">{error}</span>}
     </label>
   );
 }

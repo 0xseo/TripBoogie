@@ -23,6 +23,7 @@ export function airportLabel(value: unknown, fallback: unknown = "") {
 }
 export function flightEventTitle(plan: ItemRecord, booking?: ItemRecord) {
   const event = plan.data.bookingEvent;
+  if(Array.isArray(plan.data.bookingOverrides)?plan.data.bookingOverrides.includes("title"):plan.data.bookingManaged===false)return null;
   if (booking?.data.type !== "flight" || !["departure", "arrival"].includes(String(event))) return null;
   const data = booking.data;
   const route = [airportLabel(data.departureAirport, data.departure), airportLabel(data.arrivalAirport, data.arrival)].filter(Boolean).join(" → ");

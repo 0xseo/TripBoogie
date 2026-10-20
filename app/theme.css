@@ -20,3 +20,5 @@
 
 /* The document canvas and its text share one theme owner, including the native shell. */
 html,body{background:var(--bg);color:var(--ink)}
+
+.stay-day-grid button[aria-pressed="true"] small{color:color-mix(in srgb,var(--on-primary) 75%,var(--green))}.stay-day-grid button[aria-pressed="true"] strong{color:var(--on-primary)}

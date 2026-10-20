@@ -1,4 +1,5 @@
 "use client";
+import Form from "./components/Form";
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState, type FormEvent } from "react";
@@ -106,7 +107,7 @@ export default function AuthCallback() {
         {recovery ? "새 비밀번호를 정해북" : "여행을 준비하고 있어북"}
       </h1>
       {recovery && (
-        <form
+        <Form
           onSubmit={change}
           style={{ display: "grid", gap: 14, marginTop: 20 }}
         >
@@ -137,7 +138,7 @@ export default function AuthCallback() {
           >
             비밀번호 변경
           </button>
-        </form>
+        </Form>
       )}
       {error ? (
         <>

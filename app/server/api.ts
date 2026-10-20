@@ -68,6 +68,7 @@ export function createApiHandler(deps: Dependencies) {
         [
           "save-plan",
           "save-booking",
+          "ensure-hotel-plan",
           "update-settings",
           "checklist-toggle",
           "reorder-checklist",
