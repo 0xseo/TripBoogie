@@ -1,5 +1,6 @@
 "use client";
-import { Compass, MapPin } from "lucide-react";
+import { Fragment } from "react";
+import { Compass, MapPin, Plane } from "lucide-react";
 import type { Trip } from "../types";
 import {
   tripLengthLabel,
@@ -7,7 +8,6 @@ import {
   tripStatus,
   type TripColumns,
 } from "../trip-collection";
-import { CityCover } from "./Media";
 import Avatar from "./Avatar";
 import styles from "./TripGrid.module.css";
 
@@ -20,6 +20,7 @@ export default function TripGrid({
   hasTrips,
   onReset,
   showEmpty = true,
+  groupByStatus = false,
 }: {
   trips: Trip[];
   today: string;
@@ -29,13 +30,17 @@ export default function TripGrid({
   hasTrips: boolean;
   onReset: () => void;
   showEmpty?: boolean;
+  groupByStatus?: boolean;
 }) {
   return (
     <div className="trip-grid collection-grid" data-columns={columns}>
-      {trips.map((trip, i) => (
-        <article className={`trip-card theme-${i % 4}`} key={trip.id}>
+      {trips.map((trip, index) => (
+        <Fragment key={trip.id}>
+          {groupByStatus && (index === 0 || tripStatus(trips[index - 1], today) !== tripStatus(trip, today)) && (
+            <h2 className={styles.groupTitle}>{ {ongoing: "여행 중", upcoming: "다가오는 여행", past: "지난 여행"}[tripStatus(trip, today)] }</h2>
+          )}
+        <article className="trip-card" key={trip.id}>
           <div className="trip-cover">
-            <CityCover city={trip.settings.cities?.[0]} />
             <div className="trip-cover-topline">
               <span className="trip-destination">
                 <MapPin size={16} />
@@ -45,7 +50,7 @@ export default function TripGrid({
                 {tripStatus(trip,today)==="ongoing"?"여행 중":tripCountdown(trip.startDate,today)}
               </span>
             </div>
-            <span className="cover-symbol">{["✈", "☀", "♧", "☁"][i % 4]}</span>
+            <span className="cover-symbol" aria-hidden="true"><Plane size={64} strokeWidth={1.4}/></span>
             <span className="trip-days">{tripLengthLabel(trip)}</span>
           </div>
           <div className={styles.info}>
@@ -78,6 +83,7 @@ export default function TripGrid({
             </div>
           </div>
         </article>
+        </Fragment>
       ))}
       {showEmpty && trips.length === 0 && (
         <div className="collection-empty">

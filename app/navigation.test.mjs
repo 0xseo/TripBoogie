@@ -20,11 +20,19 @@ test('all preparation features remain reachable under the preparation bottom tab
 });
 test('collection layout and sort buttons follow the requested cycles',()=>{
  assert.deepEqual([3,2,1].map(columns=>collection.nextColumns(columns,3)),[2,1,3]);
- assert.deepEqual(['newest','oldest','title'].map(collection.nextTripSort),['oldest','title','newest']);
+ assert.deepEqual(['upcoming','newest','oldest','title'].map(collection.nextTripSort),['newest','oldest','title','upcoming']);
 });
 test('date sorting uses departure dates and title sorting is Korean and numeric',()=>{
  const select=sort=>collection.filterTrips(trips,'',collection.initialTripFilter,sort,'2026-10-19').map(t=>t.id);
  assert.deepEqual(select('newest'),['a','b','c']);assert.deepEqual(select('oldest'),['c','b','a']);assert.deepEqual(select('title'),['c','a','b']);assert.deepEqual(trips.map(t=>t.id),['a','b','c']);
+});
+test('upcoming sort groups ongoing trips, nearest departures and most recently finished past trips',()=>{
+ const sample=[trip('far','겨울 여행','2026-12-01','2026-12-05'),trip('past-short','지난 단기 여행','2026-10-15','2026-10-16'),trip('near','내일 여행','2026-10-21','2026-10-25'),trip('past-long','어제 끝난 여행','2026-09-01','2026-10-19'),trip('ongoing','여행 중','2026-10-18','2026-10-20'),trip('today','오늘 출발','2026-10-20','2026-10-22')];
+ const select=filter=>collection.filterTrips(sample,'',filter,'upcoming','2026-10-20').map(t=>t.id);
+ assert.deepEqual(select(collection.initialTripFilter),['today','ongoing','near','far','past-long','past-short']);
+ assert.deepEqual(select({...collection.initialTripFilter,status:'past'}),['past-long','past-short']);
+ assert.deepEqual(select({...collection.initialTripFilter,status:'upcoming'}),['near','far']);
+ assert.deepEqual(sample.map(t=>t.id),['far','past-short','near','past-long','ongoing','today']);
 });
 test('travel status includes both departure and arrival day and combines with ownership and destination filters',()=>{
  assert.equal(collection.tripStatus(trips[1],'2026-10-18'),'ongoing');assert.equal(collection.tripStatus(trips[1],'2026-10-19'),'ongoing');assert.equal(collection.tripStatus(trips[1],'2026-10-20'),'past');

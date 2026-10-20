@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Pencil, Trash2, Check, LoaderCircle } from "lucide-react";
+import { Pencil, Trash2, Check } from "lucide-react";
 import type { Workspace, ItemRecord } from "../types";
 import { Dialog, Field, Empty, text } from "./ui";
 import ChoiceField from "./ChoiceField";
@@ -25,7 +25,6 @@ export default function Checklist({
 }) {
   const [editing, setEditing] = useState<ItemRecord | "new" | null>(null),
     [categoryId, setCategoryId] = useState<string | null>(null),
-    [busy, setBusy] = useState(""),
     [error, setError] = useState("");
   const rows = workspace.records.filter((r) => r.kind === "checklist"),
     categories = workspace.trip.settings.checklistCategories;
@@ -83,7 +82,7 @@ export default function Checklist({
           return (
             <section className={styles.group} key={id}>
               <header className={styles.groupHeader}>
-                {activeCategory === null && <h3>{categories.find((c) => c.id === id)?.label || id || "미분류"}</h3>}
+                <h3>{categories.find((c) => c.id === id)?.label || id || "미분류"}</h3>
                 <span className={styles.progress} data-complete={completedCount===group.length} aria-label={`완료 ${completedCount}개, 전체 ${group.length}개`}>{completedCount}/{group.length}</span>
               </header>
               {entries.map(({record:r,done,checks}) => {
@@ -98,25 +97,21 @@ export default function Checklist({
                     <button
                       className={styles.toggle}
                       type="button"
-                      aria-busy={busy===r.id||undefined}
                       aria-label={`${text(r.data.title)} ${
                         done ? "완료 해제" : "완료"
                       }`}
                       aria-pressed={done}
-                      disabled={!!busy}
+                      disabled={readOnly && workspace.trip.role !== "viewer"}
                       onClick={async () => {
-                        setBusy(r.id);
                         try {
                           await onToggle(r, !done);
                           setError("");
                         } catch (e) {
                           setError((e as Error).message);
-                        } finally {
-                          setBusy("");
                         }
                       }}
                     >
-                      <span className={styles.indicator}>{busy===r.id?<LoaderCircle size={14} className="spinner"/>:done?<Check size={14}/>:null}</span>
+                      <span className={styles.indicator}>{done?<Check size={14}/>:null}</span>
                     </button>
                     <div className={styles.body}>
                       <strong>{text(r.data.title)}</strong>

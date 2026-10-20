@@ -57,7 +57,7 @@ export default function AirportInput({
     };
   }, [query]);
   function choose(a: Airport) {
-    onChange(label(a));
+    onChange(a.iata || a.icao);
     onChoose(a);
     setResults([]);
     setQuery("");

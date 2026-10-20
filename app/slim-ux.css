@@ -2054,3 +2054,14 @@ textarea {
     --mascot-backdrop-gap:3px;
   }
 }
+
+/* Memo editing uses the remaining page height as its writing surface. */
+.dialog .memo-composer{display:flex;flex-direction:column;min-height:60dvh;gap:16px}
+.dialog .memo-composer .memo-editor-field{display:flex;flex-direction:column;flex:1;min-height:180px}
+.dialog .memo-editor-field textarea{flex:1;min-height:160px;max-height:none;resize:none;line-height:1.7}
+.booking-plan-links{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:12px}
+.booking-card[data-focused="true"]{outline:2px solid var(--green);outline-offset:3px;scroll-margin-block:140px}
+.plan-booking-link{justify-self:start;margin-bottom:8px}
+.collection-grid .trip-cover{background:#e3ead6}
+.collection-grid .cover-symbol{top:50%;right:22px;transform:translateY(-40%) rotate(-12deg);color:#8eaa78}
+@media(max-width:960px){.dialog.mobile-page-dialog .memo-composer{min-height:0}.dialog.mobile-page-dialog .memo-composer .memo-editor-field{min-height:180px}.collection-grid .cover-symbol svg{width:54px;height:54px}}

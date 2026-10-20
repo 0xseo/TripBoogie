@@ -14,6 +14,7 @@ import {
   StickyNote,
   SlidersHorizontal,
   LoaderCircle,
+  Ticket,
 } from "lucide-react";
 import type { Workspace, ItemRecord } from "./types";
 import type { Leg, Connection } from "./route-graph";
@@ -259,8 +260,10 @@ export default function ItineraryEditor({
   onError,
   onSave,
   focused,
+  onBooking,
 }: {
   focused?: string;
+  onBooking: (id: string) => void;
   workspace: Workspace;
   date: string;
   days: string[];
@@ -553,6 +556,9 @@ export default function ItineraryEditor({
                   </div>
                   {!memo && (
                     <div className="plan-content">
+                      {workspace.records.some((b) => b.kind === "booking" && b.id === r.data.bookingId) && (
+                        <button type="button" className="text-button plan-booking-link" onClick={() => onBooking(String(r.data.bookingId))}><Ticket size={15}/>예약 보기</button>
+                      )}
                       <div className="plan-details">
                         <div className="plan-meta">
                           {text(r.data.time) && (

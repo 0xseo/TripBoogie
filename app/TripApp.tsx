@@ -53,6 +53,7 @@ import { Dialog, CalendarCountry, text, days } from "./components/ui";
 import { SearchLanguage } from "./components/SearchLanguage";
 import { profileSearchLanguage } from "./search-language";
 import { comparePlans } from "./planning";
+import { WorkspaceMutations } from "./workspace-mutations";
 import { isNativeApp } from "./runtime";
 import {
   isPreparationTab,
@@ -73,6 +74,7 @@ import {
   filterTrips,
   preferredTrip,
   initialTripFilter,
+  tripSortLabels,
   type TripColumns,
   type TripSort,
   type TripFilter,
@@ -139,7 +141,7 @@ function TripAppContent({
     ),
     [signingOut, setSigningOut] = useState(false),
     [columns, setColumns] = useState<TripColumns>(3),
-    [sort, setSort] = useState<TripSort>("newest"),
+    [sort, setSort] = useState<TripSort>("upcoming"),
     [tripFilter, setTripFilter] = useState<TripFilter>({
       ...initialTripFilter,
     }),
@@ -151,6 +153,7 @@ function TripAppContent({
     [error, setError] = useState(""),
     [search, setSearch] = useState(""),
     [selected, setSelected] = useState(""),
+    [bookingFocus, setBookingFocus] = useState(""),
     [token, setToken] = useState<string | null>(null),
     [legacy, setLegacy] = useState<Workspace[]>([]),
     [listLoading, setListLoading] = useState(false);
@@ -187,6 +190,7 @@ function TripAppContent({
     workspaceCache = useRef(new Map<string, Workspace>()),
     openRequest = useRef(0),
     mutating = useRef(false),
+    mutationQueue = useRef<WorkspaceMutations | null>(null),
     importInput = useRef<HTMLInputElement>(null),
     importAttempt = useRef<{ text: string; key: string } | null>(null),
     listRequest = useRef(0),
@@ -200,6 +204,7 @@ function TripAppContent({
         cancelConfirmation();
         identity.current = next?.id ?? null;
         workspaceCache.current.clear();
+        mutationQueue.current = null;
         wsRef.current = null;
         openRequest.current++;
         setOpeningTrip(null);
@@ -496,12 +501,14 @@ function TripAppContent({
   async function run<T>(
     path: string,
     payload: unknown,
-    method = "POST"
+    method = "POST",
+    queued = false,
+    blocking = true
   ): Promise<T> {
-    if (mutating.current) throw new Error("앞선 변경을 저장하는 중이야북");
-    mutating.current = true;
-    setBusy(true);
-    setError("");
+    if (!queued && mutating.current) throw new Error("앞선 변경을 저장하는 중이야북");
+    if (!queued) mutating.current = true;
+    if (blocking) setBusy(true);
+    if (!queued) setError("");
     const uid = identity.current;
     try {
       const result = await api<T>(path, jsonRequest(payload, { method }));
@@ -516,35 +523,54 @@ function TripAppContent({
       if (identity.current === uid) fail(e, wsRef.current?.trip.id);
       throw e;
     } finally {
-      mutating.current = false;
-      setBusy(false);
+      if (!queued) mutating.current = false;
+      if (blocking) setBusy(false);
     }
   }
-  async function commit(payload: Record<string, unknown>, operation?: string) {
+  function commit(payload: Record<string, unknown>, operation?: string, project?: (current: Workspace) => Workspace) {
     const current = wsRef.current;
     if (!current) throw new Error("여행을 먼저 열어 줘북");
-    const next = await run<Workspace>(
-      `/api/trips/${current.trip.id}${
-        operation ? `/actions/${operation}` : ""
-      }`,
-      payload
-    );
-    accept(next);
-    return next;
+    const uid = identity.current;
+    const mayRebaseVersion = payload.version === undefined || payload.version === current.records.find((r) => r.id === payload.id)?.version;
+    if (!mutationQueue.current?.size) {
+      if (mutating.current) throw new Error("앞선 변경을 저장하는 중이야북");
+      setError("");
+      mutationQueue.current = new WorkspaceMutations(current, (next) => {
+        if (identity.current !== uid || wsRef.current?.trip.id !== next.trip.id) return;
+        workspaceCache.current.set(next.trip.id, next);
+        if (wsRef.current?.trip.id === next.trip.id) accept(next);
+      }, (count) => { if (identity.current === uid) mutating.current = count > 0; });
+    }
+    return mutationQueue.current.enqueue(project ?? ((w) => w), async (confirmed) => {
+      if (identity.current !== uid) throw new Error("계정이 바뀌었습니다. 다시 열어 주세요.");
+      const latest = confirmed.records.find((r) => r.id === payload.id);
+      const rebased = { ...payload, ...(latest && mayRebaseVersion ? { version: latest.version } : {}),
+        ...(operation === "update-settings" ? { revision: confirmed.revision } : {}) };
+      return run<Workspace>(`/api/trips/${current.trip.id}${operation === "schedule" ? "/schedule" : operation ? `/actions/${operation}` : ""}`,
+        operation === "schedule" ? { ...rebased, revision: confirmed.revision } : rebased,
+        "POST", true, !project);
+    });
+  }
+  function previewSave(kind: ItemRecord["kind"], data: Record<string, unknown>, id: string) {
+    return (current: Workspace): Workspace => {
+      const existing = current.records.find((r) => r.id === id);
+      const record: ItemRecord = { id, kind, version: 1, updatedAt: new Date().toISOString(), updatedBy: userId || "", createdBy: userId || "", createdName: user?.name, ...existing, data: { ...existing?.data, ...data } };
+      return { ...current, records: existing ? current.records.map((r) => r.id === id ? record : r) : [...current.records, record] };
+    };
   }
   async function save(
-    kind: string,
+    kind: ItemRecord["kind"],
     data: Record<string, unknown>,
     record?: ItemRecord
   ) {
-    await commit({
+    const id = record?.id ?? crypto.randomUUID();
+    void commit({
       action: "upsert",
       kind,
       data,
-      id: record?.id,
+      id,
       version: record?.version,
-    });
-    setNotice("저장했어북");
+    }, undefined, previewSave(kind, data, id)).then(() => setNotice("저장했어북")).catch(() => {});
   }
   async function remove(record: ItemRecord) {
     if (
@@ -561,13 +587,13 @@ function TripAppContent({
     )
       return;
     try {
-      await commit({
+      void commit({
         action: "delete",
         kind: record.kind,
         id: record.id,
         version: record.version,
-      });
-      setNotice("삭제했어북");
+      }, undefined, (w) => ({ ...w, records: w.records.filter((r) => r.id !== record.id && !(record.kind === "booking" && r.kind === "plan" && r.data.bookingId === record.id && r.data.bookingManaged === true)) }))
+        .then(() => setNotice("삭제했어북")).catch(() => {});
     } catch {}
   }
   async function settings(data: Record<string, unknown>) {
@@ -626,59 +652,26 @@ function TripAppContent({
     payload: Record<string, unknown>,
     project: (current: Workspace) => Workspace
   ) {
-    const before = wsRef.current,
-      uid = identity.current;
-    if (!before) throw new Error("여행을 먼저 골라봐북");
-    const preview = project(before);
-    wsRef.current = preview;
-    setWorkspace(preview);
-    try {
-      return await commit(payload, operation);
-    } catch (e) {
-      if (identity.current === uid && wsRef.current === preview) {
-        wsRef.current = before;
-        setWorkspace(before);
-      }
-      throw e;
-    }
+    return commit(payload, operation, project);
   }
   async function schedule(data: Record<string, unknown>) {
-    const before = wsRef.current;
-    if (!before) return;
-    const uid = identity.current,
-      ids = Array.isArray(data.ids) ? (data.ids as string[]) : [];
-    const preview =
-      data.operation === "reorder"
-        ? {
-            ...before,
-            records: before.records.map((r) =>
-              r.kind === "plan" &&
-              r.data.date === data.sourceDate &&
-              ids.includes(r.id)
-                ? { ...r, data: { ...r.data, position: ids.indexOf(r.id) } }
-                : r
-            ),
+    const ids = Array.isArray(data.ids) ? data.ids as string[] : [];
+    return commit(data, "schedule", (current) => ({
+      ...current,
+      records: current.records.filter((r) => !(data.operation === "delete" && ids.includes(r.id)))
+        .map((r) => {
+          if (r.kind !== "plan") return r;
+          if (data.operation === "reorder" && r.data.date === data.sourceDate && ids.includes(r.id))
+            return { ...r, data: { ...r.data, position: ids.indexOf(r.id) } };
+          if (data.operation === "move" && ids.includes(r.id))
+            return { ...r, data: { ...r.data, date: data.targetDate } };
+          if (data.operation === "swap-days") {
+            const date = r.data.date === data.sourceDate ? data.targetDate : r.data.date === data.targetDate ? data.sourceDate : r.data.date;
+            return { ...r, data: { ...r.data, date } };
           }
-        : before;
-    if (preview !== before) {
-      wsRef.current = preview;
-      setWorkspace(preview);
-    }
-    try {
-      const next = await run<Workspace>(
-        `/api/trips/${before.trip.id}/schedule`,
-        data
-      );
-      if (wsRef.current?.trip.id === before.trip.id) accept(next);
-      else workspaceCache.current.set(next.trip.id, next);
-      return next;
-    } catch (e) {
-      if (identity.current === uid && wsRef.current === preview) {
-        wsRef.current = before;
-        setWorkspace(before);
-      }
-      throw e;
-    }
+          return r;
+        }),
+    }));
   }
   async function importWorkspace(source: Workspace, key: string) {
     const next = await run<Workspace>("/api/trips/import", {
@@ -1085,13 +1078,7 @@ function TripAppContent({
                       sort={sort}
                       onSort={(value) => {
                         setSort(value);
-                        setNotice(
-                          {
-                            newest: "출발일 최신순",
-                            oldest: "출발일 오래된순",
-                            title: "제목순",
-                          }[value]
-                        );
+                        setNotice(tripSortLabels[value]);
                       }}
                       filter={tripFilter}
                       onFilter={setTripFilter}
@@ -1101,6 +1088,7 @@ function TripAppContent({
                     />
                     {!(listLoading && trips.length === 0) && (
                       <TripGrid
+                        groupByStatus={sort === "upcoming"}
                         trips={visibleTrips}
                         today={today}
                         columns={visibleColumns}
@@ -1132,6 +1120,7 @@ function TripAppContent({
                   {tab === "plan" && (
                     <>
                       <TripPlan
+                        onBooking={(id) => { setBookingFocus(id); goTab("bookings"); }}
                         workspace={workspace}
                         date={currentDate}
                         days={allDays}
@@ -1225,6 +1214,8 @@ function TripAppContent({
                   )}
                   {tab === "bookings" && myProfile && (
                     <Bookings
+                      focused={bookingFocus}
+                      onPlan={(r) => { goTab("plan"); setDate(text(r.data.date)); setSelected(r.id); }}
                       workspace={workspace}
                       profile={myProfile}
                       readOnly={readOnly}
@@ -1235,18 +1226,19 @@ function TripAppContent({
                         expense,
                         expenseVersion
                       ) => {
-                        await commit(
+                        const id = r?.id ?? crypto.randomUUID();
+                        void commit(
                           {
                             data,
-                            id: r?.id,
+                            id,
                             version: r?.version,
                             ...(place ? { place } : {}),
                             ...(expense !== undefined
                               ? { expense, expenseVersion }
                               : {}),
                           },
-                          "save-booking"
-                        );
+                          "save-booking", previewSave("booking", data, id)
+                        ).catch(() => {});
                       }}
                       onDelete={(r) => void remove(r)}
                       fileCommand={fileCommand}
@@ -1415,16 +1407,16 @@ function TripAppContent({
               record={editing}
               onClose={() => setModal(null)}
               onSave={async (data, place) => {
-                await commit(
+                const id = editing?.id ?? crypto.randomUUID();
+                void commit(
                   {
                     data,
-                    id: editing?.id,
+                    id,
                     version: editing?.version,
                     ...(place ? { place } : {}),
                   },
-                  "save-plan"
-                );
-                setNotice("저장했어북");
+                  "save-plan", previewSave("plan", data, id)
+                ).then(() => setNotice("저장했어북")).catch(() => {});
               }}
             />
           )}

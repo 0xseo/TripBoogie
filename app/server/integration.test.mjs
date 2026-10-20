@@ -954,3 +954,42 @@ test("existing reservation files gain tags while storage paths, dates and ready 
   for(const key of ["id","path","name","size","mime","created_at"])assert.equal(after[key],before[key]);assert.equal(after.status,"ready");assert.equal((await db.query("select count(*)::int as n from storage.objects where name=$1",[before.path])).rows[0].n,1);
  }finally{await db.close();}
 });
+
+test('flight, hotel and tour reservations synchronize event dates both ways with atomic validation',async()=>{
+ const {db,rpc}=await fixture();try{
+  let w=await rpc('owner','create',null,{data:details});const id=w.trip.id;
+  for(const name of ['editor','viewer']){const token=(name==='editor'?'ab':'cd').repeat(32);await rpc('owner','create-invite',id,{role:name,token});await rpc(name,'join',null,{token});}
+  const base={title:'ICN → NRT',startDate:'2026-11-01',endDate:'2026-11-01',startTime:'09:00',endTime:'11:00',type:'flight',departureAirport:{icao:'RKSI',iata:'ICN',name:'Incheon',timezone:'Asia/Seoul'},arrivalAirport:{icao:'RJAA',iata:'NRT',name:'Narita',timezone:'Asia/Tokyo'}};
+  w=await rpc('owner','save-booking',id,{data:base});let booking=w.records.find(r=>r.kind==='booking');
+  let events=w.records.filter(r=>r.kind==='plan'&&r.data.bookingId===booking.id);
+  assert.deepEqual(events.map(r=>r.data.bookingEvent).sort(),['arrival','departure']);
+  const departure=events.find(r=>r.data.bookingEvent==='departure');
+  w=await rpc('editor','save-plan',id,{id:departure.id,version:departure.version,data:{...departure.data,time:'10:00'}});
+  booking=w.records.find(r=>r.id===booking.id);assert.equal(booking.data.startTime,'10:00');
+  const arrival=w.records.find(r=>r.data.bookingEvent==='arrival');
+  await assert.rejects(rpc('owner','save-plan',id,{id:arrival.id,version:arrival.version,data:{...arrival.data,time:'08:00'}}),{code:'PT400'});
+  assert.equal((await rpc('owner','workspace',id)).records.find(r=>r.id===booking.id).data.endTime,'11:00');
+  w=await rpc('owner','save-booking',id,{id:booking.id,version:booking.version,data:{...booking.data,startTime:'09:30',endTime:'12:00'}});
+  assert.equal(w.records.find(r=>r.id===departure.id).data.time,'09:30');assert.equal(w.records.find(r=>r.id===arrival.id).data.time,'12:00');
+  w=await rpc('owner','schedule',id,{revision:w.revision,operation:'move',ids:[departure.id,arrival.id],sourceDate:'2026-11-01',targetDate:'2026-11-02'});
+  booking=w.records.find(r=>r.id===booking.id);assert.equal(booking.data.startDate,'2026-11-02');assert.equal(booking.data.endDate,'2026-11-02');
+  w=await rpc('owner','save-booking',id,{data:{type:'tour',title:'City tour',startDate:'2026-11-02',endDate:'2026-11-03',startTime:'13:00',endTime:'17:00'}});
+  let tour=w.records.find(r=>r.kind==='booking'&&r.data.type==='tour');let tourPlan=w.records.find(r=>r.kind==='plan'&&r.data.bookingId===tour.id);
+  assert.equal(tourPlan.data.bookingEvent,'tour');
+  w=await rpc('owner','save-plan',id,{id:tourPlan.id,version:tourPlan.version,data:{...tourPlan.data,date:'2026-11-03',time:'14:00'}});
+  tour=w.records.find(r=>r.id===tour.id);assert.equal(tour.data.startDate,'2026-11-03');assert.equal(tour.data.endDate,'2026-11-04');assert.equal(tour.data.startTime,'14:00');
+  w=await rpc('owner','save-booking',id,{data:{type:'hotel',title:'Hotel',startDate:'2026-11-01',endDate:'2026-11-04',startTime:'15:00',endTime:'11:00'}});
+  const hotel=w.records.find(r=>r.kind==='booking'&&r.data.type==='hotel');const checkin=w.records.find(r=>r.data.bookingId===hotel.id&&r.data.bookingEvent==='checkin');
+  w=await rpc('owner','save-plan',id,{id:checkin.id,version:checkin.version,data:{...checkin.data,date:'2026-11-02',time:'16:00',title:'Custom check-in'}});
+  assert.equal(w.records.find(r=>r.id===hotel.id).data.startDate,'2026-11-02');assert.equal(w.records.find(r=>r.id===hotel.id).data.startTime,'16:00');
+  let current=w.records.find(r=>r.id===hotel.id);w=await rpc('owner','save-booking',id,{id:current.id,version:current.version,data:{...current.data,startTime:'17:00'}});
+  assert.equal(w.records.find(r=>r.id===checkin.id).data.time,'17:00');assert.equal(w.records.find(r=>r.id===checkin.id).data.title,'Custom check-in');
+  // A user-deleted event stays deleted after editing the booking.
+  tourPlan=w.records.find(r=>r.id===tourPlan.id);w=await rpc('owner','mutate',id,{action:'delete',kind:'plan',id:tourPlan.id,version:tourPlan.version});
+  tour=w.records.find(r=>r.id===tour.id);w=await rpc('owner','save-booking',id,{id:tour.id,version:tour.version,data:{...tour.data,title:'Renamed tour'}});
+  assert.equal(w.records.filter(r=>r.kind==='plan'&&r.data.bookingId===tour.id).length,0);
+  // Viewers cannot alter shared reservation dates, or invoke synchronization helpers.
+  await assert.rejects(rpc('viewer','save-plan',id,{id:checkin.id,version:w.records.find(r=>r.id===checkin.id).version,data:{...checkin.data,time:'18:00'}}),{code:'PT403'});
+  const guards=await db.query("select has_function_privilege('authenticated','tripboogie_private.sync_plan_booking(public.trips,public.trip_records,public.trip_records)','execute') as allowed");assert.equal(guards.rows[0].allowed,false);
+ }finally{await db.close();}
+});

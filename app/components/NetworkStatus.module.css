@@ -1,10 +1,16 @@
 .status {
   position: fixed;
-  inset: 0;
+  right: 18px;
+  bottom: calc(18px + var(--trip-nav-reserve, 0px) + env(safe-area-inset-bottom));
   z-index: 90;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
   color: var(--green);
-  background: rgb(0 0 0 / 14%);
+  background: var(--paper);
+  box-shadow: 0 2px 12px rgb(0 0 0 / 12%);
   pointer-events: none;
 }

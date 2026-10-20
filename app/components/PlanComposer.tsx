@@ -47,7 +47,7 @@ export default function PlanComposer({
       onBack={picker?()=>setPicker(false):undefined}
       hideTitle={picker}
       title={
-        picker ? "일정에 장소 연결" : record ? "일정 수정" : "일정 추가"
+        picker ? "일정에 장소 연결" : kind === "memo" ? (record ? "메모 수정" : "메모 추가") : record ? "일정 수정" : "일정 추가"
       }
       onClose={onClose}
       wide
@@ -67,7 +67,7 @@ export default function PlanComposer({
         />
       ) : (
         <form
-          className="stack"
+          className={`stack plan-composer ${kind === "memo" ? "memo-composer" : ""}`}
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
@@ -141,7 +141,8 @@ export default function PlanComposer({
           )}
           {kind === "plan" && original?.id === placeId && <PlaceMedia place={original.data} compact />}
           {kind === "plan" && <><Field label="일정 이름"><input required maxLength={300} placeholder="일정 이름" value={title} onChange={e=>setTitle(e.target.value)}/></Field><div className="optional-time"><TimeField value={time} onChange={setTime}/><details><summary>머무를 시간</summary><input aria-label="머무를 시간 · 분" type="number" min={0} max={1440} value={duration} onChange={e=>setDuration(e.target.value)} placeholder="분"/></details></div></>}
-          <Field label="메모">
+          <label className={`field ${kind === "memo" ? "memo-editor-field" : ""}`}>
+            <span>메모</span>
             <textarea
               required={kind === "memo"}
               maxLength={10000}
@@ -150,7 +151,7 @@ export default function PlanComposer({
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />
-          </Field>
+          </label>
           {error && (
             <p className="error" role="alert">
               {error}

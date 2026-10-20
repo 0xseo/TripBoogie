@@ -3,16 +3,16 @@
 친구와 함께 여행 일정·지도·경비·준비물을 정리하는 웹앱입니다. PC·모바일 브라우저, iOS 홈 화면 웹앱, Android 앱을 지원합니다.
 
 - 서비스: https://tripboogie.0xseo94.com
-- 현재 버전: **0.1.0**
+- 현재 버전: **0.1.1**
 - Android/iOS 앱 식별자: `com.tripboogie.app`
 
 ## 기능
 
-- **나의 여행**: 여행 생성·수정·복사·삭제, 검색·필터·정렬, 여행 중·D-day, 도시 대표 사진
+- **나의 여행**: 여행 생성·수정·복사·삭제, 검색·필터·다가오는 순/지난 여행 최신순 정렬, 여행 중·D-day, 연초록 비행기 카드
 - **일정·지도**: 날짜별 일정과 메모, 장소 자동완성·지도 직접 선택, 마커·직선 경로, 이동 수단·시간, 드래그 순서 변경, 선택 이동·복사·삭제·날짜 맞바꾸기
 - **경비**: 여행 기본 통화와 개인 기준 통화, 저장 당시 금액·환율 유지, 복수 결제자·분담 금액 편집, 사용 시점과 분류
 - **준비**: 개인별·공동 체크리스트와 완료 수, 예약·첨부파일, 자료 태그·정렬·필터, 분류 순서 변경
-- **예약**: 숙소·항공·투어티켓·기타, 숙소 일정 연결, 결제 완료 시 경비 연결, 공항 자동완성
+- **예약**: 숙소·항공·투어티켓·기타, 항공·숙소·투어 일정 자동 추가와 날짜·시간 양방향 연동, 결제 완료 시 경비 연결, 공항 자동완성
 - **여행 도구**: 도시별 날씨·현지 시각·시차·양방향 환율
 - **동행**: 초대 링크, 편집·열람 권한, 서버 동기화와 충돌 검사
 - **계정**: Google·Kakao 로그인, 이름·국가·검색 언어·기준 통화·계정별 테마, 복구 가능한 소프트 탈퇴
@@ -35,7 +35,7 @@ http://127.0.0.1:5173 에서 실행됩니다. 새 Supabase 프로젝트는 `supa
 
 ```sh
 npm run lint
-node --test app/checklist.test.mjs app/startup.test.mjs app/profile-state.test.mjs app/file-library.test.mjs app/file-upload.test.mjs app/pull-to-refresh.test.mjs app/navigation.test.mjs native/native.test.mjs app/theme.test.mjs
+node --test app/workspace-mutations.test.mjs app/checklist.test.mjs app/startup.test.mjs app/profile-state.test.mjs app/file-library.test.mjs app/file-upload.test.mjs app/pull-to-refresh.test.mjs app/navigation.test.mjs native/native.test.mjs app/theme.test.mjs
 npm test
 npm run build
 ```

@@ -7,7 +7,8 @@ import DateField from "./DateField";
 import TurtleIcon from "./TurtleIcon";
 import TimeField from "./TimeField";
 import { bookingCategories } from "../booking-categories";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { airportCode, flightRoute, bookingTitle as displayBookingTitle, compareBookings } from "../booking-display";
 import Files, { type FileCommand } from "./Files";
 import {
   Plus,
@@ -18,6 +19,7 @@ import {
   Pencil,
   Trash2,
   ArrowRight,
+  CalendarDays,
 } from "lucide-react";
 import type { Workspace, ItemRecord, Profile } from "../types";
 import type { MapPlace } from "../server/maps";
@@ -37,6 +39,8 @@ export default function Bookings({
   onSave,
   onDelete,
   fileCommand,
+  focused,
+  onPlan,
 }: {
   workspace: Workspace;
   profile: Profile;
@@ -50,11 +54,21 @@ export default function Bookings({
   ) => Promise<void>;
   onDelete: (r: ItemRecord) => void;
   fileCommand: FileCommand;
+  focused?: string;
+  onPlan: (plan: ItemRecord) => void;
 }) {
-  const [type, setType] = useState("hotel"),
+  const [type, setType] = useState(() => {
+      const booking = workspace.records.find((r) => r.kind === "booking" && r.id === focused);
+      return booking ? String(booking.data.category || booking.data.type) : "hotel";
+    }),
     [editing, setEditing] = useState<ItemRecord | "new" | null>(null),
     [reviewPayment, setReviewPayment] = useState(false),
     [showFiles, setShowFiles] = useState(false);
+  useEffect(() => {
+    if (!focused) return;
+    const frame = requestAnimationFrame(() => document.getElementById(`booking-${focused}`)?.scrollIntoView({ block: "center" }));
+    return () => cancelAnimationFrame(frame);
+  }, [focused, type, showFiles]);
   function selectBookingCategory(id: string, files = false) {
     setEditing(null);
     setReviewPayment(false);
@@ -68,7 +82,7 @@ export default function Bookings({
     (r) =>
       r.kind === "booking" &&
       (r.data.category || r.data.type) === selectedCategory.id
-  );
+  ).sort(compareBookings);
   return (
     <section className="feature">
       <FeatureToolbar
@@ -112,7 +126,7 @@ export default function Bookings({
       {!showFiles && (
         <div className="booking-grid">
           {rows.map((r) => (
-            <article className="booking-card" key={r.id}>
+            <article className="booking-card" key={r.id} id={`booking-${r.id}`} data-focused={focused === r.id}>
               <div className="inline">
                 <span className="booking-type">
                   {selectedCategory.kind === "hotel" ? (
@@ -163,7 +177,7 @@ export default function Bookings({
                   }
                 </span>
               )}
-              <h3>{text(r.data.title)}</h3>
+              <h3>{displayBookingTitle(r.data)}</h3>
               {Boolean(r.data.flightNumber) && (
                 <strong className="flight-number">
                   {text(r.data.flightNumber)}
@@ -175,7 +189,7 @@ export default function Bookings({
               </p>
               {Boolean(r.data.departure) && (
                 <p>
-                  {text(r.data.departure)} → {text(r.data.arrival)}
+                  {flightRoute(r.data)}
                 </p>
               )}
               {Boolean(r.data.platform) && (
@@ -215,6 +229,13 @@ export default function Bookings({
               {Boolean(r.data.note) && (
                 <p className="preserve">{text(r.data.note)}</p>
               )}
+              <div className="booking-plan-links">
+                {workspace.records.filter((p) => p.kind === "plan" && p.data.bookingId === r.id).sort((a, b) => String(a.data.date).localeCompare(String(b.data.date)) || String(a.data.time || "").localeCompare(String(b.data.time || ""))).map((plan) => (
+                  <button type="button" className="text-button" key={plan.id} onClick={() => onPlan(plan)}>
+                    <CalendarDays size={15}/>{dateLabel(text(plan.data.date))} {text(plan.data.time)} · {text(plan.data.bookingEvent) === "checkin" ? "체크인" : text(plan.data.bookingEvent) === "checkout" ? "체크아웃" : text(plan.data.bookingEvent) === "departure" ? "출발" : text(plan.data.bookingEvent) === "arrival" ? "도착" : "투어"} 일정 보기
+                  </button>
+                ))}
+              </div>
               <Files
                 key={`${workspace.trip.id}:${r.id}`}
                 workspace={workspace}
@@ -311,8 +332,8 @@ export function BookingForm({
       note: text(d.note),
       flightNumber: text(d.flightNumber),
       flightRole: text(d.flightRole, initialFlightRole),
-      departure: text(d.departure),
-      arrival: text(d.arrival),
+      departure: airportCode(d.departureAirport, d.departure),
+      arrival: airportCode(d.arrivalAirport, d.arrival),
       departureZone: text(d.departureZone),
       arrivalZone: text(d.arrivalZone),
       placeId: text(d.placeId),

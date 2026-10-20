@@ -32,6 +32,7 @@ export default function TripPlan({
   onAdd,
   onError,
   onSave,
+  onBooking,
 }: {
   workspace: Workspace;
   date: string;
@@ -48,8 +49,14 @@ export default function TripPlan({
   onAdd: () => void;
   onError: (message: string) => void;
   onSave: (r: ItemRecord, data: Record<string, unknown>) => Promise<void>;
+  onBooking: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (!selected) return;
+    const frame = requestAnimationFrame(() => document.getElementById(`plan-${selected}`)?.scrollIntoView({ block: "center" }));
+    return () => cancelAnimationFrame(frame);
+  }, [selected, date]);
   const graph = dayGraph(plans, places);
   function select(id: string) {
     onSelected(id);
@@ -91,6 +98,7 @@ export default function TripPlan({
         }}
       />
       <ItineraryEditor
+        onBooking={onBooking}
         key={date}
         workspace={workspace}
         date={date}
