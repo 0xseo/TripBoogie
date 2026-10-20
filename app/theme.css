@@ -3,8 +3,17 @@
 :root[data-theme="dark"]{color-scheme:dark;--ink:#edf2ee;--muted:#b9c6bd;--paper:#1f2622;--bg:#141917;--green:#b7cda8;--on-primary:#172219;--soft:#2a382e;--mint:#304032;--range:#344b35;--calendar-red:#ffb7be;--calendar-blue:#b3d5ff;--danger:#ffb7b0;--error-bg:#3b2525;--error-ink:#ffd8d4}
 .profile-turtle{display:grid;place-items:center;width:72px;height:72px;flex:none;border-radius:50%;background:#e9edc9;color:#3a5a40}
 .profile-summary{gap:14px}.profile-summary>div{min-width:0}.avatar:has(svg){color:var(--green);background:var(--mint)}
-.primary,.marker-number,.filter-count,.week-days button[aria-current="date"],.week-days button[aria-current="date"] span,.tools-cities button[aria-pressed="true"],.stay-day-grid button[aria-pressed="true"]{color:var(--on-primary)}
-.primary{background:var(--green)}.field>span,.side-link,.mobile-trip-nav button,.preparation-tabs button,.plan-top,.plan-card>p{color:var(--muted)}
+.primary,
+.marker-number,
+.filter-count,
+.week-days button[aria-current="date"],
+.week-days button[aria-current="date"] span,
+.stay-day-grid button[aria-pressed="true"]{color:var(--on-primary)}
+.primary{background:var(--green)}.field>span,
+.side-link,
+.mobile-trip-nav button,
+.preparation-tabs button,
+.plan-card>p{color:var(--muted)}
 .side-link.active,.preparation-tabs button[aria-current="page"]{color:var(--green)}
 .mobile-trip-nav button[aria-current="page"]{background:var(--green);color:var(--on-primary);font-weight:600}
 .plan-card .memo-body,.map-schedule-card>.map-memo-body{color:var(--ink)}
@@ -14,8 +23,10 @@
 .range-calendar .rdp-range_middle{background:var(--range)}.range-calendar .rdp-day_button{color:var(--ink)}.range-calendar .rdp-range_middle .rdp-day_button{color:var(--ink)}
 .range-calendar :is(.calendar-sunday,.calendar-holiday) .rdp-day_button,.range-calendar .rdp-weekday:first-child{color:var(--calendar-red)}.range-calendar .calendar-saturday:not(.calendar-holiday) .rdp-day_button,.range-calendar .rdp-weekday:last-child{color:var(--calendar-blue)}
 .range-calendar :is(.rdp-range_start,.rdp-range_end) .rdp-day_button{background:var(--green);color:var(--on-primary)!important}
-.range-label{color:var(--muted);background:var(--soft)}.range-label strong,.trip-date-pair strong,.city-name-chip,.compact-plan-content>span{color:var(--ink)}
-.trip-days{background:var(--paper);color:var(--ink)}.trip-destination{color:#1a1d1e}.trip-cover:has(.city-cover-media) .trip-destination{background:#fffffff2;color:#1a1d1e}.map-note{background:var(--paper);color:var(--ink)}
+.range-label{color:var(--muted);background:var(--soft)}.range-label strong,
+.trip-date-pair strong,
+.compact-plan-content>span{color:var(--ink)}
+.trip-days{background:var(--paper);color:var(--ink)}.trip-destination{color:#1a1d1e}
 .maplibregl-ctrl-group{background:#fff;color:#1a1d1e}.maplibregl-ctrl-attrib,.maplibregl-ctrl-attrib a{color:#28372d}.maplibregl-ctrl-attrib{background:#fffffff2}
 
 /* The document canvas and its text share one theme owner, including the native shell. */

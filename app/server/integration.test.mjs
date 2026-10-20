@@ -748,12 +748,14 @@ test("custom booking categories preserve booking semantics, reject removal while
   assert.equal(imported.records.find(r=>r.data.title==='주차장').data.category,'parking');
  }finally{await db.close();}
 });
-test("city image lookup is independent of Geoapify details and empty legacy images remain automatic",async()=>{
- const {createPlaceDetailsHandler}=await import(pathToFileURL(path.join(directory,'place-details.mjs')));
- let geo=0;
- const image={thumburl:'https://upload.wikimedia.org/wikipedia/commons/a/ab/CityFallback.jpg',descriptionurl:'https://commons.wikimedia.org/wiki/File:CityFallback.jpg',extmetadata:{LicenseShortName:{value:'CC BY-SA 4.0'},LicenseUrl:{value:'https://creativecommons.org/licenses/by-sa/4.0/'}}};
- const handler=createPlaceDetailsHandler({key:'unavailable',resolveUser:async()=>users.owner,budget:async()=>{},fetch:async url=>{const u=new URL(url);if(u.hostname==='api.geoapify.com'){geo++;return new Response(null,{status:503});}if(u.hostname.endsWith('wikipedia.org'))return Response.json({query:{pages:[{missing:true}]}});return Response.json({query:{pages:[{title:'File:CityFallback.jpg',imageinfo:[image]}]}});}});
- const response=await handler(new Request('https://tripboogie.example.test/api/maps/details',jsonRequest({kind:'city',name:'시험 도시',lat:33,lng:130,providerId:'ab'.repeat(20)},{headers:{Origin:'https://tripboogie.example.test'}})));assert.equal(response.status,200);assert.equal((await response.json()).photos.length,1);assert.equal(geo,0);
+test("retired city cover searches never consume provider quota and legacy settings remain compatible",async()=>{
+ let providerCalls=0,budgetCalls=0;
+ const handler=createPlaceDetailsHandler({key:'unused',resolveUser:async()=>users.owner,budget:async()=>{budgetCalls++;},fetch:async()=>{providerCalls++;throw new Error('Retired city searches must not call providers');}});
+ for(const input of [{kind:'city'},{kind:'city',query:'Tokyo'},{kind:'place',query:'Tokyo'}]){
+  const response=await handler(new Request('https://tripboogie.example.test/api/maps/details',jsonRequest({...input,name:'시험 도시',lat:33,lng:130,providerId:'ab'.repeat(20)},{headers:{Origin:'https://tripboogie.example.test'}})));
+  assert.equal(response.status,400);assert.match((await response.json()).error,/장소/);
+ }
+ assert.equal(providerCalls,0);assert.equal(budgetCalls,0);
  const {db,rpc}=await fixture();try{let w=await rpc('owner','create',null,{data:details});const city={id:crypto.randomUUID(),name:'Tokyo',address:'Japan',lat:35.68,lng:139.76,countryCode:'JP',timezone:'Asia/Tokyo',currency:'JPY',startDate:details.startDate,endDate:details.endDate,image:null,imageDisabled:false};w=await rpc('owner','update-settings',w.trip.id,{revision:w.revision,cities:[city]});assert.equal(w.trip.settings.cities[0].imageDisabled,false);w=await rpc('owner','update-settings',w.trip.id,{revision:w.revision,cities:[{...city,imageDisabled:true}]});assert.equal(w.trip.settings.cities[0].imageDisabled,true);}finally{await db.close();}
 });
 
@@ -1208,4 +1210,34 @@ test('reverse city lookup is authenticated, coordinate-bounded and exposes city 
  const req=(data,auth=true)=>new Request('https://tripboogie.example.test/api/maps/reverse',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://tripboogie.example.test',...(auth?{authorization:'Bearer owner'}:{})},body:JSON.stringify(data)});
  assert.equal((await handler(req({lat:-38.13,lng:176.25},false),'reverse')).status,401);assert.equal((await handler(req({lat:91,lng:176.25}),'reverse')).status,400);assert.equal(calls,0);
  const r=await handler(req({lat:-38.13,lng:176.25}),'reverse'),body=await r.json();assert.equal(r.status,200);assert.equal(body.places[0].cityName,'Rotorua');assert.equal(body.places[0].countryCode,'NZ');assert.equal(body.places[0].currency,'NZD');assert.equal(budgets,1);assert.equal(calls,1);
+});
+
+test('expense-first booking links are atomic, reciprocal, versioned, movable and authorization checked',async()=>{
+ const {db,rpc,request}=await fixture();try{
+  let w=await rpc('owner','create',null,{data:details}),id=w.trip.id;
+  const bookingIds=[];for(const type of ['flight','hotel','tour']){const bid=crypto.randomUUID();w=await rpc('owner','save-booking',id,{id:bid,data:{type,title:`Link ${type}`,startDate:details.startDate,endDate:details.startDate,moneyCurrency:'KRW',moneyAmount:'1000'}});bookingIds.push(bid);}
+  const expenseId=crypto.randomUUID(),payment={model:2,title:'linked payment',category:'flight',tripCurrency:'KRW',baseCurrency:'KRW',paidCurrency:'KRW',tripAmount:'1000',baseAmount:'1000',exchangeRate:'1',period:'before',date:details.startDate,countryCode:'KR',payers:[{userId:users.owner.id,name:'owner',amount:'1000'}],participants:[{userId:users.owner.id,name:'owner',amount:'1000'}],bookingId:bookingIds[0]};
+  let b=w.records.find(r=>r.id===bookingIds[0]);
+  const response=await request(`trips/${id}/actions/save-expense`,'owner','POST',{id:expenseId,data:{...payment,bookingVersion:b.version}});assert.equal(response.status,200);w=response.body;
+  let e=w.records.find(r=>r.id===expenseId);b=w.records.find(r=>r.id===bookingIds[0]);assert.equal(e.data.bookingId,b.id);assert.equal(b.data.expenseId,e.id);assert.equal(b.data.moneyAmount,'1000');assert.equal(b.data.isPaid,true);
+  await assert.rejects(rpc('outsider','save-expense',id,{data:payment}),{code:'PT404'});
+  await rpc('owner','create-invite',id,{role:'viewer',token:'bc'.repeat(32)});await rpc('viewer','join',null,{token:'bc'.repeat(32)});assert.equal((await request(`trips/${id}/actions/save-expense`,'viewer','POST',{data:payment})).status,403);
+  await assert.rejects(rpc('owner','save-expense',id,{id:crypto.randomUUID(),data:payment}),{code:'PT409'});
+  await assert.rejects(rpc('owner','save-expense',id,{id:e.id,version:e.version,data:{...payment,bookingVersion:b.version-1}}),{code:'PT409'});
+  w=await rpc('owner','save-expense',id,{id:e.id,version:e.version,data:{...payment,tripAmount:'2400',baseAmount:'2400',payers:[{...payment.payers[0],amount:'2400'}],participants:[{...payment.participants[0],amount:'2400'}]}});e=w.records.find(r=>r.id===e.id);b=w.records.find(r=>r.id===b.id);assert.equal(b.data.moneyAmount,'2400');
+  w=await rpc('owner','save-booking',id,{id:b.id,version:b.version,data:{...b.data,moneyAmount:'3000'},expense:{id:e.id,version:e.version,data:{...e.data,tripAmount:'3000',baseAmount:'3000',payers:[{...payment.payers[0],amount:'3000'}],participants:[{...payment.participants[0],amount:'3000'}]}}});e=w.records.find(r=>r.id===e.id);assert.equal(e.data.tripAmount,'3000');
+  w=await rpc('owner','save-expense',id,{id:e.id,version:e.version,data:{...e.data,bookingId:bookingIds[1]}});e=w.records.find(r=>r.id===e.id);assert.equal(e.data.bookingId,bookingIds[1]);assert.equal(w.records.find(r=>r.id===bookingIds[0]).data.isPaid,false);assert.equal(w.records.find(r=>r.id===bookingIds[1]).data.expenseId,e.id);
+  w=await rpc('owner','save-expense',id,{id:e.id,version:e.version,data:{...e.data,bookingId:''}});e=w.records.find(r=>r.id===e.id);assert.equal(e.data.bookingId,undefined);assert.equal(w.records.find(r=>r.id===bookingIds[1]).data.isPaid,false);
+  const other=await rpc('owner','create',null,{data:details});await assert.rejects(rpc('owner','save-expense',other.trip.id,{data:payment}),{code:'PT404'});
+  const acl=await db.query("select has_function_privilege('authenticated','tripboogie_private.save_expense(public.trips,jsonb)','execute') allowed");assert.equal(acl.rows[0].allowed,false);
+ }finally{await db.close();}
+});
+test('five built-in expense categories cannot be deleted and one flight seat survives independent baggage and backup',async()=>{
+ const {db,rpc}=await fixture();try{
+  let w=await rpc('owner','create',null,{data:details});assert.deepEqual(w.trip.settings.expenseCategories.map(c=>c.label),['항공','숙소','교통','식비','관광']);
+  const cats=w.trip.settings.expenseCategories;for(const c of cats)await assert.rejects(rpc('owner','update-settings',w.trip.id,{revision:w.revision,expenseCategories:cats.filter(x=>x.id!==c.id)}),{code:'PT400'});
+  w=await rpc('owner','update-settings',w.trip.id,{revision:w.revision,expenseCategories:[...cats].reverse().map(c=>c.id==='flight'?{...c,label:'비행기'}:c)});assert.equal(w.trip.settings.expenseCategories.at(-1).label,'비행기');
+  w=await rpc('owner','save-booking',w.trip.id,{data:{type:'flight',title:'Seat and bags',startDate:details.startDate,endDate:details.startDate,flightSeat:'18A',flightExtras:[{id:crypto.randomUUID(),baggageCount:1,baggageKg:23},{id:crypto.randomUUID(),baggageCount:2,baggageKg:10}]}});const b=w.records.find(r=>r.kind==='booking');assert.equal(b.data.flightSeat,'18A');assert.equal(b.data.flightExtras.length,2);assert.ok(b.data.flightExtras.every(e=>e.seat===''));
+  const copy=await rpc('owner','import',null,{key:crypto.randomUUID(),trip:w.trip,records:w.records});assert.equal(copy.records.find(r=>r.kind==='booking').data.flightSeat,'18A');assert.equal(copy.trip.settings.expenseCategories.length,5);
+ }finally{await db.close();}
 });

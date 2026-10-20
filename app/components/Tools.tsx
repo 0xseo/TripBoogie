@@ -244,6 +244,7 @@ function Exchange({ currency, base }: { currency: string; base: string }) {
               })}{" "}
               {base}
             </span>
+            <small className="inverse-rate">1 {base} = {(1/rate.quote.rate).toLocaleString("ko-KR",{maximumFractionDigits:8})} {currency}</small>
             <small>{rate.quote.date} 기준</small>
           </>
         ) : (

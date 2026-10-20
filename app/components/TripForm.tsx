@@ -31,7 +31,7 @@ export default function TripForm({
     [title, setTitle] = useState(trip?.title || ""),
     [cities, setCities] = useState<TravelCity[]>(trip?.settings.cities || []),
     [countries, setCountries] = useState<string[]>(
-      trip ? tripCountries(trip) : [],
+      trip ? tripCountries(trip) : []
     ),
     [start, setStart] = useState(trip?.startDate || ""),
     [end, setEnd] = useState(trip?.endDate || ""),
@@ -58,7 +58,7 @@ export default function TripForm({
                 .of(code)
                 ?.toLowerCase()
                 .includes(query.trim().toLowerCase()) ||
-              code === query.trim().toUpperCase(),
+              code === query.trim().toUpperCase()
           )
           .slice(0, 6)
       : [];
@@ -73,8 +73,8 @@ export default function TripForm({
         "/api/maps/autocomplete",
         jsonRequest(
           { query, type: "city", language },
-          { signal: controller.signal },
-        ),
+          { signal: controller.signal }
+        )
       )
         .then(async (r) => {
           if (!r.places.some((p) => p.countryCode && p.timezone))
@@ -82,8 +82,8 @@ export default function TripForm({
               "/api/maps/search",
               jsonRequest(
                 { query, type: "city", language },
-                { signal: controller.signal },
-              ),
+                { signal: controller.signal }
+              )
             );
           if (n === sequence.current) {
             setResults(r.places.filter((p) => p.countryCode && p.timezone));
@@ -110,7 +110,7 @@ export default function TripForm({
         [
           ...cities.map((c) => c.currency || countryCurrencies[c.countryCode]),
           ...countries.flatMap((c) => currenciesForCountry(c)),
-        ].filter(Boolean),
+        ].filter(Boolean)
       ),
     ],
     currency = currencies[0] || trip?.currency || "KRW",
@@ -119,8 +119,10 @@ export default function TripForm({
     groups
       .map((g) =>
         g.cities.length
-          ? `${g.name} | ${g.cities.map((c) => c.name + (c.transit ? "(환승)" : "")).join(", ")}`
-          : g.name,
+          ? `${g.name} | ${g.cities
+              .map((c) => c.name + (c.transit ? "(환승)" : ""))
+              .join(", ")}`
+          : g.name
       )
       .join(" · ") ||
     trip?.destination ||
@@ -143,7 +145,7 @@ export default function TripForm({
     if (
       !cities.some(
         (c) =>
-          Math.abs(c.lat - p.lat) < 0.001 && Math.abs(c.lng - p.lng) < 0.001,
+          Math.abs(c.lat - p.lat) < 0.001 && Math.abs(c.lng - p.lng) < 0.001
       )
     )
       setCities([
@@ -168,7 +170,7 @@ export default function TripForm({
         ...c,
         startDate: !c.startDate || c.startDate === start ? a : c.startDate,
         endDate: !c.endDate || c.endDate === end ? b : c.endDate,
-      })),
+      }))
     );
     setStart(a);
     setEnd(b);
@@ -256,8 +258,8 @@ export default function TripForm({
               onChange={(a, b) =>
                 setCities((rows) =>
                   rows.map((c) =>
-                    c.id === city.id ? { ...c, startDate: a, endDate: b } : c,
-                  ),
+                    c.id === city.id ? { ...c, startDate: a, endDate: b } : c
+                  )
                 )
               }
             />
@@ -268,10 +270,8 @@ export default function TripForm({
                 onChange={(e) =>
                   setCities((rows) =>
                     rows.map((c) =>
-                      c.id === city.id
-                        ? { ...c, transit: e.target.checked }
-                        : c,
-                    ),
+                      c.id === city.id ? { ...c, transit: e.target.checked } : c
+                    )
                   )
                 }
               />
@@ -300,7 +300,7 @@ export default function TripForm({
                   >
                     {trip ? label : `${i + 1}. ${label}`}
                   </button>
-                ),
+                )
               )}
             </nav>
             {step === 0 && (
@@ -310,7 +310,7 @@ export default function TripForm({
                   <input
                     autoFocus={!trip}
                     aria-label="여행 국가·도시 검색"
-                    placeholder="뉴질랜드 또는 오클랜드처럼 검색해북"
+                    placeholder="국가 또는 도시를 검색해봐북"
                     value={query}
                     onChange={(e) => {
                       setQuery(e.target.value);
@@ -324,7 +324,7 @@ export default function TripForm({
                         setActive(
                           (active +
                             (e.key === "ArrowDown" ? 1 : results.length - 1)) %
-                            results.length,
+                            results.length
                         );
                       }
                       if (e.key === "Enter") {
@@ -377,10 +377,6 @@ export default function TripForm({
                 {searchError && !countryMatches.length && (
                   <p className="info">{searchError}</p>
                 )}
-                <p className="muted">
-                  국가만 골라 여행을 만들고, 숙소나 장소를 입력하면서 도시를
-                  추가할 수 있어북.
-                </p>
                 <div className="trip-country-groups">
                   {groups.map((g) => (
                     <section key={g.code}>
@@ -393,7 +389,7 @@ export default function TripForm({
                           onClick={() => {
                             setCountries(countries.filter((c) => c !== g.code));
                             setCities(
-                              cities.filter((c) => c.countryCode !== g.code),
+                              cities.filter((c) => c.countryCode !== g.code)
                             );
                           }}
                         >
@@ -418,7 +414,7 @@ export default function TripForm({
                                 aria-label={`${c.name} 제외`}
                                 onClick={() =>
                                   setCities(
-                                    cities.filter((row) => row.id !== c.id),
+                                    cities.filter((row) => row.id !== c.id)
                                   )
                                 }
                               >
@@ -445,7 +441,9 @@ export default function TripForm({
                     maxLength={200}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder={`${groups.map((g) => g.name).join(" · ")} 여행`}
+                    placeholder={`${groups
+                      .map((g) => g.name)
+                      .join(" · ")} 여행`}
                   />
                 </Field>
                 <section className="trip-period-summary">
@@ -464,34 +462,31 @@ export default function TripForm({
                   </div>
                 </section>
                 <section className="trip-city-summary">
-                  <span>방문 국가·도시</span>
-                  <div className="grouped-city-summary">
-                    {groups.map((g) => (
-                      <div key={g.code}>
-                        <strong>{g.name}</strong>
-                        <span> | </span>
-                        {g.cities.length ? (
-                          g.cities.map((c, i) => (
-                            <span key={c.id}>
-                              {i > 0 ? ", " : ""}
-                              <button
-                                type="button"
-                                className="text-button"
-                                onClick={() => setCityPeriod(c.id)}
-                              >
+                  {/* <span>방문 국가·도시</span> */}
+                  <Field label="방문 국가·도시">
+                    <div className="grouped-city-summary">
+                      {groups.map((g) => (
+                        <div key={g.code}>
+                          <strong>{g.name}</strong>
+                          <span> | </span>
+                          {g.cities.length ? (
+                            g.cities.map((c, i) => (
+                              <span key={c.id}>
+                                {i > 0 ? ", " : ""}
+
                                 {c.name}
                                 {c.transit ? "(환승)" : ""}
-                              </button>
-                            </span>
-                          ))
-                        ) : (
-                          <span>도시 미정</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                              </span>
+                            ))
+                          ) : (
+                            <span>도시 미정</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </Field>
                 </section>
-                <Field label="여행 통화 · 방문 국가·도시 기준 자동 설정">
+                <Field label="여행 통화 (방문 국가·도시 기준 자동 설정)">
                   <div className="trip-currency-list">
                     {(currencies.length ? currencies : [currency]).map((c) => (
                       <span key={c}>{c}</span>

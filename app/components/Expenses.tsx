@@ -1,5 +1,11 @@
 "use client";
 import Form from "./Form";
+import BookingIcon from "./BookingIcon";
+import { bookingTitle } from "../booking-display";
+import {
+  expenseCategories,
+  bookingExpenseCategory,
+} from "../expense-categories";
 import { useEffect, useRef, useState } from "react";
 import { Pencil, Trash2, ArrowRightLeft } from "lucide-react";
 import type { Workspace, ItemRecord, Profile } from "../types";
@@ -29,6 +35,7 @@ export function useRate(
   base: string,
   quote: string,
   onQuote?: (q: Quote) => void,
+  enabled = true,
 ) {
   const callback = useRef(onQuote);
   useEffect(() => {
@@ -38,8 +45,20 @@ export function useRate(
     [error, setError] = useState(""),
     [retry, setRetry] = useState(0);
   useEffect(() => {
+    if (!enabled) return;
     let active = true;
-    api<Quote>("/api/tools", jsonRequest({ operation: "rate", base, quote }))
+    (base === quote
+      ? Promise.resolve({
+          base,
+          quote,
+          rate: 1,
+          date: new Date().toISOString().slice(0, 10),
+        })
+      : api<Quote>(
+          "/api/tools",
+          jsonRequest({ operation: "rate", base, quote }),
+        )
+    )
       .then((r) => {
         if (active) {
           setValue(r);
@@ -53,9 +72,10 @@ export function useRate(
     return () => {
       active = false;
     };
-  }, [base, quote, retry]);
+  }, [base, quote, retry, enabled]);
   return {
-    quote: value?.base === base && value.quote === quote ? value : null,
+    quote:
+      enabled && value?.base === base && value.quote === quote ? value : null,
     error,
     refresh: () => setRetry((n) => n + 1),
   };
@@ -74,6 +94,8 @@ export default function Expenses({
   readOnly,
   onSave,
   onDelete,
+  onBooking,
+  focused = "",
 }: {
   workspace: Workspace;
   profile: Profile;
@@ -81,10 +103,18 @@ export default function Expenses({
   readOnly: boolean;
   onSave: (data: Record<string, unknown>, record?: ItemRecord) => Promise<void>;
   onDelete: (r: ItemRecord) => void;
+  onBooking?: (id: string) => void;
+  focused?: string;
 }) {
   const [period, setPeriod] = useState("all"),
     [editing, setEditing] = useState<ItemRecord | "new" | null>(null);
-  const categories = workspace.trip.settings.expenseCategories;
+  useEffect(() => {
+    if (focused)
+      document
+        .getElementById(`expense-${focused}`)
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focused]);
+  const categories = expenseCategories(workspace.trip.settings);
   const all = workspace.records.filter((r) => r.kind === "expense"),
     rows = all.filter(
       (r) => period === "all" || effectivePeriod(r, workspace) === period,
@@ -240,15 +270,43 @@ export default function Expenses({
         {rows.map((r) => {
           const d = r.data,
             payers = Array.isArray(d.payers) ? (d.payers as Person[]) : [],
-            participants = Array.isArray(d.participants) ? d.participants : [];
+            participants = Array.isArray(d.participants) ? d.participants : [],
+            booking = workspace.records.find(
+              (b) => b.kind === "booking" && b.id === d.bookingId,
+            );
           return (
-            <article className="expense-row" key={r.id}>
-              <div className="record-icon">₩</div>
+            <article
+              className="expense-row"
+              key={r.id}
+              id={`expense-${r.id}`}
+              data-focused={focused === r.id}
+            >
+              {booking ? (
+                <button
+                  type="button"
+                  className="record-icon icon"
+                  aria-label={`${text(booking.data.title)} 예약 열기`}
+                  onClick={() => onBooking?.(booking.id)}
+                >
+                  <BookingIcon type={booking.data.type} />
+                </button>
+              ) : (
+                <div className="record-icon">₩</div>
+              )}
               <div className="record-body">
                 <small>
                   {periodLabel(r)} ·{" "}
                   {categories.find((c) => c.id === d.category)?.label ||
-                    text(d.category, "기타")}
+                    text(d.category, "기타")}{" "}
+                  {booking && (
+                    <button
+                      type="button"
+                      className="expense-booking-link"
+                      onClick={() => onBooking?.(booking.id)}
+                    >
+                      예약
+                    </button>
+                  )}
                 </small>
                 <h3>{text(d.title)}</h3>
                 <p>
@@ -267,11 +325,15 @@ export default function Expenses({
               <div className="amount">
                 <strong>
                   {money(
-                    d.tripAmount ?? d.amount,
-                    text(d.tripCurrency, text(d.currency)),
+                    d.model === 2
+                      ? d.paidCurrency === d.tripCurrency
+                        ? d.tripAmount
+                        : d.baseAmount
+                      : d.amount,
+                    text(d.paidCurrency, text(d.currency)),
                   )}
                 </strong>
-                {d.model === 2 && d.baseCurrency !== d.tripCurrency && (
+                {d.model === 2 && d.paidCurrency !== d.baseCurrency && (
                   <small>{money(d.baseAmount, text(d.baseCurrency))}</small>
                 )}
               </div>
@@ -325,7 +387,7 @@ export function ExpenseForm({
   profile,
   record,
   initialData,
-  categories,
+  categories: savedCategories,
   initialPeriod,
   initialDate,
   onSave,
@@ -341,8 +403,16 @@ export function ExpenseForm({
   onSave: (data: Record<string, unknown>) => Promise<void>;
   onClose: () => void;
 }) {
+  const categories = expenseCategories({
+    ...workspace.trip.settings,
+    expenseCategories: savedCategories,
+  });
   const d = record?.data ?? initialData ?? {},
     old = !!record && d.model !== 2;
+  const [bookingId, setBookingId] = useState(text(d.bookingId));
+  const linkedBooking = workspace.records.find(
+    (r) => r.kind === "booking" && r.id === bookingId,
+  );
   const [tripCurrency, setTripCurrency] = useState(() =>
       text(
         d.tripCurrency,
@@ -391,7 +461,8 @@ export function ExpenseForm({
       text(d.date, initialPeriod.length === 10 ? initialPeriod : initialDate),
     ),
     [note, setNote] = useState(text(d.note));
-  const paidAmount = paid === tripCurrency ? a : b;
+  const basePaid = paid === baseCurrency;
+  const paidAmount = basePaid ? b : a;
   const equal = (
     rows: Person[],
     amount = paidAmount,
@@ -448,31 +519,36 @@ export function ExpenseForm({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const initialized = useRef(!!record || !!d.exchangeRate);
-  const current = useRate(tripCurrency, baseCurrency, (quote) => {
-    if (
-      !initialized.current &&
-      quote &&
-      quote.base === tripCurrency &&
-      quote.quote === baseCurrency
-    ) {
-      initialized.current = true;
-      setRate(String(Number(quote.rate.toFixed(6))));
-      setRateDate(quote.date);
-      if (paidAmount && (paid === tripCurrency ? b === "" : a === "")) {
-        try {
-          const converted = convert(
-            paidAmount,
-            String(Number(quote.rate.toFixed(6))),
-            paid !== tripCurrency,
-          );
-          if (paid === tripCurrency) setB(converted);
-          else setA(converted);
-        } catch {
-          /* Incomplete amounts stay editable. */
+  const current = useRate(
+    tripCurrency,
+    baseCurrency,
+    (quote) => {
+      if (
+        !initialized.current &&
+        quote &&
+        quote.base === tripCurrency &&
+        quote.quote === baseCurrency
+      ) {
+        initialized.current = true;
+        setRate(String(Number(quote.rate.toFixed(6))));
+        setRateDate(quote.date);
+        if (paidAmount && (paid === tripCurrency ? b === "" : a === "")) {
+          try {
+            const converted = convert(
+              paidAmount,
+              String(Number(quote.rate.toFixed(6))),
+              paid !== tripCurrency,
+            );
+            if (paid === tripCurrency) setB(converted);
+            else setA(converted);
+          } catch {
+            /* Incomplete amounts stay editable. */
+          }
         }
       }
-    }
-  });
+    },
+    !basePaid,
+  );
   const people = Array.from(
     new Map(
       [
@@ -507,7 +583,7 @@ export function ExpenseForm({
     if (isTrip) setA(value);
     else setB(value);
     try {
-      if (currency === paid && value !== "" && rate) {
+      if (!basePaid && currency === paid && value !== "" && rate) {
         const converted = convert(value, rate, !isTrip);
         if (isTrip) setB(converted);
         else setA(converted);
@@ -596,9 +672,9 @@ export function ExpenseForm({
               if (!title.trim()) throw new Error("경비 이름을 입력하세요.");
               if (units(paidAmount) <= BigInt(0))
                 throw new Error("결제 금액을 입력해북");
-              units(a);
+              if (!basePaid) units(a);
               units(b);
-              if (units(rate) <= BigInt(0))
+              if (!basePaid && units(rate) <= BigInt(0))
                 throw new Error("환율을 확인하세요.");
               navigate("people");
               return;
@@ -611,13 +687,15 @@ export function ExpenseForm({
               model: 2,
               title,
               category,
-              tripCurrency,
+              bookingId,
+              bookingVersion: linkedBooking?.version,
+              tripCurrency: basePaid ? baseCurrency : tripCurrency,
               baseCurrency,
               paidCurrency: paid,
-              tripAmount: a,
+              tripAmount: basePaid ? b : a,
               baseAmount: b,
-              exchangeRate: rate,
-              rateDate,
+              exchangeRate: basePaid ? "1" : rate,
+              rateDate: basePaid ? "" : rateDate,
               period,
               date,
               note,
@@ -660,6 +738,64 @@ export function ExpenseForm({
         )}
         {screen === "money" && (
           <>
+            <Field label="연결할 예약">
+              <ChoiceField
+                label="경비에 연결할 예약"
+                value={bookingId}
+                options={[
+                  { id: "", label: "연결 안 함" },
+                  ...workspace.records
+                    .filter(
+                      (r) =>
+                        r.kind === "booking" &&
+                        (!r.data.expenseId || r.data.expenseId === record?.id),
+                    )
+                    .map((r) => ({
+                      id: r.id,
+                      label: bookingTitle(r.data),
+                      icon: <BookingIcon type={r.data.type} size={17} />,
+                    })),
+                ]}
+                onChange={(id) => {
+                  setBookingId(id);
+                  const booking = workspace.records.find((r) => r.id === id);
+                  if (!booking) return;
+                  setCategory(bookingExpenseCategory(booking.data.type));
+                  if (!title.trim()) setTitle(bookingTitle(booking.data));
+                  if (
+                    booking.data.moneyAmount != null &&
+                    booking.data.moneyCurrency
+                  ) {
+                    const currency = String(booking.data.moneyCurrency),
+                      amount = String(booking.data.moneyAmount);
+                    setPaid(currency);
+                    setTripCurrency(
+                      currency === baseCurrency
+                        ? currencyForDate(workspace.trip, date)
+                        : currency,
+                    );
+                    setA(currency === baseCurrency ? "" : amount);
+                    setB(currency === baseCurrency ? amount : "");
+                    setRate(currency === baseCurrency ? "1" : "");
+                    setRateDate("");
+                    initialized.current = currency === baseCurrency;
+                    if (
+                      currency !== baseCurrency &&
+                      current.quote?.base === currency
+                    ) {
+                      const q = String(Number(current.quote.rate.toFixed(6)));
+                      setRate(q);
+                      setRateDate(current.quote.date);
+                      setB(convert(amount, q));
+                      initialized.current = true;
+                    }
+                    if (payerEqual) setPayers(equal(payers, amount, currency));
+                    if (shareEqual)
+                      setParticipants(equal(participants, amount, currency));
+                  }
+                }}
+              />
+            </Field>
             <Field label="어디에 쓴 돈인가요?">
               <input
                 required
@@ -747,11 +883,19 @@ export function ExpenseForm({
                       );
                       if (code) setCountry(code);
                     }
+                    if (c !== baseCurrency && paid === baseCurrency) {
+                      initialized.current = false;
+                      if (c === tripCurrency) {
+                        setA(b);
+                        setB("");
+                        setRate("");
+                      }
+                    }
                     setPaid(c);
                     const value =
                       c === baseCurrency
                         ? b
-                        : c === tripCurrency
+                        : c === tripCurrency && paid !== baseCurrency
                           ? a
                           : paidAmount;
                     if (payerEqual) setPayers(equal(payers, value, c));
@@ -770,9 +914,10 @@ export function ExpenseForm({
               <div className="form-grid currency-inputs">
                 {[
                   paid,
-                  ...Array.from(new Set([tripCurrency, baseCurrency])).filter(
-                    (c) => c !== paid,
-                  ),
+                  ...(basePaid
+                    ? []
+                    : Array.from(new Set([tripCurrency, baseCurrency]))
+                  ).filter((c) => c !== paid),
                 ].map((c) => (
                   <Field
                     key={c}
@@ -781,7 +926,7 @@ export function ExpenseForm({
                     <input
                       required
                       inputMode="decimal"
-                      value={c === tripCurrency ? a : b}
+                      value={c === baseCurrency ? b : a}
                       onChange={(e) => changeAmount(e.target.value, c)}
                       placeholder="0"
                     />
@@ -789,22 +934,24 @@ export function ExpenseForm({
                 ))}
               </div>
             </div>
-            <button
-              type="button"
-              className="summary-button"
-              onClick={() => navigate("rate")}
-            >
-              <ArrowRightLeft size={18} />
-              <span>
-                <strong>
-                  1 {tripCurrency} = {rate || "—"} {baseCurrency}
-                  {rateDate && (
-                    <small className="rate-date"> ({rateDate})</small>
-                  )}
-                </strong>
-              </span>
-              <small>수정</small>
-            </button>
+            {!basePaid && (
+              <button
+                type="button"
+                className="summary-button"
+                onClick={() => navigate("rate")}
+              >
+                <ArrowRightLeft size={18} />
+                <span>
+                  <strong>
+                    1 {tripCurrency} = {rate || "—"} {baseCurrency}
+                    {rateDate && (
+                      <small className="rate-date"> ({rateDate})</small>
+                    )}
+                  </strong>
+                </span>
+                <small>수정</small>
+              </button>
+            )}
             {old && (
               <small>이전 형식의 경비입니다. 환산 금액을 확인해 주세요.</small>
             )}

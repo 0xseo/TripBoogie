@@ -3,8 +3,8 @@
 친구와 함께 여행 일정·지도·경비·준비물을 정리하는 웹앱입니다. PC·모바일 브라우저, iOS 홈 화면 웹앱, Android 앱을 지원합니다.
 
 - 서비스: https://tripboogie.0xseo94.com
-- 현재 버전: **0.1.10**
-- 릴리즈 APK 파일명: **TripBoogie_버전.apk** (예: `TripBoogie_0.1.10.apk`).
+- 현재 버전: **0.1.11**
+- 릴리즈 APK 파일명: **TripBoogie_버전.apk** (예: `TripBoogie_0.1.11.apk`).
 - Android/iOS 앱 식별자: `com.tripboogie.app`
 
 ## 기능
@@ -61,6 +61,6 @@ Next.js를 Vercel에 배포합니다. 서버 환경 변수는 `.env.example`을 
 
 ## 데이터 출처
 
-지도는 MapLibre GL JS·OpenFreeMap·OpenStreetMap, 장소는 Geoapify와 공개 지명 데이터, 사진은 Wikimedia Commons, 날씨는 Open-Meteo, 환율은 Frankfurter를 사용합니다. 개별 데이터 이용 조건·표시는 해당 화면과 `THIRD_PARTY_DATA_LICENSE.txt` 및 `app/data/`에 보관합니다. 공개 데이터에 없는 장소·사진·시간은 제공하지 못할 수 있습니다.
+지도는 MapLibre GL JS·OpenFreeMap·OpenStreetMap, 장소는 Geoapify와 공개 지명 데이터, 장소 사진은 Wikimedia Commons, 날씨는 Open-Meteo, 환율은 Frankfurter를 사용합니다. 개별 데이터 이용 조건·표시는 해당 화면과 `THIRD_PARTY_DATA_LICENSE.txt` 및 `app/data/`에 보관합니다. 공개 데이터에 없는 장소·사진·시간은 제공하지 못할 수 있습니다. 여행 카드의 도시 대표 사진 검색·선택 기능은 제거했으며, 일정과 장소 선택 화면의 장소 사진은 유지합니다.
 
 [변경 기록](CHANGELOG.md) · [데이터베이스](docs/DATABASE.md) · [Vercel](docs/VERCEL.md)

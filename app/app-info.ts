@@ -1,6 +1,6 @@
 export const appInfo = {
   developer: "0xseo94@gmail.com",
-  version: "0.1.10",
+  version: "0.1.11",
 } as const;
 export const openSources = [
   {

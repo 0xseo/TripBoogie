@@ -14,10 +14,9 @@ export function createPlaceDetailsHandler(deps: Deps) {
   try {
    const input = await readJson(request);
    if (!await deps.resolveUser(request)) throw new ApiError(401,"로그인이 필요합니다.");
-   if (typeof input.name !== "string" || !input.name.trim() || input.name.length > 300 || typeof input.lat !== "number" || typeof input.lng !== "number" || !Number.isFinite(input.lat) || !Number.isFinite(input.lng) || Math.abs(input.lat)>90 || Math.abs(input.lng)>180 || !["city","place"].includes(String(input.kind))) throw new ApiError(400,"장소 정보를 확인하세요.");
+   if (typeof input.name !== "string" || !input.name.trim() || input.name.length > 300 || typeof input.lat !== "number" || typeof input.lng !== "number" || !Number.isFinite(input.lat) || !Number.isFinite(input.lng) || Math.abs(input.lat)>90 || Math.abs(input.lng)>180 || input.kind !== "place" || input.query !== undefined) throw new ApiError(400,"장소 정보를 확인하세요.");
    if (input.providerId !== undefined && (typeof input.providerId !== "string" || !/^[a-f0-9]{10,2048}$/.test(input.providerId))) throw new ApiError(400,"장소 식별자를 확인하세요.");
-   if (input.query !== undefined && (typeof input.query !== "string" || !input.query.trim() || input.query.length > 200)) throw new ApiError(400,"사진 검색어를 확인하세요.");
-   const key = JSON.stringify([input.kind,input.name,input.lat,input.lng,input.providerId,input.query]);
+   const key = JSON.stringify([input.name,input.lat,input.lng,input.providerId]);
    const now = Date.now();
    for (const [k,v] of cache) if(v.expires<now) cache.delete(k);
    const cached = cache.get(key); if(cached) return Response.json(cached.value,{headers});
@@ -43,18 +42,14 @@ export function createPlaceDetailsHandler(deps: Deps) {
      return image?[image]:[];
     }).slice(0,8);
    };
-   if(input.query) {
-    const photos=await commons({generator:"search",gsrnamespace:"6",gsrsearch:`${input.query} filetype:bitmap`,gsrlimit:"8"});
-    return Response.json({photos,openingHours:"",sourceUrl:"",checkedAt:new Date().toISOString()},{headers});
-   }
    let id = input.providerId as string | undefined;
-   if(input.kind!=="city" && !id && deps.key) {
-    const search=await get("https://api.geoapify.com/v1/geocode/search",{text:input.name,lang:"en",limit:"5",...(input.kind==="city"?{type:"city"}:{}),bias:`proximity:${input.lng},${input.lat}`,apiKey:deps.key});
-    const match=Array.isArray(search.features)?search.features.map((v)=>obj(obj(v).properties)).find((p)=>typeof p.lat==="number"&&typeof p.lon==="number"&&distanceMeters({lat:input.lat as number,lng:input.lng as number},{lat:p.lat as number,lng:p.lon as number})<(input.kind==="city"?20000:200)):undefined;
+   if(!id && deps.key) {
+    const search=await get("https://api.geoapify.com/v1/geocode/search",{text:input.name,lang:"en",limit:"5",bias:`proximity:${input.lng},${input.lat}`,apiKey:deps.key});
+    const match=Array.isArray(search.features)?search.features.map((v)=>obj(obj(v).properties)).find((p)=>typeof p.lat==="number"&&typeof p.lon==="number"&&distanceMeters({lat:input.lat as number,lng:input.lng as number},{lat:p.lat as number,lng:p.lon as number})<200):undefined;
     if(match && typeof match.place_id === "string") id=match.place_id;
    }
    let properties:Record<string,unknown>={};
-   if(input.kind!=="city" && id && deps.key) {
+   if(id && deps.key) {
     const detail=await get("https://api.geoapify.com/v2/place-details",{id,features:"details",apiKey:deps.key});
     const feature=Array.isArray(detail.features)?detail.features.find((v)=>obj(obj(v).properties).feature_type==="details"):undefined;
     properties=obj(obj(feature).properties);
@@ -65,7 +60,7 @@ export function createPlaceDetailsHandler(deps: Deps) {
    const sourceUrl=osmType && /^[0-9]+$/.test(String(raw.osm_id))?`https://www.openstreetmap.org/${osmType}/${raw.osm_id}`:"";
    let photos:TravelImage[]=[];
    let wikidata=wiki.wikidata || raw.wikidata;
-   if(!wikidata && (properties.name || input.kind==="city")) {
+   if(!wikidata && properties.name) {
     const country=String(properties.country_code??"").toUpperCase();
     const name=String(properties.name||input.name);
     const lang=/[가-힣]/.test(name)?"ko":country==="JP"?"ja":country==="KR"?"ko":/[\u4e00-\u9fff]/.test(name)?"zh":"en";
@@ -74,7 +69,7 @@ export function createPlaceDetailsHandler(deps: Deps) {
      const pages=obj(article.query).pages;
      const page=Array.isArray(pages)?obj(pages[0]):{};
      const c=Array.isArray(page.coordinates)?obj(page.coordinates[0]):{};
-     if(typeof c.lat==="number"&&typeof c.lon==="number"&&distanceMeters({lat:input.lat as number,lng:input.lng as number},{lat:c.lat,lng:c.lon})<(input.kind==="city"?25000:500)) wikidata=obj(page.pageprops).wikibase_item;
+     if(typeof c.lat==="number"&&typeof c.lon==="number"&&distanceMeters({lat:input.lat as number,lng:input.lng as number},{lat:c.lat,lng:c.lon})<500) wikidata=obj(page.pageprops).wikibase_item;
     }catch { }
    }
    if(typeof wikidata === "string" && /^Q[1-9][0-9]*$/.test(wikidata)) {
@@ -84,11 +79,6 @@ export function createPlaceDetailsHandler(deps: Deps) {
      const titles=Array.isArray(claims)?claims.map((v)=>obj(obj(obj(v).mainsnak).datavalue).value).filter((v):v is string=>typeof v==="string").slice(0,8):[];
      if(titles.length) photos=await commons({titles:titles.map((v)=>"File:"+v).join("|")});
     }catch { /* Optional image failure does not discard verified opening hours. */ }
-   }
-   // City surroundings are suitable as city covers; unverified nearby photos are
-   // never labelled as a specific POI's own photo.
-   if(!photos.length && input.kind === "city") {
-    try { photos=await commons({generator:"geosearch",ggscoord:`${input.lat}|${input.lng}`,ggsradius:"10000",ggsnamespace:"6",ggslimit:"8"}); }catch { }
    }
    const value:PlaceDetails={photos,openingHours,sourceUrl,checkedAt:new Date().toISOString()};
    if(cache.size>=128) cache.delete(cache.keys().next().value!);

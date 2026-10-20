@@ -1,4 +1,3 @@
-import type { TravelImage } from "./media";
 export type ItemKind = "plan" | "place" | "expense" | "checklist" | "booking";
 export type Role = "owner" | "editor" | "viewer";
 export interface Trip {
@@ -49,14 +48,6 @@ export interface CurrentUser {
   name: string;
   email: string;
 }
-export interface MeResponse {
-  user: CurrentUser | null;
-  signInUrl: string;
-  signOutUrl: string;
-}
-export interface TripAppProps {
-  initialUser?: CurrentUser | null;
-}
 export interface Invite {
   id: string;
   role: "editor" | "viewer";
@@ -82,8 +73,6 @@ export interface Category {
 export interface TravelCity {
   transit?: boolean;
   providerId?: string;
-  image?: TravelImage | null;
-  imageDisabled?: boolean;
   id: string;
   name: string;
   address: string;

@@ -24,8 +24,3 @@ export function mediaImage(value: unknown): TravelImage | null {
     return v as unknown as TravelImage;
   } catch { return null; }
 }
-export function hoursLabel(value: string) {
-  if (value === "24/7") return "매일 24시간";
-  const labels: Record<string, string> = { Mo:"월", Tu:"화", We:"수", Th:"목", Fr:"금", Sa:"토", Su:"일", PH:"공휴일", off:"휴무" };
-  return value.replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su|PH|off)\b/g, (v) => labels[v]);
-}

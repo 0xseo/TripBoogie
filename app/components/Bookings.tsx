@@ -7,6 +7,7 @@ import { useConfirm } from "./Confirmation";
 import DateField from "./DateField";
 import TurtleIcon from "./TurtleIcon";
 import TimeField from "./TimeField";
+import { bookingExpenseCategory } from "../expense-categories";
 import { bookingCategories } from "../booking-categories";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -25,6 +26,7 @@ import {
   Trash2,
   ArrowRight,
   CalendarDays,
+  Coins,
 } from "lucide-react";
 import type { Workspace, ItemRecord, Profile } from "../types";
 import type { MapPlace } from "../server/maps";
@@ -37,11 +39,7 @@ import {
   currencyDigits,
   recordedRate,
 } from "../money";
-import {
-  currencyForDate,
-  tripCurrencies,
-  tripCountries,
-} from "../trip-destinations";
+import { tripCurrencies, tripCountries } from "../trip-destinations";
 import { travelContext } from "../travel-context";
 import type { Airport } from "../airports";
 import AirportInput from "./AirportInput";
@@ -64,6 +62,7 @@ export default function Bookings({
   fileCommand,
   focused,
   onPlan,
+  onExpense,
   onNotice,
 }: {
   workspace: Workspace;
@@ -81,6 +80,7 @@ export default function Bookings({
   fileCommand: FileCommand;
   focused?: string;
   onPlan: (plan: ItemRecord) => void;
+  onExpense?: (id: string) => void;
   onNotice: (message: string) => void;
 }) {
   const [type, setType] = useState(() => {
@@ -241,69 +241,50 @@ export default function Bookings({
               {Boolean(r.data.reference) && (
                 <p className="muted">예약번호 {text(r.data.reference)}</p>
               )}
-              {r.data.moneyAmount !== null &&
-                r.data.moneyAmount !== undefined && (
-                  <div className="booking-money">
-                    <strong>
-                      {money(
-                        r.data.moneyAmount,
-                        text(r.data.moneyCurrency, workspace.trip.currency),
+              {r.data.type === "flight" && (
+                <div className="booking-flight-extras">
+                  {Boolean(
+                    r.data.flightSeat ||
+                    ((r.data.flightExtras as FlightExtra[]) || [])
+                      .map((e) => e.seat)
+                      .filter(Boolean)
+                      .join(", "),
+                  ) && (
+                    <p>
+                      좌석{" "}
+                      {String(
+                        r.data.flightSeat ||
+                          ((r.data.flightExtras as FlightExtra[]) || [])
+                            .map((e) => e.seat)
+                            .filter(Boolean)
+                            .join(", "),
                       )}
-                    </strong>
-                    <span className={r.data.isPaid ? "paid-badge" : ""}>
-                      {r.data.isPaid ? "경비에 반영됨" : "결제 전"}
-                    </span>
-                  </div>
-                )}
-              {r.data.isPaid === true && (
-                <p className="booking-payer-names">
-                  결제 ·{" "}
-                  {(
-                    (workspace.records.find(
-                      (e) => e.kind === "expense" && e.id === r.data.expenseId,
-                    )?.data.payers as { name: string }[]) || []
-                  )
-                    .map((p) => p.name)
-                    .join(", ") || "결제자 확인"}
-                </p>
-              )}
-              {r.data.type === "flight" &&
-                Array.isArray(r.data.flightExtras) &&
-                r.data.flightExtras.length > 0 && (
-                  <div className="booking-flight-extras">
-                    {(
-                      r.data.flightExtras as {
-                        id: string;
-                        seat: string;
-                        baggageCount: number | null;
-                        baggageKg: number | null;
-                      }[]
-                    ).map((e, i) => (
-                      <p key={e.id || i}>
+                    </p>
+                  )}
+                  {((r.data.flightExtras as FlightExtra[]) || [])
+                    .filter(
+                      (e) =>
+                        (e.baggageCount != null &&
+                          String(e.baggageCount) !== "") ||
+                        (e.baggageKg != null && String(e.baggageKg) !== ""),
+                    )
+                    .map((e) => (
+                      <p key={e.id}>
+                        수하물{" "}
                         {[
-                          e.seat ? `좌석 ${e.seat}` : "",
-                          e.baggageCount !== null
-                            ? `수하물 ${e.baggageCount}개`
+                          e.baggageCount != null &&
+                          String(e.baggageCount) !== ""
+                            ? `${e.baggageCount}개`
                             : "",
-                          e.baggageKg !== null ? `${e.baggageKg}kg` : "",
+                          e.baggageKg != null && String(e.baggageKg) !== ""
+                            ? `${e.baggageKg}kg`
+                            : "",
                         ]
                           .filter(Boolean)
                           .join(" · ")}
                       </p>
                     ))}
-                  </div>
-                )}
-              {Boolean(r.data.expenseId) && (
-                <button
-                  className="text-button"
-                  disabled={readOnly}
-                  onClick={() => {
-                    setReviewPayment(true);
-                    setEditing(r);
-                  }}
-                >
-                  연결 경비 수정
-                </button>
+                </div>
               )}
               {Boolean(r.data.note) && (
                 <p className="preserve">{text(r.data.note)}</p>
@@ -328,12 +309,22 @@ export default function Bookings({
                       <CalendarDays size={15} />
                       {dateLabel(text(plan.data.date))} {text(plan.data.time)} ·{" "}
                       {r.data.type === "flight" || r.data.type === "hotel"
-                        ? `${bookingEventLabels[text(plan.data.bookingEvent)] || text(plan.data.title, "연결")} `
+                        ? `${
+                            bookingEventLabels[text(plan.data.bookingEvent)] ||
+                            text(plan.data.title, "연결")
+                          } `
                         : ""}
                       일정 보기
                     </button>
                   ))}
               </div>
+              {r.data.moneyAmount != null && (
+                <BookingPrice
+                  booking={r}
+                  currency={workspace.trip.currency}
+                  onExpense={onExpense}
+                />
+              )}
               <Files
                 key={`${workspace.trip.id}:${r.id}`}
                 workspace={workspace}
@@ -379,6 +370,43 @@ export default function Bookings({
         />
       )}
     </section>
+  );
+}
+function BookingPrice({
+  booking,
+  currency,
+  onExpense,
+}: {
+  booking: ItemRecord;
+  currency: string;
+  onExpense?: (id: string) => void;
+}) {
+  const linked = String(booking.data.expenseId || ""),
+    content = (
+      <>
+        <Coins size={19} />
+        <strong>
+          {money(
+            booking.data.moneyAmount,
+            text(booking.data.moneyCurrency, currency),
+          )}
+        </strong>
+        <span className={linked ? "paid-badge" : ""}>
+          {linked ? "경비에 반영됨" : "결제 전"}
+        </span>
+      </>
+    );
+  return linked ? (
+    <button
+      type="button"
+      className="booking-expense-link"
+      aria-label="연결된 경비 보기"
+      onClick={() => onExpense?.(linked)}
+    >
+      {content}
+    </button>
+  ) : (
+    <div className="booking-expense-link">{content}</div>
   );
 }
 type FlightExtra = {
@@ -428,6 +456,11 @@ export function BookingForm({
         (r) => r.kind === "expense" && r.id === d.expenseId,
       ),
     );
+  const hasLinkedPlans =
+    !!record &&
+    workspace.records.some(
+      (r) => r.kind === "plan" && r.data.bookingId === record.id,
+    );
   const [form, setForm] = useState<Record<string, string>>({
       type: text(d.type, type),
       category: text(d.category, category || text(d.type, type)),
@@ -441,6 +474,15 @@ export function BookingForm({
       roomName: text(d.roomName),
       note: text(d.note),
       flightNumber: text(d.flightNumber),
+      flightSeat: text(
+        d.flightSeat,
+        Array.isArray(d.flightExtras)
+          ? d.flightExtras
+              .map((e) => text((e as Record<string, unknown>).seat))
+              .filter(Boolean)
+              .join(", ")
+          : "",
+      ),
       flightRole: text(d.flightRole, initialFlightRole),
       departure: airportCode(d.departureAirport, d.departure),
       arrival: airportCode(d.arrivalAirport, d.arrival),
@@ -464,16 +506,24 @@ export function BookingForm({
     }),
     [flightExtras, setFlightExtras] = useState<FlightExtra[]>(() =>
       Array.isArray(d.flightExtras)
-        ? d.flightExtras.map((row) => {
-            const e = row as Record<string, unknown>;
-            return {
-              id: String(e.id),
-              seat: String(e.seat || ""),
-              baggageCount:
-                e.baggageCount == null ? "" : String(e.baggageCount),
-              baggageKg: e.baggageKg == null ? "" : String(e.baggageKg),
-            };
-          })
+        ? d.flightExtras
+            .filter((row) => {
+              const e = row as Record<string, unknown>;
+              return (
+                (e.baggageCount != null && String(e.baggageCount) !== "") ||
+                (e.baggageKg != null && String(e.baggageKg) !== "")
+              );
+            })
+            .map((row) => {
+              const e = row as Record<string, unknown>;
+              return {
+                id: String(e.id),
+                seat: String(e.seat || ""),
+                baggageCount:
+                  e.baggageCount == null ? "" : String(e.baggageCount),
+                baggageKg: e.baggageKg == null ? "" : String(e.baggageKg),
+              };
+            })
         : [],
     ),
     [payerIds, setPayerIds] = useState<string[]>(() =>
@@ -493,8 +543,16 @@ export function BookingForm({
     [manualCounterpart, setManualCounterpart] = useState(
       !!linked && linked.data.baseCurrency === profile.baseCurrency,
     ),
+    [participantIds, setParticipantIds] = useState<string[]>(() =>
+      Array.isArray(linked?.data.participants)
+        ? (linked.data.participants as { userId: string }[]).map(
+            (p) => p.userId,
+          )
+        : workspace.members.map((m) => m.id),
+    ),
     [addToPlan, setAddToPlan] = useState(
-      !record && ["flight", "hotel", "tour"].includes(text(d.type, type)),
+      hasLinkedPlans ||
+        (!record && ["flight", "hotel", "tour"].includes(text(d.type, type))),
     ),
     [showRoom, setShowRoom] = useState(!!d.roomName),
     [showPlatform, setShowPlatform] = useState(!!d.platform),
@@ -553,13 +611,9 @@ export function BookingForm({
   }
   const lastStep = 2;
   const paymentLocal =
-    linked &&
-    form.moneyCurrency === d.moneyCurrency &&
-    linked.data.baseCurrency === profile.baseCurrency
-      ? String(linked.data.tripCurrency)
-      : form.moneyCurrency === profile.baseCurrency
-        ? currencyForDate(workspace.trip, form.startDate)
-        : form.moneyCurrency;
+    form.moneyCurrency === profile.baseCurrency
+      ? profile.baseCurrency
+      : form.moneyCurrency;
   const paymentRate = useRate(
     paymentLocal || workspace.trip.currency,
     profile.baseCurrency,
@@ -586,6 +640,7 @@ export function BookingForm({
           })();
   function paymentExpense(): BookingExpenseChange {
     if (!payerIds.length) throw new Error("결제자를 선택하세요.");
+    if (!participantIds.length) throw new Error("분담할 사람을 선택하세요.");
     const basePaid = form.moneyCurrency === profile.baseCurrency,
       a = basePaid ? counterpart : form.moneyAmount,
       b = basePaid ? form.moneyAmount : counterpart;
@@ -640,9 +695,12 @@ export function BookingForm({
       samePayers =
         oldPayers.length === payerIds.length &&
         oldPayers.every((p) => payerIds.includes(p.userId));
-    const participantIds = Array.isArray(linked?.data.participants)
-      ? (linked.data.participants as { userId: string }[]).map((p) => p.userId)
-      : workspace.members.map((m) => m.id);
+    const sameParticipants =
+      Array.isArray(linked?.data.participants) &&
+      linked.data.participants.length === participantIds.length &&
+      (linked.data.participants as { userId: string }[]).every((p) =>
+        participantIds.includes(p.userId),
+      );
     return {
       id: linked?.id,
       version: linked?.version,
@@ -670,7 +728,7 @@ export function BookingForm({
           "",
         payers: !amountsChanged && samePayers ? oldPayers : allocate(payerIds),
         participants:
-          !amountsChanged && linked?.data.participants
+          !amountsChanged && sameParticipants && linked?.data.participants
             ? linked.data.participants
             : allocate(participantIds),
       },
@@ -699,18 +757,7 @@ export function BookingForm({
       form.moneyCurrency === profile.baseCurrency
         ? workspace.trip.currency
         : form.moneyCurrency;
-    const category =
-      workspace.trip.settings.expenseCategories.find(
-        (c) =>
-          c.id ===
-          (form.type === "hotel"
-            ? "stay"
-            : form.type === "flight"
-              ? "transport"
-              : "activity"),
-      )?.id ||
-      workspace.trip.settings.expenseCategories[0]?.id ||
-      "other";
+    const category = bookingExpenseCategory(form.type);
     return {
       model: 2,
       title: bookingTitle,
@@ -1097,102 +1144,98 @@ export function BookingForm({
                 )}
               </div>
               {form.type === "flight" && (
-                <div className="flight-extras">
-                  <button
-                    type="button"
-                    className="text-button"
-                    disabled={flightExtras.length >= 50}
-                    onClick={() =>
-                      setFlightExtras([
-                        ...flightExtras,
-                        {
-                          id: crypto.randomUUID(),
-                          seat: "",
-                          baggageCount: "",
-                          baggageKg: "",
-                        },
-                      ])
-                    }
-                  >
-                    <Plus size={16} />
-                    좌석·수하물 정보 추가
-                  </button>
-                  {flightExtras.map((extra, index) => (
-                    <section key={extra.id} className="flight-extra">
-                      <header>
-                        <strong>좌석·수하물 {index + 1}</strong>
-                        <button
-                          type="button"
-                          className="icon"
-                          aria-label={`좌석·수하물 ${index + 1} 삭제`}
-                          onClick={() =>
-                            setFlightExtras(
-                              flightExtras.filter((e) => e.id !== extra.id),
-                            )
-                          }
-                        >
-                          <Trash2 size={17} />
-                        </button>
-                      </header>
-                      <div className="form-grid">
-                        <Field label="좌석">
-                          <input
-                            aria-label={`좌석 ${index + 1}`}
-                            maxLength={30}
-                            placeholder="예: 18A"
-                            value={extra.seat}
-                            onChange={(e) =>
+                <>
+                  <Field label="좌석">
+                    <input
+                      aria-label="좌석"
+                      maxLength={300}
+                      value={form.flightSeat}
+                      onChange={(e) => set("flightSeat", e.target.value)}
+                      placeholder="예: 18A"
+                    />
+                  </Field>
+                  <div className="flight-extras">
+                    <strong>수하물 제한</strong>
+                    {flightExtras.map((extra, index) => (
+                      <section className="flight-extra" key={extra.id}>
+                        <header>
+                          <strong>수하물 {index + 1}</strong>
+                          <button
+                            type="button"
+                            className="icon"
+                            aria-label={`수하물 ${index + 1} 삭제`}
+                            onClick={() =>
                               setFlightExtras((rows) =>
-                                rows.map((r) =>
-                                  r.id === extra.id
-                                    ? { ...r, seat: e.target.value }
-                                    : r,
-                                ),
+                                rows.filter((e) => e.id !== extra.id),
                               )
                             }
-                          />
-                        </Field>
-                        <Field label="수하물 개수">
-                          <input
-                            aria-label={`수하물 개수 ${index + 1}`}
-                            type="number"
-                            min={0}
-                            max={20}
-                            value={extra.baggageCount}
-                            onChange={(e) =>
-                              setFlightExtras((rows) =>
-                                rows.map((r) =>
-                                  r.id === extra.id
-                                    ? { ...r, baggageCount: e.target.value }
-                                    : r,
-                                ),
-                              )
-                            }
-                          />
-                        </Field>
-                        <Field label="수하물 무게 제한 · kg">
-                          <input
-                            aria-label={`수하물 무게 ${index + 1}`}
-                            type="number"
-                            min={0}
-                            max={200}
-                            step="0.01"
-                            value={extra.baggageKg}
-                            onChange={(e) =>
-                              setFlightExtras((rows) =>
-                                rows.map((r) =>
-                                  r.id === extra.id
-                                    ? { ...r, baggageKg: e.target.value }
-                                    : r,
-                                ),
-                              )
-                            }
-                          />
-                        </Field>
-                      </div>
-                    </section>
-                  ))}
-                </div>
+                          >
+                            <Trash2 size={17} />
+                          </button>
+                        </header>
+                        <div className="form-grid baggage-fields">
+                          <Field label="개수">
+                            <input
+                              aria-label={`수하물 개수 ${index + 1}`}
+                              type="number"
+                              min={0}
+                              max={20}
+                              value={extra.baggageCount}
+                              onChange={(e) =>
+                                setFlightExtras((rows) =>
+                                  rows.map((r) =>
+                                    r.id === extra.id
+                                      ? { ...r, baggageCount: e.target.value }
+                                      : r,
+                                  ),
+                                )
+                              }
+                            />
+                          </Field>
+                          <Field label="무게 제한 · kg">
+                            <input
+                              aria-label={`수하물 무게 ${index + 1}`}
+                              type="number"
+                              min={0}
+                              max={200}
+                              step="0.01"
+                              value={extra.baggageKg}
+                              onChange={(e) =>
+                                setFlightExtras((rows) =>
+                                  rows.map((r) =>
+                                    r.id === extra.id
+                                      ? { ...r, baggageKg: e.target.value }
+                                      : r,
+                                  ),
+                                )
+                              }
+                            />
+                          </Field>
+                        </div>
+                      </section>
+                    ))}
+                    <button
+                      type="button"
+                      className="text-button"
+                      aria-label="수하물 추가"
+                      disabled={flightExtras.length >= 50}
+                      onClick={() =>
+                        setFlightExtras((rows) => [
+                          ...rows,
+                          {
+                            id: crypto.randomUUID(),
+                            seat: "",
+                            baggageCount: "",
+                            baggageKg: "",
+                          },
+                        ])
+                      }
+                    >
+                      <Plus size={16} />
+                      수하물 추가
+                    </button>
+                  </div>
+                </>
               )}
               <Field label="메모">
                 <textarea
@@ -1211,6 +1254,7 @@ export function BookingForm({
               <input
                 type="checkbox"
                 checked={addToPlan}
+                disabled={hasLinkedPlans}
                 onChange={(e) => setAddToPlan(e.target.checked)}
               />
               일정에도 추가하기
@@ -1293,6 +1337,31 @@ export function BookingForm({
                   />
                 </Field>
               </div>
+              {paid && form.moneyCurrency !== profile.baseCurrency && (
+                <div className="form-grid booking-conversion-row">
+                  <Field label="기준통화">
+                    <div className="fixed-currency" aria-label="기준통화 고정">
+                      {profile.baseCurrency}
+                    </div>
+                  </Field>
+                  <Field label="기준통화 환산 금액">
+                    <input
+                      aria-label="기준통화 환산 금액"
+                      inputMode="decimal"
+                      value={counterpart}
+                      onChange={(e) => {
+                        setCounterpart(e.target.value);
+                        setManualCounterpart(true);
+                      }}
+                      placeholder={
+                        paymentRate.error
+                          ? "직접 입력"
+                          : "자동 환산 · 수정 가능"
+                      }
+                    />
+                  </Field>
+                </div>
+              )}
               <label className="booking-paid-check">
                 <input
                   type="checkbox"
@@ -1337,32 +1406,46 @@ export function BookingForm({
                       </label>
                     ))}
                   </div>
+                  <strong className="booking-participants">
+                    분담하는 사람
+                  </strong>
+                  <div className="booking-participant-options">
+                    {Array.from(
+                      new Map(
+                        [
+                          ...workspace.members,
+                          ...(
+                            (linked?.data.participants as {
+                              userId: string;
+                              name: string;
+                            }[]) || []
+                          ).map((p) => ({ id: p.userId, name: p.name })),
+                        ].map((m) => [m.id, m]),
+                      ).values(),
+                    ).map((m) => (
+                      <label key={m.id}>
+                        <input
+                          type="checkbox"
+                          checked={participantIds.includes(m.id)}
+                          onChange={(e) =>
+                            setParticipantIds((ids) =>
+                              e.target.checked
+                                ? [...ids, m.id]
+                                : ids.filter((id) => id !== m.id),
+                            )
+                          }
+                        />
+                        {m.name}
+                      </label>
+                    ))}
+                  </div>
                   {payerIds.length > 1 && (
                     <small className="muted">
                       여러 명을 선택하면 결제 금액을 균등하게 나눠 기록해요.
                     </small>
                   )}
-                  {paymentLocal !== profile.baseCurrency && (
-                    <Field
-                      label={`${form.moneyCurrency === profile.baseCurrency ? paymentLocal : profile.baseCurrency} · 경비 환산 금액`}
-                    >
-                      <input
-                        inputMode="decimal"
-                        value={counterpart}
-                        onChange={(e) => {
-                          setCounterpart(e.target.value);
-                          setManualCounterpart(true);
-                        }}
-                        placeholder={
-                          paymentRate.error
-                            ? "직접 입력"
-                            : "자동 환산 · 수정 가능"
-                        }
-                      />
-                    </Field>
-                  )}
                   <small className="muted">
-                    예약을 저장하면 선택한 결제자로 경비에 바로 반영돼요.
+                    예약을 저장하면 경비에 바로 반영돼북
                   </small>
                 </section>
               )}
@@ -1375,9 +1458,6 @@ export function BookingForm({
                   연결 경비 세부 수정
                 </button>
               )}
-              <small className="muted">
-                예약을 저장한 뒤 카드에서 파일을 첨부할 수 있어북
-              </small>
             </>
           )}
           {error && (

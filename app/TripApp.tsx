@@ -160,6 +160,7 @@ function TripAppContent({
     [search, setSearch] = useState(""),
     [selected, setSelected] = useState(""),
     [bookingFocus, setBookingFocus] = useState(""),
+    [expenseFocus,setExpenseFocus]=useState(""),
     [token, setToken] = useState<string | null>(null),
     [legacy, setLegacy] = useState<Workspace[]>([]),
     [listLoading, setListLoading] = useState(false);
@@ -651,6 +652,7 @@ function TripAppContent({
     setDate(trip.startDate);
     setTab(destination);
     setBookingFocus("");
+    setExpenseFocus("");
     setSelected("");
     setModal(null);
     setAtHome(false);
@@ -899,6 +901,7 @@ function TripAppContent({
       return;
     }
     setBookingFocus(next === "bookings" ? focusedBooking : "");
+    setExpenseFocus(next === "expenses"?focusedBooking:"");
     if ((!atHome && !accountScreen && tab === next) || next === "settings")
       resetSurface(next);
     if (next === "settings") {
@@ -1215,11 +1218,14 @@ function TripAppContent({
                     )}
                   {tab === "expenses" && myProfile && (
                     <Expenses
+                      key={`${workspace.trip.id}:${expenseFocus}`}
+                      focused={expenseFocus}
+                      onBooking={id=>goTab("bookings",id)}
                       workspace={workspace}
                       profile={myProfile}
                       date={currentDate}
                       readOnly={readOnly}
-                      onSave={(d, r) => save("expense", d, r)}
+                      onSave={async(d,r)=>{const id=r?.id||crypto.randomUUID();await commit({id,version:r?.version,data:d},"save-expense",previewSave("expense",d,id));setNotice("저장했어북");}}
                       onDelete={(r) => void remove(r)}
                     />
                   )}
@@ -1278,6 +1284,7 @@ function TripAppContent({
                     <Bookings
                       onNotice={setNotice}
                       focused={bookingFocus}
+                      onExpense={id=>goTab("expenses",id)}
                       onPlan={(r) => { goTab("plan"); setDate(text(r.data.date)); setSelected(r.id); }}
                       workspace={workspace}
                       profile={myProfile}
@@ -1305,7 +1312,7 @@ function TripAppContent({
                           },
                           "save-booking", previewSave("booking", data, id)
                         );
-                        if(addToPlan){const next=await saving;const linked=next.records.filter(p=>p.kind==="plan"&&p.data.bookingId===id);const plan=linked.find(p=>["departure","checkin","tour"].includes(String(p.data.bookingEvent)))||linked[0];goTab("plan");setDate(text(plan?.data.date,text(data.startDate)));setPlanBooking(id);setEditing(plan);setModal("plan");}else await saving;
+                        if(addToPlan&&!workspace.records.some(p=>p.kind==="plan"&&p.data.bookingId===id)){const next=await saving;const linked=next.records.filter(p=>p.kind==="plan"&&p.data.bookingId===id);const plan=linked.find(p=>["departure","checkin","tour"].includes(String(p.data.bookingEvent)))||linked[0];goTab("plan");setDate(text(plan?.data.date,text(data.startDate)));setPlanBooking(id);setEditing(plan);setModal("plan");}else await saving;
                       }}
                       onDelete={(r) => void remove(r)}
                       fileCommand={fileCommand}

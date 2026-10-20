@@ -8,9 +8,3 @@ export function apiUrl(path: string) {
   if (url.origin !== productionOrigin || !url.pathname.startsWith("/api/")) throw new Error("Invalid API path");
   return isNativeApp() ? url.href : path;
 }
-export function authRedirect(returnPath = "/", recovery = false) {
-  const url = new URL("tripboogie://auth/callback");
-  if (/^\/invite\/[a-f0-9]{64}$/.test(returnPath)) url.searchParams.set("next", returnPath);
-  if (recovery) url.searchParams.set("recovery", "1");
-  return url.href;
-}

@@ -313,54 +313,56 @@ export default function Files({
           void upload(Array.from(e.target.files || []));
         }}
       />
-      <div className="file-management-bar">
-        <label className="file-search">
-          <Search size={18} />
-          <input
-            aria-label="자료 검색"
-            placeholder="파일 이름 검색"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setSelected([]);
-            }}
-          />
-        </label>
-        <div className="file-bulk-actions">
-          <label>
+      {!bookingId && (
+        <div className="file-management-bar">
+          <label className="file-search">
+            <Search size={18} />
             <input
-              type="checkbox"
-              aria-label="현재 목록 전체 선택"
-              checked={
-                !!files.length && files.every((f) => selected.includes(f.id))
-              }
-              disabled={!files.length || busy}
-              onChange={(e) =>
-                setSelected(e.target.checked ? files.map((f) => f.id) : [])
-              }
+              aria-label="자료 검색"
+              placeholder="파일 이름 검색"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSelected([]);
+              }}
             />
-            {picked.length ? `${picked.length}개 선택` : `${files.length}개`}
           </label>
-          <button
-            type="button"
-            className="text-button"
-            disabled={readOnly || busy || !batchFiles.length}
-            onClick={() => setBulkTags(true)}
-          >
-            <Tags size={16} />
-            {picked.length ? "선택 태그 이동" : "전체 태그 이동"}
-          </button>
-          <button
-            type="button"
-            className="text-button danger-text"
-            disabled={readOnly || busy || !batchFiles.length}
-            onClick={() => void deleteBatch()}
-          >
-            <Trash2 size={16} />
-            {picked.length ? "선택 삭제" : "전체 삭제"}
-          </button>
+          <div className="file-bulk-actions">
+            <label>
+              <input
+                type="checkbox"
+                aria-label="현재 목록 전체 선택"
+                checked={
+                  !!files.length && files.every((f) => selected.includes(f.id))
+                }
+                disabled={!files.length || busy}
+                onChange={(e) =>
+                  setSelected(e.target.checked ? files.map((f) => f.id) : [])
+                }
+              />
+              {picked.length ? `${picked.length}개 선택` : `${files.length}개`}
+            </label>
+            <button
+              type="button"
+              className="text-button"
+              disabled={readOnly || busy || !batchFiles.length}
+              onClick={() => setBulkTags(true)}
+            >
+              <Tags size={16} />
+              {picked.length ? "선택 태그 이동" : "전체 태그 이동"}
+            </button>
+            <button
+              type="button"
+              className="text-button danger-text"
+              disabled={readOnly || busy || !batchFiles.length}
+              onClick={() => void deleteBatch()}
+            >
+              <Trash2 size={16} />
+              {picked.length ? "선택 삭제" : "전체 삭제"}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
       {!readOnly && (
         <p className="file-drop-hint">
           <Upload size={16} />
@@ -396,6 +398,7 @@ export default function Files({
         }}
         onPointerDown={(e) => {
           if (
+            bookingId ||
             e.pointerType !== "mouse" ||
             e.button !== 0 ||
             busy ||
@@ -467,13 +470,15 @@ export default function Files({
             data-file-id={file.id}
             data-selected={selected.includes(file.id)}
           >
-            <input
-              type="checkbox"
-              aria-label={`${file.name} 선택`}
-              checked={selected.includes(file.id)}
-              disabled={busy}
-              onChange={() => selectFile(file.id)}
-            />
+            {!bookingId && (
+              <input
+                type="checkbox"
+                aria-label={`${file.name} 선택`}
+                checked={selected.includes(file.id)}
+                disabled={busy}
+                onChange={() => selectFile(file.id)}
+              />
+            )}
             <FileText size={22} />
             <div className="record-body">
               <button

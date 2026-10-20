@@ -412,3 +412,14 @@
   font-size: 13px;
   color: var(--muted);
 }
+
+/* Shared small itinerary notes, regardless of the linked reservation kind. */
+.plan-card .plan-note{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:12px;line-height:1.5;margin-top:4px}
+.fixed-currency{display:flex;align-items:center;min-height:47px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--soft);color:var(--muted);font-size:14px}
+.booking-expense-link{width:100%;display:flex;align-items:center;gap:10px;text-align:left;border:0;background:transparent;color:inherit;padding:12px 0;font:inherit;cursor:pointer}
+.booking-expense-link strong{font-size:18px}.booking-expense-link svg{color:var(--green)}
+.booking-expense-link .paid-badge{margin-left:auto;font-size:11px}.expense-booking-link{text-decoration:underline;text-underline-offset:3px;color:var(--green);border:0;background:none;font:inherit;padding:0;cursor:pointer}
+.expense-row[data-focused=true]{outline:2px solid var(--green);outline-offset:3px}
+.booking-participants{margin-top:4px}.booking-payers .field{display:grid}.inverse-rate{font-size:11px;opacity:.8}
+
+.flight-extra .baggage-fields{grid-template-columns:repeat(2,minmax(0,1fr))}

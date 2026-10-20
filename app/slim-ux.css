@@ -212,31 +212,6 @@ textarea {
   font-size: 11px;
   padding: 2px 0;
 }
-.profile-photo {
-  position: relative;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-}
-.profile-photo > .avatar {
-  width: 66px;
-  height: 66px;
-  font-size: 24px;
-}
-.profile-photo > span:last-child {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--green);
-  color: var(--on-primary);
-  border: 2px solid var(--paper);
-}
 .avatar {
   overflow: hidden;
 }
@@ -337,10 +312,6 @@ textarea {
 .settings-page-heading:empty {
   display: none;
 }
-.settings-edit {
-  padding: 4px 12px;
-  min-height: 32px;
-}
 .backup-settings {
   padding: 16px;
 }
@@ -437,8 +408,7 @@ textarea {
   font-size: 12px;
   line-height: 1.6;
 }
-.flight-tag,
-.flight-tags > button {
+.flight-tag {
   display: inline-flex;
   padding: 3px 9px;
   border-radius: 20px;
@@ -446,16 +416,6 @@ textarea {
   border: 1px solid var(--line);
   background: var(--soft);
   color: var(--muted);
-}
-.flight-tags {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.flight-tags > button[aria-pressed="true"] {
-  background: var(--mint);
-  color: var(--green);
-  border-color: var(--green);
 }
 .reservation-files {
   margin: 0;
@@ -622,39 +582,6 @@ textarea {
 .collection-controls {
   margin-bottom: 18px;
 }
-.compact-exchange {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  border-radius: 16px;
-}
-.compact-exchange > div {
-  flex: 1;
-  display: grid;
-  gap: 4px;
-}
-.compact-exchange h2 {
-  font-size: 13px;
-  font-weight: 500;
-}
-.compact-exchange strong {
-  font-size: 16px;
-  font-weight: 500;
-}
-.compact-exchange small {
-  font-size: 10px;
-}
-.compact-exchange > .icon {
-  border: 0;
-  background: transparent;
-}
-.local-clock strong {
-  font-size: 25px;
-  font-weight: 500;
-}
 .compact-weather h2 {
   font-size: 15px;
   font-weight: 500;
@@ -669,10 +596,7 @@ textarea {
   :is(
     .soft-panel,
     .info,
-    .wizard-summary,
-    .trip-review,
     .expense-summary,
-    .record-card,
     .compact-plan[data-selected="true"]
   ) {
   background: var(--soft);
@@ -691,8 +615,7 @@ textarea {
     .mobile-trip-nav,
     .dialog,
     .sort-menu,
-    .suggestions,
-    .account-card
+    .suggestions
   ) {
   background: var(--paper);
 }
@@ -869,26 +792,11 @@ textarea {
     gap: 20px;
     align-items: stretch;
   }
-  .tools-cities {
-    grid-column: 1/-1;
-  }
   .compact-weather {
     grid-column: 1;
     grid-row: 2/4;
     padding: 24px;
     min-height: 0;
-  }
-  .local-clock {
-    grid-column: 2;
-    grid-row: 2;
-    padding: 24px;
-    min-height: 130px;
-  }
-  .compact-exchange {
-    grid-column: 2;
-    grid-row: 3;
-    padding: 24px;
-    min-height: 130px;
   }
   .compact-weather h2 {
     font-size: 20px;
@@ -906,15 +814,6 @@ textarea {
   .compact-weather-days strong,
   .compact-weather-days span {
     font-size: 15px;
-  }
-  .local-clock strong {
-    font-size: 32px;
-  }
-  .compact-exchange h2 {
-    font-size: 16px;
-  }
-  .compact-exchange strong {
-    font-size: 20px;
   }
   .booking-card h3 {
     font-size: 18px;
@@ -959,15 +858,13 @@ textarea {
 }
 @media (pointer: coarse) {
   .secondary,
-  .text-button,
-  .time-trigger,
-  .flight-tags > button {
+.text-button,
+.time-trigger {
     position: relative;
   }
   .secondary:before,
-  .text-button:before,
-  .time-trigger:before,
-  .flight-tags > button:before {
+.text-button:before,
+.time-trigger:before {
     content: "";
     position: absolute;
     top: 50%;
@@ -1030,37 +927,6 @@ textarea {
   background: var(--mint);
   color: var(--green);
 }
-.compact-detail-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-.compact-detail-row > span {
-  font-size: 13px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.compact-detail-row > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-  font-size: 14px;
-}
-.city-name-chip {
-  padding: 3px 0;
-  border: 0;
-  background: transparent;
-  font-size: 14px;
-  font-weight: 500;
-}
-.compact-detail-row > .text-button {
-  flex: none;
-  padding: 4px 0;
-  font-size: 11px;
-}
 .range-label {
   text-align: center;
   gap: 14px;
@@ -1083,9 +949,6 @@ textarea {
 .calendar-footer strong {
   font-size: 13px;
   font-weight: 500;
-}
-.currency-select {
-  padding-right: 14px;
 }
 @media (min-width: 961px) {
   .range-calendar .rdp-root {
@@ -1112,15 +975,6 @@ textarea {
   .trip-period-summary {
     padding: 18px;
   }
-  .compact-detail-row > span {
-    font-size: 14px;
-  }
-  .city-name-chip {
-    font-size: 16px;
-  }
-  .compact-detail-row > .text-button {
-    font-size: 13px;
-  }
 }
 @media (max-width: 960px) {
   .week-days span {
@@ -1128,17 +982,6 @@ textarea {
   }
   .week-days strong {
     font-size: 10px;
-  }
-  .city-chip {
-    gap: 8px;
-    padding: 10px;
-  }
-  .city-chip > span {
-    min-width: 0;
-  }
-  .city-chip .secondary {
-    font-size: 11px;
-    padding: 4px 7px;
   }
   .trip-period-summary {
     padding: 12px;
@@ -1167,11 +1010,6 @@ textarea {
     right: 5px;
     bottom: 5px;
   }
-  .collection-grid[data-columns="3"]
-    .trip-cover:has(.city-cover-media)
-    .trip-days {
-    bottom: 25px;
-  }
 }
 
 .field > span {
@@ -1195,14 +1033,8 @@ textarea {
 }
 
 @media (min-width: 961px) {
-  .travel-tools:not(:has(.tools-cities)) .compact-weather {
+  .travel-tools .compact-weather {
     grid-row: 1/3;
-  }
-  .travel-tools:not(:has(.tools-cities)) .local-clock {
-    grid-row: 1;
-  }
-  .travel-tools:not(:has(.tools-cities)) .compact-exchange {
-    grid-row: 2;
   }
 }
 
@@ -1793,10 +1625,6 @@ textarea {
 .allocation-cards {
   margin-top: 0;
 }
-.compact-exchange .inverse-rate {
-  font-size: 13px;
-  color: var(--muted);
-}
 .dialog-inner > header > button:last-child {
   margin-left: auto;
 }
@@ -1973,9 +1801,9 @@ textarea {
 /* Document headers scroll with the page and share one height. */
 .app-shell .app-header{position:relative;top:auto;height:76px;min-height:76px;box-sizing:border-box}.app-header-brand,.sidebar .brand{display:flex;align-items:center;gap:12px}.sidebar .brand img,.app-header-brand img{border-radius:13px;overflow:hidden;object-fit:contain;flex:none}.app-header-brand{padding:0;gap:var(--header-brand-gap,12px)}.app-header-brand strong{line-height:1.3}.memo-row .plan-number{margin-top:10px}.memo-row .plan-heading{align-items:center}.memo-row .memo-body{margin:0;line-height:1.65}.memo-row .plan-card{min-height:48px}.add-connection{margin:0 0 8px 38px;padding:2px 4px;font-size:11px;color:var(--muted)}.travel-leg .remove-connection{padding:4px;min-height:28px;width:28px;height:28px;background:transparent;border:0;color:var(--muted)}
 .single-date-calendar{display:flex;justify-content:center}.single-date-calendar .rdp-root{--rdp-accent-color:var(--green);--rdp-accent-background-color:var(--mint)}.single-date-calendar .rdp-day_button{width:38px;height:38px;border-radius:50%;color:var(--ink)}.single-date-calendar .rdp-selected .rdp-day_button{background:var(--green);color:var(--on-primary)}.single-date-calendar .rdp-weekday:first-child{color:var(--calendar-red)}.single-date-calendar .rdp-weekday:last-child{color:var(--calendar-blue)}.date-trigger{width:100%;min-height:40px;height:40px;display:flex;align-items:center;justify-content:center;gap:7px;border:0;background:var(--soft);border-radius:9px;font-size:13px;color:var(--ink)}.airport-leg-fields .form-grid{align-items:end}.booking-form .airport-leg-fields .time-trigger{height:40px;min-height:40px;width:100%;justify-content:center}.wizard-footer{border:0!important;box-shadow:none!important}.wizard-footer>.primary{width:100%;flex:1}.collection-grid .trip-cover-topline{inset:11px 11px auto}.collection-grid .trip-days{inset:auto 12px 12px auto;left:auto;letter-spacing:0;border-radius:9px;padding:5px 9px;border:1px solid #ffffff80;backdrop-filter:blur(8px);font-size:11px;line-height:1.4;font-weight:500;box-shadow:0 2px 8px #23372b0a}.login-provider{display:inline-block;margin-top:5px;color:var(--green);font-size:11px}
-@media(max-width:960px){.app-shell .app-header{height:calc(76px + env(safe-area-inset-top));min-height:calc(76px + env(safe-area-inset-top));padding:calc(8px + env(safe-area-inset-top)) 16px 8px}.app-shell .auth-card{margin:0;padding:24px 0;border:0;border-radius:0;box-shadow:none;background:transparent;min-height:calc(100dvh - var(--app-header-space) - var(--trip-nav-reserve) - 76px);display:flex;align-items:center}.account-page:has(.auth-card){background:var(--bg)}.collection-grid .trip-cover-topline{inset:10px 10px auto}.collection-grid .trip-days{font-size:10px;padding:5px 8px}.memo-row .plan-number{margin-top:10px}}
+@media(max-width:960px){.app-shell .app-header{height:calc(76px + env(safe-area-inset-top));min-height:calc(76px + env(safe-area-inset-top));padding:calc(8px + env(safe-area-inset-top)) 16px 8px}.collection-grid .trip-cover-topline{inset:10px 10px auto}.collection-grid .trip-days{font-size:10px;padding:5px 8px}.memo-row .plan-number{margin-top:10px}}
 
-@media(max-width:960px){.app-shell{position:relative}.app-install{position:absolute}.auth-card{flex-direction:column;justify-content:center}}
+@media(max-width:960px){.app-shell{position:relative}.app-install{position:absolute}}
 
 .plan-number{display:grid;place-items:center;line-height:1;padding:0;aspect-ratio:1;font-family:Arial,sans-serif;font-variant-numeric:tabular-nums}.plan-number>svg{display:block;margin:0}.settings-page-heading h2{display:flex;align-items:baseline;gap:8px;margin:0;font-size:18px}.settings-page-heading h2>small{font-size:12px;font-weight:400;color:var(--muted)}.settings-page-heading>.back-link{padding:4px;min-width:30px;min-height:30px}.trip-settings-page .member-list{padding:0 12px;border-radius:12px}.trip-settings-page .member-list>article{padding:12px 0;gap:10px}.trip-settings-page .member-list h3{font-size:14px;font-weight:500}.trip-settings-page .member-list small{font-size:11px;overflow-wrap:anywhere}.trip-settings-page .invite-box{margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}.trip-settings-page .invite-box h3{font-size:14px;margin:0 0 10px}.trip-settings-page .invite-box>.inline{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}.trip-settings-page .invite-box .choice-field{min-height:36px;font-size:12px;padding:6px 9px}.trip-settings-page .invite-box .primary{font-size:12px;padding:6px 9px;min-height:36px}.trip-settings-page .invite-box .primary>svg{width:15px;height:15px}
 
@@ -2061,7 +1889,6 @@ textarea {
 .dialog .memo-editor-field textarea{flex:1;min-height:160px;max-height:none;resize:none;line-height:1.7}
 .booking-plan-links{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:12px}
 .booking-card[data-focused="true"]{outline:2px solid var(--green);outline-offset:3px;scroll-margin-block:140px}
-.plan-booking-link{justify-self:start;margin-bottom:8px}
 .collection-grid .trip-cover{background:#e3ead6}
 .collection-grid .cover-symbol{top:50%;right:22px;transform:translateY(-40%) rotate(-12deg);color:#8eaa78}
 @media(max-width:960px){.dialog.mobile-page-dialog .memo-composer{min-height:0}.dialog.mobile-page-dialog .memo-composer .memo-editor-field{min-height:180px}.collection-grid .cover-symbol svg{width:54px;height:54px}}

@@ -143,11 +143,11 @@ public class FormKeyboardTest {
                 count+=audit(scenario,type+" booking details");
                 if(type.equals("flight"))expect(scenario,"document.querySelector('.booking-add-plan input').checked===false");
                 click(scenario,"다음");
-                if(!type.equals("flight"))expect(scenario,"document.querySelector('.booking-add-plan input').checked===false");
+                if(!type.equals("flight"))expect(scenario,"document.querySelector('.booking-add-plan input').checked==="+type.equals("tour"));
                 if(type.equals("flight"))count+=audit(scenario,"flight reservation details");
                 click(scenario,"다음");
                 count+=audit(scenario,type+" booking payment");click(scenario,"예약 저장");
-                expect(scenario,"window.keyboardFixture.saved.at(-1)?.[4]===false");
+                expect(scenario,"window.keyboardFixture.saved.at(-1)?.[4]==="+type.equals("tour"));
                 if(!type.equals("flight"))expect(scenario,"window.keyboardFixture.saved.at(-1)[0].note.startsWith('메모만 수정한 내용')");
             }
             for(String type:new String[]{"flight","hotel","tour","other"}){
@@ -234,13 +234,13 @@ public class FormKeyboardTest {
             for(String type:new String[]{"hotel","flight","tour","other"}){
                 show(scenario,"booking-"+type+"-paid");click(scenario,"다음");
                 if(type.equals("flight")){
-                    click(scenario,"좌석·수하물 정보 추가");input(scenario,"[aria-label='좌석 1']","18A");input(scenario,"[aria-label='수하물 개수 1']","2");input(scenario,"[aria-label='수하물 무게 1']","23");click(scenario,"좌석·수하물 정보 추가");input(scenario,"[aria-label='좌석 2']","18B");
+                    click(scenario,"수하물 추가");input(scenario,"[aria-label='좌석']","18A");input(scenario,"[aria-label='수하물 개수 1']","2");input(scenario,"[aria-label='수하물 무게 1']","23");click(scenario,"수하물 추가");
                 }
                 click(scenario,"다음");js(scenario,"document.querySelector('.booking-paid-check input').click();true");
                 expect(scenario,"document.querySelector('.booking-payers').textContent.includes('검증 계정')");
-                input(scenario,".booking-payers input[inputmode=decimal]","1200");click(scenario,"예약 저장");
+                input(scenario,"[aria-label='기준통화 환산 금액']","1200");click(scenario,"예약 저장");
                 expect(scenario,"(()=>{const args=window.keyboardFixture.saved.at(-1);return args[0].isPaid&&args[2].data.baseAmount==='1200'&&args[2].data.tripAmount==='1000'&&args[2].data.payers[0].userId==='test'&&!document.querySelector('.allocation-section')})()");
-                if(type.equals("flight"))expect(scenario,"window.keyboardFixture.saved.at(-1)[0].flightExtras.length===2&&window.keyboardFixture.saved.at(-1)[0].flightExtras[0].seat==='18A'");
+                if(type.equals("flight"))expect(scenario,"window.keyboardFixture.saved.at(-1)[0].flightExtras.length===2&&window.keyboardFixture.saved.at(-1)[0].flightSeat==='18A'");
             }
             show(scenario,"expense-multi-new");input(scenario,"[data-validation-label='어디에 쓴 돈인가요?'] input","통화 전환 검증");input(scenario,".currency-inputs input","100");expect(scenario,"document.querySelectorAll('.currency-inputs input')[1].value==='80000'");
             click(scenario,"실제로 결제한 통화");click(scenario,"JPY");expect(scenario,"document.querySelectorAll('.currency-inputs input')[0].value==='100'&&document.querySelectorAll('.currency-inputs input')[1].value==='1000'");
@@ -252,6 +252,23 @@ public class FormKeyboardTest {
             scenario.onActivity(a->((InputMethodManager)a.getSystemService(Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(a.getBridge().getWebView().getWindowToken(),0));SystemClock.sleep(1200);
             assertEquals("City search keyboard must restore the whole dialog",before,Double.parseDouble(js(scenario,"document.querySelector('dialog[open]').getBoundingClientRect().height")),2);screenshot("trip-search-restored");
             System.out.println("RELEASE24_PAID_FLIGHT_EXPENSE_PLACE_COUNTRY_KEYBOARD_PASS");
+        }
+    }
+    @Test public void reservationPaymentLayoutAndReciprocalExpenseNavigation() throws Exception {
+        try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
+            loadFixture(scenario);show(scenario,"booking-flight-linked");expect(scenario,"document.querySelector('.booking-add-plan input').checked&&document.querySelector('.booking-add-plan input').disabled");
+            show(scenario,"booking-flight-group");click(scenario,"다음");expect(scenario,"document.querySelectorAll('[aria-label=좌석]').length===1");click(scenario,"수하물 추가");click(scenario,"수하물 추가");expect(scenario,"document.querySelectorAll('.flight-extra').length===2&&document.querySelectorAll('.flight-extra [aria-label^=좌석]').length===0");input(scenario,"[aria-label=좌석]","22C");
+            click(scenario,"다음");js(scenario,"document.querySelector('.booking-paid-check input').click();true");expect(scenario,"document.querySelector('.booking-conversion-row')&&!document.querySelector('.booking-payers [inputmode=decimal]')&&document.querySelectorAll('.booking-participant-options input:checked').length===3");
+            input(scenario,"[aria-label='기준통화 환산 금액']","810000");js(scenario,"document.querySelectorAll('.booking-participant-options input')[2].click();true");SystemClock.sleep(500);screenshot("release25-payment-layout");click(scenario,"예약 저장");expect(scenario,"(()=>{const [b,,e]=window.keyboardFixture.saved.at(-1);return b.flightSeat==='22C'&&b.flightExtras.length===2&&e.data.category==='flight'&&e.data.baseAmount==='810000'&&e.data.participants.length===2&&e.data.participants.every(p=>p.amount==='500')})()");
+            show(scenario,"booking-flight-paid");click(scenario,"다음");click(scenario,"다음");click(scenario,"예약 통화");click(scenario,"KRW");js(scenario,"document.querySelector('.booking-paid-check input').click();true");expect(scenario,"!document.querySelector('.booking-conversion-row')");click(scenario,"예약 저장");expect(scenario,"(()=>{const d=window.keyboardFixture.saved.at(-1)[2].data;return d.tripCurrency==='KRW'&&d.baseCurrency==='KRW'&&d.tripAmount==='1000'&&d.baseAmount==='1000'&&d.exchangeRate==='1'})()");
+            show(scenario,"attachments");expect(scenario,"document.querySelectorAll('.file-row').length===5&&!document.querySelector('.file-management-bar')&&!document.querySelector('.file-row input[type=checkbox]')");
+            show(scenario,"categories-expense");expect(scenario,"document.querySelectorAll('[aria-label=\"기본 분류\"]').length===5&&!document.querySelector('button[aria-label$=\"분류 삭제\"]')");
+            show(scenario,"booking-cards");expect(scenario,"(()=>{const p=document.querySelector('.booking-expense-link'),l=document.querySelector('.booking-plan-links');return p.querySelector('svg.lucide-coins')&&p.textContent.includes('경비에 반영됨')&&p.getBoundingClientRect().top>=l.getBoundingClientRect().bottom&&!document.querySelector('.booking-payer-names')})()");js(scenario,"document.querySelector('.booking-expense-link').scrollIntoView({block:'center'});true");SystemClock.sleep(500);screenshot("release25-booking-card");click(scenario,"연결된 경비 보기");expect(scenario,"window.keyboardFixture.saved.at(-1)[0]==='expense-navigation'&&window.keyboardFixture.saved.at(-1)[1]==='e1'");
+            show(scenario,"connected-expenses");expect(scenario,"document.querySelector('.expense-row .record-icon svg.lucide-plane')&&document.querySelector('.expense-booking-link').textContent==='예약'");click(scenario,"예약");expect(scenario,"window.keyboardFixture.saved.at(-1)[0]==='booking-navigation'");
+            show(scenario,"tools-multi");expect(scenario,"[...document.querySelectorAll('.inverse-rate')].some(e=>e.textContent.includes('1 KRW')&&e.textContent.includes('NZD'))");
+            show(scenario,"expense-multi-new");click(scenario,"경비에 연결할 예약");click(scenario,"ICN → AKL · KE411");expect(scenario,"document.querySelector('[data-validation-label=분류]').textContent.includes('항공')&&document.querySelector('.currency-inputs input').value==='1000'");click(scenario,"함께 나누기");click(scenario,"경비 저장");expect(scenario,"window.keyboardFixture.saved.at(-1)[0].bookingId==='flight'&&window.keyboardFixture.saved.at(-1)[0].category==='flight'");
+            show(scenario,"toast");show(scenario,"expense-multi-new");input(scenario,"[data-validation-label='어디에 쓴 돈인가요?'] input","원화 결제");click(scenario,"실제로 결제한 통화");click(scenario,"KRW");expect(scenario,"document.querySelectorAll('.currency-inputs input').length===1&&!document.querySelector('.summary-button')");input(scenario,".currency-inputs input","5000");click(scenario,"함께 나누기");click(scenario,"경비 저장");expect(scenario,"(()=>{const d=window.keyboardFixture.saved.at(-1)[0];return d.paidCurrency==='KRW'&&d.tripCurrency==='KRW'&&d.tripAmount==='5000'&&d.baseAmount==='5000'})()");
+            System.out.println("RELEASE25_RESERVATION_EXPENSE_PAYMENT_PASS");
         }
     }
     private static void sample(ActivityScenario<MainActivity> scenario) throws Exception {

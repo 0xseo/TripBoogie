@@ -1,13 +1,14 @@
 // Compiled only into the instrumentation APK, never the application APK.
 import { createRoot } from "react-dom/client";
 import { useState } from "react";
-import { BookingForm } from "../../app/components/Bookings";
+import Bookings, { BookingForm } from "../../app/components/Bookings";
 import PlanComposer from "../../app/components/PlanComposer";
 import Expenses, { ExpenseForm } from "../../app/components/Expenses";
 import Files from "../../app/components/Files";
 import FilePreview from "../../app/components/FilePreview";
 import Tools from "../../app/components/Tools";
 import { previewBlob, auditDocuments } from "./documents";
+import { defaultExpenseCategories } from "../../app/expense-categories";
 import TripForm from "../../app/components/TripForm";
 import Checklist from "../../app/components/Checklist";
 import CategoryEditor from "../../app/components/CategoryEditor";
@@ -326,6 +327,103 @@ function Fixture() {
     <ConfirmationProvider>
       <KeyboardFocus />
       <main style={{ padding: 16, paddingBottom: 90 }}>
+        {scene === "attachments" && (
+          <Files
+            bookingId="flight"
+            workspace={{
+              ...workspace,
+              files: files.map((f) => ({ ...f, booking_id: "flight" })),
+            }}
+            readOnly={false}
+            command={async () => ({ file: null, workspace })}
+          />
+        )}
+        {scene === "categories-expense" && (
+          <CategoryEditor
+            title="경비 분류"
+            items={defaultExpenseCategories}
+            protectedIds={defaultExpenseCategories.map((c) => c.id)}
+            onSave={save}
+            onClose={noop}
+          />
+        )}
+        {scene === "booking-cards" && (
+          <Bookings
+            workspace={{
+              ...workspace,
+              records: [
+                {
+                  ...bookings[0],
+                  data: {
+                    ...bookings[0].data,
+                    moneyCurrency: "NZD",
+                    isPaid: true,
+                    expenseId: "e1",
+                  },
+                },
+                row("fp", "plan", {
+                  date: "2026-11-01",
+                  time: "09:15",
+                  bookingId: "flight",
+                  bookingEvent: "departure",
+                }),
+                row("e1", "expense", {
+                  model: 2,
+                  bookingId: "flight",
+                  tripCurrency: "NZD",
+                  baseCurrency: "KRW",
+                  paidCurrency: "NZD",
+                  tripAmount: "1000",
+                  baseAmount: "800000",
+                }),
+              ],
+            }}
+            profile={profile}
+            readOnly={false}
+            focused="flight"
+            onSave={save}
+            onDelete={noop}
+            onPlan={noop}
+            onExpense={(id) =>
+              window.keyboardFixture.saved.push(["expense-navigation", id])
+            }
+            onNotice={notify}
+            fileCommand={async () => ({ file: null, workspace })}
+          />
+        )}
+        {scene === "connected-expenses" && (
+          <Expenses
+            workspace={{
+              ...workspace,
+              records: [
+                bookings[0],
+                row("e1", "expense", {
+                  model: 2,
+                  title: "항공 경비",
+                  category: "flight",
+                  bookingId: "flight",
+                  period: "before",
+                  date: "2026-10-20",
+                  tripCurrency: "NZD",
+                  baseCurrency: "KRW",
+                  paidCurrency: "NZD",
+                  tripAmount: "1000",
+                  baseAmount: "800000",
+                  payers: [],
+                  participants: [],
+                }),
+              ],
+            }}
+            profile={profile}
+            date="2026-11-01"
+            readOnly={false}
+            onSave={save}
+            onDelete={noop}
+            onBooking={(id) =>
+              window.keyboardFixture.saved.push(["booking-navigation", id])
+            }
+          />
+        )}
         {scene === "files" && (
           <Files
             workspace={{ ...workspace, files }}
@@ -394,7 +492,16 @@ function Fixture() {
         )}
         {scene === "expense-multi-new" && (
           <ExpenseForm
-            workspace={multi}
+            workspace={{
+              ...multi,
+              records: [
+                ...multi.records,
+                ...bookings.map((b) => ({
+                  ...b,
+                  data: { ...b.data, moneyCurrency: "NZD" },
+                })),
+              ],
+            }}
             profile={profile}
             categories={workspace.trip.settings.expenseCategories}
             initialPeriod="day"
@@ -473,7 +580,7 @@ function Fixture() {
             onEstimate={save}
           />
         )}
-        {scene.startsWith("booking-") && (
+        {scene.startsWith("booking-") && scene !== "booking-cards" && (
           <BookingForm
             key={scene}
             workspace={
@@ -482,9 +589,40 @@ function Fixture() {
                     ...workspace,
                     records: workspace.records.filter((r) => r.kind !== "plan"),
                   }
-                : scene.endsWith("-paid")
-                  ? { ...multi, records: workspace.records }
-                  : workspace
+                : scene.endsWith("-paid") || scene.endsWith("-group")
+                  ? {
+                      ...multi,
+                      records: workspace.records,
+                      members: scene.endsWith("-group")
+                        ? [
+                            ...workspace.members,
+                            {
+                              id: "buddy",
+                              name: "동행 둘",
+                              email: "buddy@example.invalid",
+                              role: "editor",
+                            },
+                            {
+                              id: "third",
+                              name: "동행 셋",
+                              email: "third@example.invalid",
+                              role: "editor",
+                            },
+                          ]
+                        : workspace.members,
+                    }
+                  : scene === "booking-flight-linked"
+                    ? {
+                        ...workspace,
+                        records: [
+                          ...workspace.records,
+                          row("fp", "plan", {
+                            bookingId: "flight",
+                            date: "2026-11-01",
+                          }),
+                        ],
+                      }
+                    : workspace
             }
             profile={profile}
             type={type}

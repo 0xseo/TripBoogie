@@ -386,13 +386,6 @@ legend {
   font-weight: 400;
   margin-top: 5px;
 }
-.sidebar-label {
-  font-size: 9px;
-  letter-spacing: 1.6px;
-  color: var(--muted);
-  margin-bottom: 18px;
-  padding-left: 12px;
-}
 .side-link {
   border: 0;
   background: transparent;
@@ -420,25 +413,6 @@ legend {
   font-weight: 600;
   margin: 0 12px 16px;
   overflow-wrap: anywhere;
-}
-.sidebar-bottom {
-  margin-top: auto;
-  padding: 45px 12px 0;
-}
-.sidebar-bottom p {
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.9;
-}
-.sidebar-bottom strong {
-  font-weight: 500;
-}
-.sidebar-bottom small {
-  display: block;
-  margin-top: 20px;
-  font-size: 8px;
-  letter-spacing: 1.5px;
-  color: var(--muted);
 }
 .main {
   width: calc(100% - 234px);
@@ -479,22 +453,6 @@ legend {
   padding: 28px 36px;
   overflow: hidden;
   position: relative;
-}
-.hero-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  letter-spacing: 1.5px;
-  font-size: 9px;
-  font-weight: 700;
-  color: var(--muted);
-  margin-bottom: 21px;
-}
-.hero-label > span {
-  width: 6px;
-  height: 6px;
-  background: #8eb480;
-  border-radius: 50%;
 }
 .home-hero h1 {
   font-size: 37px;
@@ -548,21 +506,6 @@ legend {
   color: var(--muted);
   font-size: 40px;
   transform: rotate(15deg);
-}
-.hero-sticker {
-  position: absolute;
-  bottom: 3px;
-  right: 11px;
-  z-index: 3;
-  padding: 10px 17px;
-  background: var(--soft);
-  border: 1px solid #e0e5c4;
-  border-radius: 7px;
-  transform: rotate(-6deg);
-  font-size: 10px;
-  letter-spacing: 1px;
-  color: var(--muted);
-  box-shadow: 0 5px 10px #87957c0d;
 }
 .trip-section {
   margin-top: 47px;
@@ -620,15 +563,6 @@ legend {
   position: relative;
   overflow: hidden;
   padding: 19px;
-}
-.theme-1 .trip-cover {
-  background: #dfecef;
-}
-.theme-2 .trip-cover {
-  background: #f1e6d8;
-}
-.theme-3 .trip-cover {
-  background: #e7e2ef;
 }
 .trip-destination {
   display: inline-flex;
@@ -700,52 +634,6 @@ footer > span {
 .workspace {
   padding-top: 27px;
 }
-.trip-back {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 28px;
-}
-.sync-status {
-  font-size: 11px;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.trip-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 25px;
-  margin-bottom: 29px;
-}
-.trip-heading h1 {
-  font-size: 32px;
-}
-.trip-heading .eyebrow {
-  font-size: 12px;
-  letter-spacing: 0.03em;
-  color: var(--muted);
-}
-.trip-meta {
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  font-size: 13px;
-  color: var(--muted);
-  margin-top: 13px;
-}
-.trip-meta > span {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.trip-heading-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
 .workspace-tabs {
   display: flex;
   gap: 26px;
@@ -778,41 +666,6 @@ footer > span {
   bottom: 0;
   border-radius: 3px;
 }
-.day-tabs {
-  display: flex;
-  gap: 10px;
-  overflow: auto;
-  margin-bottom: 30px;
-  padding-bottom: 2px;
-}
-.day-tabs button {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  border-radius: 12px;
-  padding: 12px 22px;
-  min-width: 105px;
-  background: var(--paper);
-}
-.day-tabs strong {
-  font-size: 13px;
-  letter-spacing: 0.3px;
-}
-.day-tabs span {
-  font-size: 11px;
-  color: var(--muted);
-}
-.day-tabs button.active {
-  background: var(--soft);
-  border-color: #c5d7b7;
-  color: var(--green);
-}
-.planner-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(310px, 0.87fr);
-  gap: 30px;
-  align-items: start;
-}
 .itinerary .section-heading {
   margin-bottom: 22px;
 }
@@ -833,18 +686,6 @@ footer > span {
   border: 1px solid var(--line);
   border-radius: 17px;
   overflow: hidden;
-}
-.map-title {
-  padding: 17px 19px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.map-title strong {
-  font-size: 14px;
-}
-.map-title small {
-  font-size: 11px;
 }
 .map-frame {
   height: 390px;
@@ -881,12 +722,6 @@ footer > span {
   border-radius: 7px;
   font-size: 11px;
   z-index: 1;
-}
-.map-note {
-  padding: 14px 18px;
-  font-size: 11px;
-  color: var(--muted);
-  background: var(--soft);
 }
 .map-pin { display:grid;place-items:center;inline-size:44px;block-size:44px;min-inline-size:44px;min-block-size:44px;max-inline-size:44px;max-block-size:44px;aspect-ratio:1;border:0;border-radius:50%;padding:0;background:transparent;box-shadow:none; }
 .map-pin:hover { background:transparent;border:0; }
@@ -1028,26 +863,6 @@ footer > span {
   border-color: #cbdfb8;
   font-weight: 700;
 }
-.rate-banner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--soft);
-  border: 1px solid #dce8d2;
-  border-radius: 13px;
-  padding: 17px 21px;
-  color: var(--muted);
-  font-size: 14px;
-}
-.rate-banner > span {
-  flex: 1;
-}
-.rate-banner small {
-  display: block;
-  font-size: 10px;
-  color: var(--muted);
-  margin-top: 3px;
-}
 .expense-summary {
   background: var(--paper);
   border: 1px solid var(--line);
@@ -1119,18 +934,6 @@ footer > span {
 .amount small {
   font-size: 12px;
 }
-.rate-edit {
-  display: flex;
-  align-items: end;
-  gap: 10px;
-}
-.rate-edit > .field {
-  flex: 1;
-}
-.rate-edit > button {
-  min-height: 47px;
-  font-size: 13px;
-}
 .people-grid {
   display: flex;
   gap: 9px;
@@ -1178,10 +981,6 @@ footer > span {
 .booking-card > p {
   font-size: 14px;
   margin-top: 8px;
-}
-.flight-number {
-  font-size: 16px;
-  color: var(--green);
 }
 .files {
   background: var(--paper);
@@ -1574,15 +1373,8 @@ footer > span {
     width: 158px;
     height: 158px;
   }
-  .hero-sticker {
-    font-size: 8px;
-  }
   .trip-grid {
     gap: 15px;
-  }
-  .planner-grid {
-    gap: 21px;
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.85fr);
   }
   .workspace-tabs {
     gap: 18px;
@@ -1638,9 +1430,6 @@ footer > span {
   .toast {
     left: 50%;
   }
-  .planner-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.85fr);
-  }
 }
 @media (max-width: 720px) {
   :root {
@@ -1660,11 +1449,6 @@ footer > span {
     letter-spacing: -1.5px;
     position: relative;
     z-index: 3;
-  }
-  .hero-label {
-    font-size: 8px;
-    letter-spacing: 1px;
-    margin-bottom: 17px;
   }
   .home-hero p {
     font-size: 13px;
@@ -1697,9 +1481,6 @@ footer > span {
   .orbit-two {
     width: 170px;
     height: 170px;
-  }
-  .hero-sticker {
-    display: none;
   }
   .hero-spark {
     font-size: 30px;
@@ -1780,43 +1561,6 @@ footer > span {
     font-size: 7px;
     white-space: nowrap;
   }
-  .trip-back {
-    margin-bottom: 22px;
-  }
-  .trip-back > .back-link {
-    font-size: 13px;
-  }
-  .sync-status {
-    font-size: 9px;
-  }
-  .trip-heading {
-    align-items: flex-start;
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-  .trip-heading h1 {
-    font-size: 27px;
-  }
-  .trip-meta {
-    font-size: 11px;
-    flex-direction: column;
-    gap: 6px;
-    align-items: flex-start;
-    margin-top: 12px;
-  }
-  .trip-heading-actions {
-    gap: 1px;
-  }
-  .trip-heading-actions .secondary {
-    padding: 8px 10px;
-    font-size: 11px;
-  }
-  .trip-heading-actions .secondary svg {
-    width: 14px;
-  }
-  .trip-heading-actions .icon {
-    width: 30px;
-  }
   .workspace-tabs {
     margin-left: -20px;
     margin-right: -20px;
@@ -1832,25 +1576,6 @@ footer > span {
   .workspace-tabs svg {
     width: 17px;
   }
-  .day-tabs {
-    margin-bottom: 23px;
-    gap: 8px;
-  }
-  .day-tabs button {
-    min-width: 88px;
-    padding: 10px 15px;
-  }
-  .day-tabs strong {
-    font-size: 12px;
-  }
-  .day-tabs span {
-    font-size: 10px;
-  }
-  .planner-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 27px;
-  }
   .daily-map {
     order: -1;
     position: relative;
@@ -1860,22 +1585,6 @@ footer > span {
   }
   .daily-map .map-frame {
     height: 260px;
-  }
-  .map-title {
-    padding: 12px 16px;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .map-title strong {
-    font-size: 13px;
-  }
-  .map-title small {
-    font-size: 10px;
-  }
-  .map-note {
-    font-size: 10px;
-    padding: 10px 14px;
   }
   .itinerary {
     width: 100%;
@@ -1954,10 +1663,6 @@ footer > span {
   }
   .feature .eyebrow {
     font-size: 9px;
-  }
-  .rate-banner {
-    font-size: 13px;
-    padding: 15px;
   }
   .expense-summary {
     padding: 23px;
@@ -2112,13 +1817,6 @@ footer > span {
   .range-calendar small {
     font-size: 9px;
   }
-  .rate-edit {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .rate-edit button {
-    font-size: 13px;
-  }
   .person-check {
     font-size: 12px;
     padding: 7px 10px;
@@ -2160,9 +1858,7 @@ footer > span {
 small {
   font-size: 14px;
 }
-.sidebar-label,
-.eyebrow,
-.hero-label {
+.eyebrow {
   font-size: 11px;
 }
 .side-link {
@@ -2170,10 +1866,6 @@ small {
 }
 .plan-card > p {
   font-size: 15px;
-}
-.day-tabs strong,
-.day-tabs span {
-  font-size: 14px;
 }
 .travel-leg,
 .travel-leg strong,
@@ -2185,21 +1877,12 @@ small {
   min-height: 34px;
   width: 82px;
 }
-.map-title strong {
-  font-size: 16px;
-}
-.map-title small,
-.map-note,
 .map-caption {
   font-size: 13px;
 }
 .record-body p,
 .expense-row p,
 .expense-row .record-body > small {
-  font-size: 13px;
-}
-.rate-banner,
-.rate-banner small {
   font-size: 13px;
 }
 .expense-summary > span,
@@ -2232,29 +1915,17 @@ small {
 .range-label strong {
   font-size: 16px;
 }
-.trip-meta {
-  font-size: 14px;
-}
-.sync-status {
-  font-size: 12px;
-}
 .trip-cover .trip-destination {
   font-size: 12px;
 }
 .trip-days {
   font-size: 11px;
 }
-.trip-heading h1 {
-  font-size: 34px;
-}
 .home-hero h1 {
   font-size: 40px;
 }
 .home-hero p {
   font-size: 16px;
-}
-.trip-heading .eyebrow {
-  font-size: 14px;
 }
 .invite-box p,
 .invite-list > div {
@@ -2270,15 +1941,6 @@ small {
   .home-hero p {
     font-size: 14px;
   }
-  .trip-heading h1 {
-    font-size: 28px;
-  }
-  .trip-meta {
-    font-size: 13px;
-  }
-  .sync-status {
-    font-size: 10px;
-  }
   .trip-cover .trip-destination {
     font-size: 10px;
   }
@@ -2289,9 +1951,6 @@ small {
   .travel-leg strong,
   .travel-leg small {
     font-size: 12px;
-  }
-  .map-title small {
-    font-size: 11px;
   }
   .range-label strong {
     font-size: 14px;
@@ -2305,9 +1964,6 @@ small {
   height: 100%;
 }
 /* Focused, touch-friendly travel editing. */
-.planner-grid {
-  display: block;
-}
 .daily-map {
   position: relative;
   top: auto;
@@ -2317,9 +1973,6 @@ small {
 .daily-map .map-frame {
   height: 340px;
   min-height: 0;
-}
-.day-tabs {
-  margin: 18px 0 24px;
 }
 .plan-row {
   scroll-margin-top: 100px;
@@ -2446,62 +2099,6 @@ small {
   color: var(--muted);
   font-size: 12px;
   margin-top: 4px;
-}
-.city-list {
-  display: grid;
-  gap: 8px;
-  max-height: 240px;
-  overflow: auto;
-}
-.city-chip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--soft);
-  border-radius: 12px;
-  padding: 12px;
-}
-.city-chip > span {
-  flex: 1;
-  min-width: 0;
-}
-.city-chip strong,
-.city-chip small {
-  display: block;
-}
-.city-chip small {
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 3px;
-}
-.city-tabs {
-  display: flex;
-  overflow-x: auto;
-  gap: 9px;
-  margin-bottom: 20px;
-  padding-bottom: 4px;
-}
-.city-tabs button {
-  flex-shrink: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  border-radius: 14px;
-  padding: 12px 16px;
-  max-width: 240px;
-  font-size: 16px;
-}
-.city-tabs button small {
-  flex-basis: 100%;
-  font-size: 12px;
-  color: var(--muted);
-}
-.city-tabs .active {
-  background: var(--soft);
-  border-color: #8aaa73;
 }
 .expense-total {
   text-align: center;
@@ -2671,9 +2268,6 @@ small {
   .daily-map .map-frame {
     height: 255px;
   }
-  .day-tabs {
-    margin: 14px 0 20px;
-  }
   .plan-row {
     scroll-margin-top: 80px;
   }
@@ -2753,9 +2347,6 @@ small {
   }
   .range-label strong {
     font-size: 14px;
-  }
-  .city-list {
-    max-height: 190px;
   }
   .summary-button {
     padding: 11px;
@@ -2916,38 +2507,6 @@ small {
 .trip-city-summary .text-button {
   font-size: 13px;
 }
-.city-stay-row {
-  display: flex;
-  gap: 11px;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid #edf0e8;
-}
-.city-stay-row:last-child {
-  border-bottom: 0;
-}
-.city-stay-icon {
-  display: grid;
-  place-items: center;
-  width: 37px;
-  height: 42px;
-  background: var(--soft);
-  border-radius: 12px;
-  color: var(--green);
-}
-.city-stay-row > div {
-  flex: 1;
-  min-width: 0;
-}
-.city-stay-row strong {
-  font-size: 16px;
-}
-.city-stay-row small {
-  display: block;
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 5px;
-}
 .editing-timeline {
   display: flex;
   flex-direction: column;
@@ -2998,28 +2557,6 @@ small {
 .booking-platform {
   font-size: 14px;
   color: var(--muted);
-}
-.booking-money {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  padding: 13px 0;
-}
-.booking-money strong {
-  font-size: 23px;
-}
-.booking-money span {
-  font-size: 12px;
-  color: var(--muted);
-}
-.booking-money .paid-badge {
-  background: var(--soft);
-  color: var(--muted);
-  padding: 5px 8px;
-  border-radius: 8px;
-}
-.flight-role-tabs {
-  margin: 16px 0;
 }
 .booking-form details > summary {
   cursor: pointer;
@@ -3246,15 +2783,6 @@ small {
   .trip-date-pair > div {
     gap: 6px;
   }
-  .city-stay-row {
-    gap: 8px;
-  }
-  .city-stay-row small {
-    font-size: 11px;
-  }
-  .city-stay-row .text-button {
-    font-size: 12px;
-  }
   .category-edit-row {
     grid-template-columns: 38px minmax(0, 1fr) 36px;
     gap: 5px;
@@ -3295,9 +2823,6 @@ small {
   .dialog-inner {
     padding-bottom: max(18px, env(safe-area-inset-bottom));
   }
-  .mobile-nav {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
   .searchbox input {
     min-width: 0;
     font-size: 16px;
@@ -3310,11 +2835,10 @@ small {
 .place-media { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin:12px 0; }
 .place-media figure { margin:0;min-width:0; }.place-media img { width:100%;max-height:220px;object-fit:cover;border-radius:14px; }
 .place-media.compact { grid-template-columns:112px minmax(0,1fr); }.place-media.compact:has(> :only-child) { grid-template-columns:1fr; }
-.place-media.compact img { height:86px; }.place-hours strong { font-size:14px; }.place-hours p {font-size:14px;line-height:1.6;margin:6px 0;white-space:pre-line;}.place-hours a,.place-hours small {display:block;font-size:12px;margin-top:4px;color:var(--muted);}
-.place-distance {color:var(--green)!important;font-weight:600;}.city-thumbnail {width:62px;height:52px;object-fit:cover;border-radius:10px;}
-.image-gallery {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;max-height:55dvh;overflow:auto;}.image-gallery figure{margin:0;}.image-gallery button{padding:0;display:grid;overflow:hidden;width:100%;}.image-gallery img{width:100%;height:150px;object-fit:cover;}.image-gallery span{padding:10px;}
-.trip-card {position:relative;}.card-hit-area{position:absolute;inset:0;z-index:2;}.city-cover-media{position:absolute;inset:0;}.city-cover-photo{width:100%;height:100%;object-fit:cover;}.city-cover-media .image-credit{position:absolute;bottom:0;left:0;right:0;padding:4px 8px;background:rgba(0,0,0,.65);color:white;z-index:4;}.trip-cover:has(.city-cover-media) .cover-symbol{display:none;}.trip-cover:has(.city-cover-media) .trip-days{bottom:32px;}.trip-cover:has(.city-cover-media) .trip-destination{background:rgba(255,255,255,.9);}
-@media(max-width:600px){.place-media{grid-template-columns:1fr;}.city-chip{flex-wrap:wrap;}.image-gallery img{height:110px;}}
+.place-media.compact img { height:86px; }
+.place-distance {color:var(--green)!important;font-weight:600;}
+.trip-card {position:relative;}.card-hit-area{position:absolute;inset:0;z-index:2;}
+@media(max-width:600px){.place-media{grid-template-columns:1fr;}}
 
 .trip-cover .trip-destination { position:relative;z-index:1; }.trip-cover .trip-days { z-index:1; }
 
