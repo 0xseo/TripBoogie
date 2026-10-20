@@ -4,7 +4,7 @@ export type OverviewImageRow = { date: string; text: string };
 export type ImageSegment = { date: string; lines: string[]; continued: boolean };
 export type OverviewImage = { blob: Blob; width: number; height: number };
 const width = 1000, scale = 2, padding = 44, dateWidth = 148;
-const headerHeight = 188, footerHeight = 62, lineHeight = 34, rowPadding = 36;
+const headerHeight = 188, footerHeight = 62, lineHeight = 30, rowPadding = 32;
 const maxHeight = 1900; // 2000 × <=3800 pixels, including on mobile browsers.
 const fontFamily = '"Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif';
 
@@ -50,7 +50,7 @@ export async function renderOverviewImages(title: string, rows: OverviewImageRow
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   if (!context) throw new Error("이 기기에서 이미지를 만들 수 없어요.");
-  context.font = `22px ${fontFamily}`;
+  context.font = `20px ${fontFamily}`;
   const pages = paginateOverview(rows, value => context.measureText(value).width);
   if (pages.length > 40) throw new Error("이미지가 40장을 넘어요. 날짜 범위를 나눠서 저장해 주세요.");
   const images: OverviewImage[] = [];
@@ -87,9 +87,9 @@ export async function renderOverviewImages(title: string, rows: OverviewImageRow
       context.fillStyle = "#3a5a40";
       context.font = `600 20px ${fontFamily}`;
       context.fillText(shortDate(segment.date), padding + 18, y + 20);
-      if (segment.continued) { context.font = `16px ${fontFamily}`; context.fillText("계속", padding + 18, y + 51); }
+      if (segment.continued) { context.font = `16px ${fontFamily}`; context.fillText("계속", padding + 18, y + 44); }
       context.fillStyle = "#1a1d1e";
-      context.font = `22px ${fontFamily}`;
+      context.font = `20px ${fontFamily}`;
       segment.lines.forEach((line, i) => context.fillText(line, padding + dateWidth + 22, y + 18 + i * lineHeight));
       context.strokeStyle = "#dce4d9";
       context.lineWidth = 1;

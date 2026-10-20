@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import { ArrowDownToLine, ArrowRight, Check, FileImage, FolderInput, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import type { Workspace } from "../types";
 import { shortDate } from "../calendar";
-import { emptyOverview, importOverview, overviewCandidates, overviewStorageKey, overviewTextLimit, parseOverview, writeOverviewDay, type OverviewCandidate, type OverviewDraft } from "../itinerary-overview";
+import { emptyOverview, importOverview, overviewCandidates, overviewStorageKey, overviewTextLimit, parseOverview, writeOverviewDay, type OverviewCandidate, type OverviewDraft, type OverviewSeparator } from "../itinerary-overview";
 import { renderOverviewImages, type OverviewImageRow } from "../overview-image";
 import { saveDownload } from "../download";
 import { useConfirm } from "./Confirmation";
@@ -61,7 +61,7 @@ function OverviewEditor({ workspace, days, accountId, disabled = false, initialD
   return <section className={styles.overview} aria-label="일정 한눈에 보기">
     <div className={styles.heading}>
       <div><p className={styles.eyebrow}>YOUR TRIP, AT A GLANCE</p><h2>여행을 한눈에</h2><p>하루의 흐름을 자유롭게 적고, 나만의 여행표로 저장해 보세요.</p></div>
-      <span className={styles.localBadge}><Check size={14} />이 브라우저에만 저장</span>
+      <span className={styles.localBadge}><Check size={14} />로컬 검토용 · 이 브라우저에 저장</span>
     </div>
     <div className={styles.toolbar}>
       <div className={styles.actions}>
@@ -74,7 +74,7 @@ function OverviewEditor({ workspace, days, accountId, disabled = false, initialD
         <button type="button" className={styles.clear} disabled={disabled || !filled && !blocked} onClick={() => void clear()}><Trash2 size={15} /><span>표 비우기</span></button>
       </div>
     </div>
-    <p className={styles.help}>불러온 일정은 복사본이에요. 여기서 수정하거나 지워도 원본 일정·예약은 바뀌지 않아요. 다른 기기와는 아직 동기화되지 않아요.</p>
+    <p className={styles.help}>지금은 로컬 검토 단계라 요약표만 이 브라우저에 저장해요. 표를 수정하거나 지워도 원본 일정·예약은 바뀌지 않아요.</p>
     {storageError && <div className="error" role="alert">{storageError}{!blocked && <button type="button" className="secondary" onClick={() => persist(draft)}>저장 다시 시도</button>}</div>}
     {notice && <p className={styles.notice} role="status">{notice}</p>}
     <div className={styles.tableWrap}>
@@ -97,7 +97,7 @@ function DayCell({ date, value, disabled, onChange, onBlur, onImport }: { date: 
   const textarea = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const node = textarea.current; if (!node) return;
-    const fit = () => { node.style.height = "0px"; node.style.height = `${Math.max(76, node.scrollHeight)}px`; };
+    const fit = () => { node.style.height = "0px"; node.style.height = `${Math.max(56, node.scrollHeight)}px`; };
     fit();
     const observer = new ResizeObserver(fit); observer.observe(node.parentElement!);
     return () => observer.disconnect();
@@ -123,10 +123,10 @@ function DayCell({ date, value, disabled, onChange, onBlur, onImport }: { date: 
   </div>;
 }
 
-function ImportDialog({ workspace, days, draft, onClose, onImport }: { workspace: Workspace; days: string[]; draft: OverviewDraft; onClose: () => void; onImport: (items: OverviewCandidate[], mode: "append" | "replace", separator: " · " | "\n") => void }) {
+function ImportDialog({ workspace, days, draft, onClose, onImport }: { workspace: Workspace; days: string[]; draft: OverviewDraft; onClose: () => void; onImport: (items: OverviewCandidate[], mode: "append" | "replace", separator: OverviewSeparator) => void }) {
   const [times, setTimes] = useState(true), [hotels, setHotels] = useState(false);
   const [mode, setMode] = useState<"append" | "replace">("append");
-  const [separator, setSeparator] = useState<" · " | "\n">(" · ");
+  const [separator, setSeparator] = useState<OverviewSeparator>("\n");
   const [selected, setSelected] = useState(() => new Set(days.flatMap(date => overviewCandidates(workspace, date).filter(item => !item.hotel && !item.sourceIds.some(id => draft.days[date]?.sourceIds.includes(id))).map(item => item.id))));
   const [error, setError] = useState("");
   const confirm = useConfirm();
@@ -143,7 +143,7 @@ function ImportDialog({ workspace, days, draft, onClose, onImport }: { workspace
       <div className={styles.importOptions}>
         <label><input type="checkbox" checked={times} onChange={event => setTimes(event.target.checked)} />시간 포함</label>
         <label><input type="checkbox" checked={hotels} onChange={event => { setHotels(event.target.checked); if (event.target.checked) setSelected(current => new Set([...current, ...candidates.filter(item => item.hotel).map(item => item.id)])); }} />숙소 포함</label>
-        <label>연결 방식<select value={separator} onChange={event => setSeparator(event.target.value as typeof separator)}><option value=" · ">구분점으로 연결</option><option value={"\n"}>일정마다 줄바꿈</option></select></label>
+        <label>연결 방식<select value={separator} onChange={event => setSeparator(event.target.value as typeof separator)}><option value={"\n"}>일정마다 줄바꿈</option><option value=" · ">구분점으로 연결</option></select></label>
         <label>넣을 위치<select value={mode} onChange={event => { const next = event.target.value as typeof mode; setMode(next); if (next === "replace") setSelected(new Set(visible.map(item => item.id))); }}><option value="append">기존 내용 아래에 추가</option><option value="replace">해당 날짜 내용 바꾸기</option></select></label>
       </div>
       <div className={styles.selectionBar}><span>{chosen.length}개 선택</span><div><button type="button" onClick={() => setSelected(new Set(visible.map(item => item.id)))}>전체 선택</button><button type="button" onClick={() => setSelected(new Set())}>선택 해제</button></div></div>
