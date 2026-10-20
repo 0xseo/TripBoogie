@@ -118,3 +118,29 @@ test('long export days continue on multiple pages with every line preserved, inc
   assert.deepEqual(pages.at(-1).at(-1), {date: '2026-11-27', lines: [''], continued: false});
   assert.deepEqual(image.wrapOverviewText('서울 → 😀\n\n다음 날', value => Array.from(value).length, 100), ['서울 → 😀', '', '다음 날']);
 });
+
+
+test('bulk overview import matches individual dates, including empty and duplicate dates, without mutating records', () => {
+  const nextDate = '2026-11-27';
+  const workspace = freeze({records: [flight, arrival, departure, record('memo', 'plan', {date: nextDate, entryType: 'memo', note: '자유시간'}), record('place', 'place', {name: '장소'})]});
+  const before = JSON.stringify(workspace), dates = [date, nextDate, '2026-11-28', date];
+  for (const times of [true, false]) {
+    const bulk = overview.overviewCandidatesByDate(workspace, dates, times);
+    for (const day of dates) assert.deepEqual(bulk.get(day), overview.overviewCandidates(workspace, day, times));
+    assert.deepEqual(bulk.get('2026-11-28'), []);
+  }
+  assert.equal(JSON.stringify(workspace), before);
+});
+
+test('canvas memory is released when PNG encoding fails', async () => {
+  const canvas = {width: 0, height: 0};
+  const context = new Proxy({measureText: value => ({width: value.length * 10})}, {get: (target, key) => key in target ? target[key] : () => {}});
+  canvas.getContext = () => context;
+  canvas.toBlob = callback => callback(null);
+  const previous = globalThis.document;
+  globalThis.document = {fonts: {ready: Promise.resolve()}, createElement: () => canvas};
+  try {
+    await assert.rejects(image.renderOverviewImages('여행', [{date, text: '일정'}]), /이미지를 만들지 못했어요/);
+    assert.equal(canvas.width, 0); assert.equal(canvas.height, 0);
+  } finally { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; }
+});

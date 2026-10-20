@@ -12,7 +12,7 @@ export function wrapOverviewText(text: string, measure: (value: string) => numbe
   const result: string[] = [];
   for (const paragraph of text.replace(/\r\n?/g, "\n").split("\n")) {
     let line = "";
-    for (const character of Array.from(paragraph)) {
+    for (const character of paragraph) {
       if (line && measure(line + character) > maxWidth) { result.push(line); line = ""; }
       line += character;
     }
@@ -50,61 +50,65 @@ export async function renderOverviewImages(title: string, rows: OverviewImageRow
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   if (!context) throw new Error("이 기기에서 이미지를 만들 수 없어요.");
-  context.font = `20px ${fontFamily}`;
-  const pages = paginateOverview(rows, value => context.measureText(value).width);
-  if (pages.length > 40) throw new Error("이미지가 40장을 넘어요. 날짜 범위를 나눠서 저장해 주세요.");
-  const images: OverviewImage[] = [];
-  for (const [index, segments] of pages.entries()) {
-    const height = headerHeight + footerHeight + segments.reduce((sum, row) => sum + row.lines.length * lineHeight + rowPadding, 0);
-    canvas.width = width * scale;
-    canvas.height = height * scale;
-    context.scale(scale, scale);
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, width, height);
-    context.textBaseline = "top";
-    context.fillStyle = "#3a5a40";
-    context.font = `600 16px ${fontFamily}`;
-    context.fillText("TRIPBOOGIE  /  일정 한눈에 보기", padding, 30);
-    context.font = `600 30px ${fontFamily}`;
-    let heading = title;
-    while (context.measureText(heading).width > width - padding * 2 && heading.length > 1) heading = Array.from(heading).slice(0, -2).join("") + "…";
-    context.fillStyle = "#1a1d1e";
-    context.fillText(heading, padding, 65);
-    context.font = `17px ${fontFamily}`;
-    context.fillStyle = "#5e6b63";
-    context.fillText(`${shortDate(rows[0].date)} — ${shortDate(rows[rows.length - 1].date)}  ·  각 장소의 현지 시각`, padding, 110);
-    context.fillStyle = "#edf3eb";
-    context.fillRect(padding, 144, width - padding * 2, 44);
-    context.fillStyle = "#3a5a40";
-    context.font = `600 18px ${fontFamily}`;
-    context.fillText("날짜", padding + 18, 157);
-    context.fillText("일정", padding + dateWidth + 22, 157);
-    let y = headerHeight;
-    for (const segment of segments) {
-      const rowHeight = segment.lines.length * lineHeight + rowPadding;
-      context.fillStyle = "#f8faf7";
-      context.fillRect(padding, y, dateWidth, rowHeight);
+  try {
+    context.font = `20px ${fontFamily}`;
+    const pages = paginateOverview(rows, value => context.measureText(value).width);
+    if (pages.length > 40) throw new Error("이미지가 40장을 넘어요. 날짜 범위를 나눠서 저장해 주세요.");
+    const images: OverviewImage[] = [];
+    for (const [index, segments] of pages.entries()) {
+      const height = headerHeight + footerHeight + segments.reduce((sum, row) => sum + row.lines.length * lineHeight + rowPadding, 0);
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+      context.scale(scale, scale);
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, width, height);
+      context.textBaseline = "top";
       context.fillStyle = "#3a5a40";
-      context.font = `600 20px ${fontFamily}`;
-      context.fillText(shortDate(segment.date), padding + 18, y + 20);
-      if (segment.continued) { context.font = `16px ${fontFamily}`; context.fillText("계속", padding + 18, y + 44); }
+      context.font = `600 16px ${fontFamily}`;
+      context.fillText("TRIPBOOGIE  /  일정 한눈에 보기", padding, 30);
+      context.font = `600 30px ${fontFamily}`;
+      let heading = title;
+      while (context.measureText(heading).width > width - padding * 2 && heading.length > 1) heading = Array.from(heading).slice(0, -2).join("") + "…";
       context.fillStyle = "#1a1d1e";
-      context.font = `20px ${fontFamily}`;
-      segment.lines.forEach((line, i) => context.fillText(line, padding + dateWidth + 22, y + 18 + i * lineHeight));
-      context.strokeStyle = "#dce4d9";
-      context.lineWidth = 1;
-      context.beginPath(); context.moveTo(padding, y + rowHeight); context.lineTo(width - padding, y + rowHeight); context.stroke();
-      y += rowHeight;
+      context.fillText(heading, padding, 65);
+      context.font = `17px ${fontFamily}`;
+      context.fillStyle = "#5e6b63";
+      context.fillText(`${shortDate(rows[0].date)} — ${shortDate(rows[rows.length - 1].date)}  ·  각 장소의 현지 시각`, padding, 110);
+      context.fillStyle = "#edf3eb";
+      context.fillRect(padding, 144, width - padding * 2, 44);
+      context.fillStyle = "#3a5a40";
+      context.font = `600 18px ${fontFamily}`;
+      context.fillText("날짜", padding + 18, 157);
+      context.fillText("일정", padding + dateWidth + 22, 157);
+      let y = headerHeight;
+      for (const segment of segments) {
+        const rowHeight = segment.lines.length * lineHeight + rowPadding;
+        context.fillStyle = "#f8faf7";
+        context.fillRect(padding, y, dateWidth, rowHeight);
+        context.fillStyle = "#3a5a40";
+        context.font = `600 20px ${fontFamily}`;
+        context.fillText(shortDate(segment.date), padding + 18, y + 20);
+        if (segment.continued) { context.font = `16px ${fontFamily}`; context.fillText("계속", padding + 18, y + 44); }
+        context.fillStyle = "#1a1d1e";
+        context.font = `20px ${fontFamily}`;
+        segment.lines.forEach((line, i) => context.fillText(line, padding + dateWidth + 22, y + 18 + i * lineHeight));
+        context.strokeStyle = "#dce4d9";
+        context.lineWidth = 1;
+        context.beginPath(); context.moveTo(padding, y + rowHeight); context.lineTo(width - padding, y + rowHeight); context.stroke();
+        y += rowHeight;
+      }
+      context.fillStyle = "#5e6b63";
+      context.font = `15px ${fontFamily}`;
+      context.fillText("느긋하게, 함께. 트립부기", padding, height - 35);
+      context.textAlign = "right";
+      context.fillText(`${index + 1} / ${pages.length}`, width - padding, height - 35);
+      context.textAlign = "left";
+      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("이미지를 만들지 못했어요. 날짜 범위를 줄여 다시 시도해 주세요.")), "image/png"));
+      images.push({ blob, width: canvas.width, height: canvas.height });
     }
-    context.fillStyle = "#5e6b63";
-    context.font = `15px ${fontFamily}`;
-    context.fillText("느긋하게, 함께. 트립부기", padding, height - 35);
-    context.textAlign = "right";
-    context.fillText(`${index + 1} / ${pages.length}`, width - padding, height - 35);
-    context.textAlign = "left";
-    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("이미지를 만들지 못했어요. 날짜 범위를 줄여 다시 시도해 주세요.")), "image/png"));
-    images.push({ blob, width: canvas.width, height: canvas.height });
+    return images;
+  } finally {
+    // Release the backing bitmap after both successful exports and failed encodes.
+    canvas.width = canvas.height = 0;
   }
-  canvas.width = canvas.height = 0;
-  return images;
 }

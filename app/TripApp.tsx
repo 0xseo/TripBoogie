@@ -2,6 +2,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -11,15 +12,12 @@ import type {MapPlace} from "./server/maps";
 import {tripCountries} from "./trip-destinations";
 import {distanceMeters} from "./route-graph";
 import LaunchScreen from "./components/LaunchScreen";
-import AccountSettings from "./components/AccountSettings";
-import CategorySettings from "./components/CategorySettings";
 import TripSidebar from "./components/TripSidebar";
 import {
   ConfirmationProvider,
   useConfirm,
   useCancelConfirmation,
 } from "./components/Confirmation";
-import Members from "./components/Members";
 import Toast from "./components/Toast";
 import KeyboardFocus from "./components/KeyboardFocus";
 import TripGrid from "./components/TripGrid";
@@ -44,21 +42,16 @@ import NetworkStatus from "./components/NetworkStatus";
 import { ProfileState } from "./profile-state";
 import InstallPrompt from "./components/InstallPrompt";
 import AuthPanel from "./AuthPanel";
-import TripPlan from "./components/TripPlan";
-import TripForm from "./components/TripForm";
 
-import PlanComposer from "./components/PlanComposer";
-import Expenses from "./components/Expenses";
-import Checklist from "./components/Checklist";
-import Bookings from "./components/Bookings";
-import Files, { removeFile, type FileCommand } from "./components/Files";
-import Tools from "./components/Tools";
+import { removeFile, type FileCommand } from "./file-storage";
 import { Dialog, CalendarCountry, text } from "./components/ui";
 import { SearchLanguage } from "./components/SearchLanguage";
 import { profileSearchLanguage } from "./search-language";
 import {travelEstimateKey} from "./route-time";
 import { comparePlans, itineraryDays,placePoint } from "./planning";
 import { WorkspaceMutations } from "./workspace-mutations";
+import { WorkspaceCache, sameWorkspace } from "./workspace-cache";
+import { lazyPanel } from "./components/LazyPanel";
 import { isNativeApp } from "./runtime";
 import {
   isPreparationTab,
@@ -72,7 +65,6 @@ import {
   PreparationTabs,
   WorkspaceTabs,
 } from "./components/TripNavigation";
-import TripSettingsPage from "./components/TripSettingsPage";
 import TripCollectionControls from "./components/TripCollectionControls";
 import PullToRefresh from "./components/PullToRefresh";
 import {
@@ -85,6 +77,20 @@ import {
   type TripFilter,
 } from "./trip-collection";
 
+const AccountSettings = lazyPanel(() => import("./components/AccountSettings"));
+const CategorySettings = lazyPanel(() => import("./components/CategorySettings"));
+const Members = lazyPanel(() => import("./components/Members"));
+const TripPlan = lazyPanel(() => import("./components/TripPlan"));
+const TripForm = lazyPanel(() => import("./components/TripForm"));
+const PlanComposer = lazyPanel(() => import("./components/PlanComposer"));
+const Expenses = lazyPanel(() => import("./components/Expenses"));
+const Checklist = lazyPanel(() => import("./components/Checklist"));
+const Bookings = lazyPanel(() => import("./components/Bookings"));
+const Files = lazyPanel(() => import("./components/Files"));
+const Tools = lazyPanel(() => import("./components/Tools"));
+const TripSettingsPage = lazyPanel(() => import("./components/TripSettingsPage"));
+
+const emptyRecords: ItemRecord[] = [];
 const collectionQuery = "(max-width:960px)";
 function subscribeCollectionLayout(notify: () => void) {
   const media = window.matchMedia(collectionQuery);
@@ -194,7 +200,8 @@ function TripAppContent({
   const wsRef = useRef(workspace),
     identity = useRef<string | null>(initialBootstrap?.user?.id ?? null),
     bootLoaded = useRef(initialBootstrap?.user?.id ?? null),
-    workspaceCache = useRef(new Map<string, Workspace>()),
+    workspaceCache = useRef(new WorkspaceCache(3)),
+    refreshInFlight = useRef<{ tripId: string; userId: string | null; result: Promise<boolean> } | null>(null),
     openRequest = useRef(0),
     mutating = useRef(false),
     mutationQueue = useRef<WorkspaceMutations | null>(null),
@@ -441,31 +448,42 @@ function TripAppContent({
       const current = wsRef.current,
         uid = identity.current;
       if (!current) return false;
-      try {
-        const next = await api<Workspace>(
-          `/api/trips/${current.trip.id}`,
-          {},
-          { background }
-        );
-        if (
-          identity.current === uid &&
-          wsRef.current?.trip.id === next.trip.id &&
-          !mutating.current
-        ) {
-          setWorkspace((w) => {
-            if (w && next.revision >= w.revision) {
-              workspaceCache.current.set(next.trip.id, next);
-              wsRef.current = next;
-              return next;
-            }
-            return w;
-          });
-          return true;
+      const pending = refreshInFlight.current;
+      if (pending?.tripId === current.trip.id && pending.userId === uid)
+        return pending.result;
+      const result = (async () => {
+        try {
+          const next = await api<Workspace>(
+            `/api/trips/${current.trip.id}`,
+            {},
+            { background }
+          );
+          if (
+            identity.current === uid &&
+            wsRef.current?.trip.id === next.trip.id &&
+            !mutating.current
+          ) {
+            setWorkspace((w) => {
+              if (w && next.revision >= w.revision && !sameWorkspace(w, next)) {
+                workspaceCache.current.set(next.trip.id, next);
+                wsRef.current = next;
+                return next;
+              }
+              return w;
+            });
+            return true;
+          }
+          return false;
+        } catch (e) {
+          if (identity.current === uid) fail(e, current.trip.id);
+          return false;
         }
-        return false;
-      } catch (e) {
-        if (identity.current === uid) fail(e, current.trip.id);
-        return false;
+      })();
+      refreshInFlight.current = { tripId: current.trip.id, userId: uid, result };
+      try {
+        return await result;
+      } finally {
+        if (refreshInFlight.current?.result === result) refreshInFlight.current = null;
       }
     },
     [fail]
@@ -823,13 +841,13 @@ function TripAppContent({
       void remove?.();
     };
   }, [accountScreen, activeTripId, tab, busy, atHome]);
-  const records = workspace?.records ?? [],
-    allDays = workspace ? itineraryDays(workspace.trip, records) : [],
-    currentDate = allDays.includes(date) ? date : allDays[0] ?? "",
-    plans = records
+  const records = workspace?.records ?? emptyRecords;
+  const allDays = useMemo(() => workspace ? itineraryDays(workspace.trip, records) : [], [workspace, records]);
+  const currentDate = allDays.includes(date) ? date : allDays[0] ?? "",
+    plans = useMemo(() => records
       .filter((r) => r.kind === "plan" && r.data.date === currentDate)
-      .sort(comparePlans),
-    places = records.filter((r) => r.kind === "place"),
+      .sort(comparePlans), [records, currentDate]),
+    places = useMemo(() => records.filter((r) => r.kind === "place"), [records]),
     readOnly = workspace?.trip.role === "viewer" || busy;
   const myProfile = profile;
   const today = new Date().toLocaleDateString("sv-SE", {
@@ -837,7 +855,7 @@ function TripAppContent({
   });
   const selectedTrip =
     openingTrip ?? workspace?.trip ?? (compactCollection ? null : preferredTrip(trips, today));
-  const visibleTrips = filterTrips(trips, search, tripFilter, sort, today);
+  const visibleTrips = useMemo(() => filterTrips(trips, search, tripFilter, sort, today), [trips, search, tripFilter, sort, today]);
   async function withdrawAccount() {
     await api(
       "/api/account",

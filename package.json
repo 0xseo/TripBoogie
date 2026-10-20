@@ -22,9 +22,12 @@
     "native:ios:build": "node scripts/native-build.mjs ios",
     "native:auth:check": "node scripts/native-auth-config.mjs --check",
     "native:auth:apply": "node scripts/native-auth-config.mjs --apply",
-    "assets:generate": "swift scripts/native-assets.swift",
+    "assets:generate": "swift scripts/native-assets.swift && npm run assets:optimize",
     "test:navigation": "node --test app/navigation.test.mjs",
-    "test:theme": "node --test app/theme.test.mjs"
+    "test:theme": "node --test app/theme.test.mjs",
+    "assets:optimize": "node scripts/optimize-assets.mjs",
+    "test:performance": "node --test app/performance.test.mjs",
+    "benchmark:performance": "node scripts/benchmark-performance.mjs"
   },
   "dependencies": {
     "@capacitor/android": "7.6.9",
@@ -67,7 +70,8 @@
     "typescript": "5.9.3",
     "vinext": "1.0.0-beta.5",
     "vite": "8.0.13",
-    "wrangler": "4.92.0"
+    "wrangler": "4.92.0",
+    "sharp": "0.35.4"
   },
   "type": "module",
   "overrides": {

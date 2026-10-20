@@ -32,20 +32,22 @@ const index = (records as Airport[]).map((airport) => ({
 export function searchAirports(query: string) {
   const q = normalize(query);
   if (q.length < 2 || q.length > 100) return [];
-  return index
-    .flatMap(({ airport, search }) => {
-      const code =
-          q === airport.iata.toLowerCase() || q === airport.icao.toLowerCase(),
-        exact = [airport.name, ...airport.aliases].some(
-          (n) => normalize(n) === q,
-        );
-      return search.includes(q)
-        ? [{ airport, rank: code ? 0 : exact ? 1 : airport.iata ? 2 : 3 }]
-        : [];
-    })
-    .sort(
-      (a, b) => a.rank - b.rank || a.airport.name.localeCompare(b.airport.name),
-    )
-    .slice(0, 8)
-    .map((x) => x.airport);
+  const matches: { airport: Airport; rank: number }[] = [];
+  for (const { airport, search } of index) {
+    // Most airports do not match. Avoid normalizing their names on every keystroke.
+    if (!search.includes(q)) continue;
+    const code = q === airport.iata.toLowerCase() || q === airport.icao.toLowerCase();
+    const exact = code || [airport.name, ...airport.aliases].some(name => normalize(name) === q);
+    const match = { airport, rank: code ? 0 : exact ? 1 : airport.iata ? 2 : 3 };
+    let position = 0;
+    while (position < matches.length &&
+      (matches[position].rank - match.rank || matches[position].airport.name.localeCompare(airport.name)) <= 0)
+      position++;
+    // Only the best eight candidates are retained; ties preserve source order.
+    if (position < 8) {
+      matches.splice(position, 0, match);
+      if (matches.length > 8) matches.pop();
+    }
+  }
+  return matches.map(match => match.airport);
 }

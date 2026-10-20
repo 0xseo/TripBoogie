@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowDownToLine, ArrowRight, Check, FileImage, FolderInput, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import type { Workspace } from "../types";
 import { shortDate } from "../calendar";
-import { emptyOverview, importOverview, overviewCandidates, overviewStorageKey, overviewTextLimit, parseOverview, writeOverviewDay, type OverviewCandidate, type OverviewDraft, type OverviewSeparator } from "../itinerary-overview";
-import { renderOverviewImages, type OverviewImageRow } from "../overview-image";
+import { emptyOverview, importOverview, overviewCandidatesByDate, overviewStorageKey, overviewTextLimit, parseOverview, writeOverviewDay, type OverviewCandidate, type OverviewDraft, type OverviewSeparator } from "../itinerary-overview";
+import type { OverviewImageRow } from "../overview-image";
 import { saveDownload } from "../download";
 import { useConfirm } from "./Confirmation";
 import Dialog from "./Dialog";
@@ -93,14 +93,20 @@ function OverviewEditor({ workspace, days, accountId, disabled = false, initialD
   </section>;
 }
 
+function fitDayCell(node: HTMLTextAreaElement) {
+  node.style.height = "0px";
+  node.style.height = `${Math.max(56, node.scrollHeight)}px`;
+}
+
 function DayCell({ date, value, disabled, onChange, onBlur, onImport }: { date: string; value: string; disabled: boolean; onChange: (value: string) => void; onBlur: () => void; onImport: () => void }) {
   const textarea = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const node = textarea.current; if (!node) return;
-    const fit = () => { node.style.height = "0px"; node.style.height = `${Math.max(56, node.scrollHeight)}px`; };
-    fit();
-    const observer = new ResizeObserver(fit); observer.observe(node.parentElement!);
+    const observer = new ResizeObserver(() => fitDayCell(node)); observer.observe(node.parentElement!);
     return () => observer.disconnect();
+  }, []);
+  useLayoutEffect(() => {
+    if (textarea.current) fitDayCell(textarea.current);
   }, [value]);
   function insert(text: string) {
     const node = textarea.current; if (!node) return;
@@ -127,11 +133,13 @@ function ImportDialog({ workspace, days, draft, onClose, onImport }: { workspace
   const [times, setTimes] = useState(true), [hotels, setHotels] = useState(false);
   const [mode, setMode] = useState<"append" | "replace">("append");
   const [separator, setSeparator] = useState<OverviewSeparator>("\n");
-  const [selected, setSelected] = useState(() => new Set(days.flatMap(date => overviewCandidates(workspace, date).filter(item => !item.hotel && !item.sourceIds.some(id => draft.days[date]?.sourceIds.includes(id))).map(item => item.id))));
+  const candidatesByDate = useMemo(() => overviewCandidatesByDate(workspace, days, times), [workspace, days, times]);
+  const candidates = useMemo(() => [...candidatesByDate.values()].flat(), [candidatesByDate]);
+  const [selected, setSelected] = useState(() => new Set(candidates.filter(item => !item.hotel && !item.sourceIds.some(id => draft.days[item.date]?.sourceIds.includes(id))).map(item => item.id)));
   const [error, setError] = useState("");
   const confirm = useConfirm();
-  const candidates = days.flatMap(date => overviewCandidates(workspace, date, times));
-  const visible = candidates.filter(item => hotels || !item.hotel);
+  const visibleByDate = useMemo(() => new Map([...candidatesByDate].map(([date, items]) => [date, items.filter(item => hotels || !item.hotel)])), [candidatesByDate, hotels]);
+  const visible = [...visibleByDate.values()].flat();
   const chosen = visible.filter(item => selected.has(item.id));
   async function apply() {
     if (mode === "replace" && chosen.some(item => draft.days[item.date]?.text.trim()) && !await confirm("선택한 날짜의 표 내용을 선택한 일정으로 바꿀까요? 직접 적은 내용도 교체되며, 실행 취소로 복원할 수 있어요.", { title: "표 내용 바꾸기", confirmLabel: "바꾸기", intent: "default" })) return;
@@ -149,7 +157,7 @@ function ImportDialog({ workspace, days, draft, onClose, onImport }: { workspace
       <div className={styles.selectionBar}><span>{chosen.length}개 선택</span><div><button type="button" onClick={() => setSelected(new Set(visible.map(item => item.id)))}>전체 선택</button><button type="button" onClick={() => setSelected(new Set())}>선택 해제</button></div></div>
       <div className={styles.candidates}>
         {!visible.length && <p className={styles.empty}>불러올 일정이 없어요. 표에 직접 입력하거나 숙소 포함을 선택해 주세요.</p>}
-        {days.map(date => { const items = visible.filter(item => item.date === date); return !!items.length && <fieldset key={date}><legend>{shortDate(date)}</legend>{items.map(item => <label className={styles.candidate} key={item.id}><input type="checkbox" checked={selected.has(item.id)} onChange={event => setSelected(current => { const next = new Set(current); if (event.target.checked) next.add(item.id); else next.delete(item.id); return next; })} /><span>{item.text}{item.sourceIds.some(id => draft.days[date]?.sourceIds.includes(id)) && <small>이전에 불러온 항목</small>}</span></label>)}</fieldset>; })}
+        {days.map(date => { const items = visibleByDate.get(date) ?? []; return !!items.length && <fieldset key={date}><legend>{shortDate(date)}</legend>{items.map(item => <label className={styles.candidate} key={item.id}><input type="checkbox" checked={selected.has(item.id)} onChange={event => setSelected(current => { const next = new Set(current); if (event.target.checked) next.add(item.id); else next.delete(item.id); return next; })} /><span>{item.text}{item.sourceIds.some(id => draft.days[date]?.sourceIds.includes(id)) && <small>이전에 불러온 항목</small>}</span></label>)}</fieldset>; })}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className={styles.dialogActions}><button type="button" className="secondary" onClick={onClose}>취소</button><button type="button" className="primary" disabled={!chosen.length} onClick={() => void apply()}><FolderInput size={17} />{chosen.length}개 불러오기</button></div>
@@ -168,6 +176,8 @@ function ExportDialog({ title, rows, onClose }: { title: string; rows: OverviewI
   async function generate() {
     setBusy(true); setError("");
     try {
+      const { renderOverviewImages } = await import("../overview-image");
+      if (!active.current) return;
       const result = await renderOverviewImages(title, rows.filter(row => row.date >= start && row.date <= end));
       if (active.current) setImages(result.map(image => ({ ...image, url: URL.createObjectURL(image.blob) })));
     } catch (cause) { if (active.current) setError((cause as Error).message); }

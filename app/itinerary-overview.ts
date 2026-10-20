@@ -52,9 +52,21 @@ export function overviewDuration(value: unknown) {
   return ` (${[hours ? `${hours}시간` : "", minutes ? `${minutes}분` : ""].filter(Boolean).join(" ")})`;
 }
 
+/** Index records once when importing a whole trip instead of scanning them for every date. */
+export function overviewCandidatesByDate(workspace: Workspace, dates: readonly string[], times = true) {
+  const bookings = new Map<string, ItemRecord>();
+  const grouped = new Map(dates.map(date => [date, [] as ItemRecord[]]));
+  for (const record of workspace.records) {
+    if (record.kind === "booking") bookings.set(record.id, record);
+    else if (record.kind === "plan") grouped.get(string(record.data.date))?.push(record);
+  }
+  return new Map([...grouped].map(([date, plans]) =>
+    [date, candidatesForPlans(bookings, plans.sort(comparePlans), date, times)]));
+}
 export function overviewCandidates(workspace: Workspace, date: string, times = true): OverviewCandidate[] {
-  const bookings = new Map(workspace.records.filter(r => r.kind === "booking").map(r => [r.id, r]));
-  const plans = workspace.records.filter(r => r.kind === "plan" && r.data.date === date).sort(comparePlans);
+  return overviewCandidatesByDate(workspace, [date], times).get(date) ?? [];
+}
+function candidatesForPlans(bookings: Map<string, ItemRecord>, plans: ItemRecord[], date: string, times: boolean): OverviewCandidate[] {
   const consumed = new Set<string>();
   const result: OverviewCandidate[] = [];
   for (const [index, plan] of plans.entries()) {
@@ -86,7 +98,11 @@ export function overviewCandidates(workspace: Workspace, date: string, times = t
 /** Whole-trip imports are atomic: an overlong row leaves every previous row intact. */
 export function importOverview(draft: OverviewDraft, candidates: OverviewCandidate[], mode: "append" | "replace", separator: OverviewSeparator = "\n"): OverviewDraft {
   const grouped = new Map<string, OverviewCandidate[]>();
-  for (const candidate of candidates) grouped.set(candidate.date, [...(grouped.get(candidate.date) ?? []), candidate]);
+  for (const candidate of candidates) {
+    const group = grouped.get(candidate.date);
+    if (group) group.push(candidate);
+    else grouped.set(candidate.date, [candidate]);
+  }
   const days = { ...draft.days };
   for (const [date, items] of grouped) {
     const existing = draft.days[date];

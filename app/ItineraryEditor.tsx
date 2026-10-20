@@ -10,7 +10,7 @@ import {connectionEstimateKey,savedTravelMinutes,type SaveTravelTime} from "./ro
 import BookingIcon from "./components/BookingIcon";
 import { PlaceMedia } from "./components/Media";
 import SortHandle from "./components/SortHandle";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
   Pencil,
@@ -294,7 +294,21 @@ export default function ItineraryEditor({
     [actionError, setActionError] = useState(""),
     [acting, setActing] = useState(false),
     [advanced, setAdvanced] = useState(false);
-  const selection = selected.filter((id) => plans.some((p) => p.id === id));
+  const rows = useMemo(() => {
+    const bookings = new Map(workspace.records.filter(r => r.kind === "booking").map(r => [r.id, r]));
+    const placeById = new Map(places.map(r => [r.id, r]));
+    const connectionById = new Map(connections.map(c => [c.to.id, c]));
+    let number = 0;
+    return plans.map(r => {
+      const memo = r.data.entryType === "memo", booking = bookings.get(String(r.data.bookingId));
+      if (!memo) number++;
+      return { r, memo, booking, number, title: itineraryTitle(r, booking),
+        flightDuration: flightDurationLabel(booking ? flightDurationMinutes(booking.data) : null),
+        place: placeById.get(String(r.data.placeId)), connection: connectionById.get(r.id) };
+    });
+  }, [workspace.records, places, connections, plans]);
+  const planIds = useMemo(() => new Set(plans.map(plan => plan.id)), [plans]);
+  const selection = selected.filter(id => planIds.has(id));
   async function command(
     operation: string,
     ids = selection,
@@ -324,7 +338,6 @@ export default function ItineraryEditor({
     setActionError("");
     setDestination({ operation, ids, title, revision: workspace.revision });
   }
-  let number = 0;
   return (
     <section className="itinerary">
       <FeatureToolbar
@@ -417,14 +430,7 @@ export default function ItineraryEditor({
         </div>
       )}
       <div className={`timeline ${advanced ? "editing-timeline" : ""}`}>
-        {plans.map((r) => {
-          const memo = r.data.entryType === "memo",
-            booking = workspace.records.find((b) => b.kind === "booking" && b.id === r.data.bookingId),
-            title = itineraryTitle(r, booking),
-            flightDuration = flightDurationLabel(booking ? flightDurationMinutes(booking.data) : null),
-            place = places.find((p) => p.id === r.data.placeId),
-            connection = connections.find((c) => c.to.id === r.id);
-          if (!memo) number++;
+        {rows.map(({ r, memo, booking, title, flightDuration, place, connection, number }) => {
           if (advanced)
             return (
               <article

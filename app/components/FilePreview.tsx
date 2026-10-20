@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { pdfBrowserError } from "../pdf-preview-support";
 import { getSupabaseClient } from "../client-api";
-import { readDocumentPreview, type DocumentPreview } from "../document-preview";
+import type { DocumentPreview } from "../document-preview";
 import type { TripFile } from "../types";
 import { Dialog } from "./ui";
 import type { PDFDocumentProxy } from "pdfjs-dist";
@@ -162,6 +162,7 @@ export default function FilePreview({
         const unsupported = pdfBrowserError(navigator.userAgent);
         if (unsupported) throw new Error(unsupported);
         const lib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+        if (!active) return;
         lib.GlobalWorkerOptions.workerSrc = "/pdfjs/pdf.worker.min.js";
         const request = lib.getDocument({
           data: new Uint8Array(await blob.arrayBuffer()),
@@ -195,6 +196,8 @@ export default function FilePreview({
         if (active) setState({ pdf });
         else await request.destroy();
       } else if (["docx", "xlsx", "txt"].includes(extension)) {
+        const { readDocumentPreview } = await import("../document-preview");
+        if (!active) return;
         const document = readDocumentPreview(
           new Uint8Array(await blob.arrayBuffer()),
           extension,

@@ -30,25 +30,13 @@ import { useConfirm } from "./Confirmation";
 import { Empty } from "./ui";
 import ChoiceField from "./ChoiceField";
 import FileTagPicker from "./FileTagPicker";
-import FilePreview from "./FilePreview";
+import { lazyPanel } from "./LazyPanel";
 import AddButton from "./AddButton";
 import FeatureToolbar from "./FeatureToolbar";
+import { removeFile, type FileCommand } from "../file-storage";
+export { removeFile, type FileCommand } from "../file-storage";
+const FilePreview = lazyPanel(() => import("./FilePreview"));
 const bucket = "tripboogie-private";
-export type FileCommand = (
-  op: string,
-  payload: Record<string, unknown>,
-) => Promise<{ file: TripFile | null; workspace: Workspace }>;
-export async function removeFile(file: TripFile, command: FileCommand) {
-  const client = await getSupabaseClient();
-  if (!client) throw new Error("로그인을 확인해 주세요.");
-  await command("mark-file-delete", { id: file.id });
-  const { error } = await client.storage.from(bucket).remove([file.path]);
-  if (error)
-    throw new Error(
-      "파일을 지우지 못했어요. 예약에서 삭제를 다시 시도해 주세요.",
-    );
-  return command("finish-file-delete", { id: file.id });
-}
 export default function Files({
   workspace,
   bookingId,

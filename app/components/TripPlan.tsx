@@ -6,7 +6,7 @@ import ItineraryTitle from "./ItineraryTitle";
 import type {SaveTravelTime} from "../route-time";
 import BookingIcon from "./BookingIcon";
 import {Pencil} from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Maximize2,
   Plus,
@@ -24,9 +24,11 @@ import ResizableMap from "./ResizableMap";
 import ItineraryEditor from "../ItineraryEditor";
 import { Dialog, text } from "./ui";
 import WeekDays from "./WeekDays";
-import TripOverview from "./TripOverview";
+import { lazyPanel } from "./LazyPanel";
 import type { OverviewDraft } from "../itinerary-overview";
 import overviewStyles from "./TripOverview.module.css";
+
+const TripOverview = lazyPanel(() => import("./TripOverview"));
 
 export default function TripPlan(props: Parameters<typeof DailyTripPlan>[0] & { accountId: string; initialView?: "map" | "overview"; initialOverview?: OverviewDraft }) {
   const [view, setView] = useState(props.initialView ?? "map");
@@ -86,11 +88,17 @@ function DailyTripPlan({
     const frame = requestAnimationFrame(() => document.getElementById(`plan-${selected}`)?.scrollIntoView({ block: "center" }));
     return () => cancelAnimationFrame(frame);
   }, [selected, date]);
-  const graph = dayGraph(plans, places);
-  graph.points = graph.points.map(point => {
-    const plan = plans.find(plan=>plan.id===point.planId);
-    return plan ? {...point, name: itineraryTitle(plan, workspace.records.find(booking=>booking.id===plan.data.bookingId))} : point;
-  });
+  const bookings = useMemo(() => workspace.records.filter(r => r.kind === "booking"), [workspace.records]);
+  const graph = useMemo(() => {
+    const result = dayGraph(plans, places);
+    const planById = new Map(plans.map(plan => [plan.id, plan]));
+    const recordById = new Map(workspace.records.map(record => [record.id, record]));
+    result.points = result.points.map(point => {
+      const plan = planById.get(point.planId);
+      return plan ? { ...point, name: itineraryTitle(plan, recordById.get(String(plan.data.bookingId))) } : point;
+    });
+    return result;
+  }, [plans, places, workspace.records]);
   function select(id: string) {
     onSelected(id);
     const row = document.getElementById(`plan-${id}`);
@@ -171,7 +179,7 @@ function DailyTripPlan({
               label="전체 일정 지도"
             />
             <MapCards
-              bookings={workspace.records.filter(r=>r.kind === "booking")}
+              bookings={bookings}
               onBooking={id=>{setExpanded(false);onBooking(id);}}
               key={date}
               plans={plans}
@@ -222,6 +230,17 @@ function MapCards({
   const ref = useRef<HTMLDivElement>(null),
     programmatic = useRef(false),
     timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cards = useMemo(() => {
+    const placeById = new Map(places.map(place => [place.id, place]));
+    const bookingById = new Map(bookings.map(booking => [booking.id, booking]));
+    let number = 0;
+    return plans.map(r => {
+      const booking = bookingById.get(String(r.data.bookingId));
+      if (r.data.entryType !== "memo") number++;
+      return { r, number, place: placeById.get(String(r.data.placeId)), booking,
+        title: itineraryTitle(r, booking), flightDuration: flightDurationLabel(booking ? flightDurationMinutes(booking.data) : null) };
+    });
+  }, [plans, places, bookings]);
   const active = plans.findIndex((r) => r.id === selected),
     index = active < 0 ? 0 : active;
   useEffect(() => {
@@ -357,8 +376,7 @@ function MapCards({
           }, 70);
         }}
       >
-        {plans.map((r, i) => {
-          const place = places.find((p) => p.id === r.data.placeId), booking = bookings.find(b=>b.id===r.data.bookingId), title = itineraryTitle(r, booking), flightDuration = flightDurationLabel(booking ? flightDurationMinutes(booking.data) : null);
+        {cards.map(({ r, place, booking, title, flightDuration, number }, i) => {
           return (
             <article
               className="map-schedule-card"
@@ -390,9 +408,7 @@ function MapCards({
                   {r.data.entryType === "memo" ? (
                     <StickyNote size={15} />
                   ) : (
-                    plans
-                      .slice(0, i + 1)
-                      .filter((p) => p.data.entryType !== "memo").length
+                    number
                   )}
                 </span>
                 {r.data.entryType === "memo" ? (

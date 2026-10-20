@@ -34,7 +34,8 @@ export function distanceOrder(plans:ItemRecord[],places:ItemRecord[]) {
     const a=Math.sin((p.lat-origin.lat)*radians/2)**2+Math.cos(origin.lat*radians)*Math.cos(p.lat*radians)*Math.sin((p.lng-origin.lng)*radians/2)**2;
     return 2*Math.asin(Math.min(1,Math.sqrt(a)));
   };
-  const ordered=[located[0],...located.slice(1).sort((a,b)=>distance(a)-distance(b)||comparePlans(a,b))];
+  const distances = new Map(located.map(plan => [plan.id, distance(plan)]));
+  const ordered=[located[0],...located.slice(1).sort((a,b)=>distances.get(a.id)!-distances.get(b.id)!||comparePlans(a,b))];
   let cursor=0;return plans.map(p=>placePoint(lookup.get(String(p.data.placeId)))?ordered[cursor++].id:p.id);
 }
 
