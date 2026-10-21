@@ -30,6 +30,7 @@ jobs:
       - name: Verify source
         run: |
           node --test app/*.test.mjs native/native.test.mjs
+          npx next typegen
           npx tsc --noEmit
           npm run lint
       - name: Restore verified release APK
