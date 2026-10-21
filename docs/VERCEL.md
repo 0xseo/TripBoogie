@@ -78,3 +78,5 @@ JSON 직렬화와 Content-Type 설정을 client-api의 jsonRequest에 모으고 
 환율·날씨·공휴일은 같은 `map-budget`을 쓰고 있어 지도 요청 직후 250ms 제한에 걸리거나 지도 안내를 출력했다. `tool-budget` RPC를 추가해 세 제공자와 지도 제한을 분리했다. 새 제공자 제한은 각 서비스 전역 초당 4회 버스트, 계정당 분당 30회다. 기존 지도 제한은 그대로 유지한다. 외부 환율 서비스 연결 실패·HTTP 오류도 환율 전용 문구를 출력한다.
 
 운영 마이그레이션 `20261021071039_separate_travel_tool_budgets` 적용. 실제 운영 RPC에서 세 서비스 통과를 롤백 트랜잭션으로 검사했고, 익명·authenticated의 내부 함수 직접 실행 권한 차단을 확인했다. 여행·예약·요약표 내용은 변경하지 않았다. 보안 권고는 기존 private 테이블의 정책 없음 INFO 2건과 기존 유출 암호 보호 WARN만 남았다.
+
+최종 0.2.1/build 28 배포: dpl_Fd96sVzuFAM5q5hh6auSCnCK71KN READY. 운영 홈 200, 로컬 미리보기 404, 앱 Origin의 설정 조회 200/CORS 정상. 실제 공개 APK 14606201 bytes, SHA-256 be38b7218e1227d5e82d913a76c10e42786d2ec21700b66619bf3955590eb681 검증. Android 14에서 갤러리·공유창 분리, 흐림 효과, 키보드 검사를 완료했고 iOS build 28 시뮬레이터 빌드도 성공했다.
