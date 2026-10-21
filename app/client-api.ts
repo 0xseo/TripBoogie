@@ -1,5 +1,5 @@
 "use client";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, isAuthRetryableFetchError, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { apiUrl, isNativeApp } from "./runtime";
 import {
@@ -14,7 +14,7 @@ export interface AuthConfig {
 let configPromise: Promise<AuthConfig> | undefined;
 let clientPromise: Promise<SupabaseClient | null> | undefined;
 export function getAuthConfig(): Promise<AuthConfig> {
-  return (configPromise ??= fetch(apiUrl("/api/auth-config"), {
+  return (configPromise ??= fetchResponse(apiUrl("/api/auth-config"), {
     cache: "no-store",
   })
     .then(async (r) => {
@@ -66,6 +66,21 @@ export class ApiError extends Error {
     super(message);
   }
 }
+const connectionError = () => new ApiError(
+  "서버에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.",
+  0,
+  { code: "NETWORK_UNAVAILABLE" }
+);
+export function isTemporaryApiError(error: unknown): boolean {
+  return error instanceof ApiError && [0, 502, 503, 504].includes(error.status);
+}
+async function fetchResponse(url: string, init: RequestInit): Promise<Response> {
+  try { return await fetch(url, init); }
+  catch (error) {
+    if (init.signal?.aborted || (error as {name?:string})?.name === "AbortError") throw error;
+    throw connectionError();
+  }
+}
 /** Own JSON serialization and headers together, including empty command payloads. */
 export function jsonRequest(
   data: unknown = {},
@@ -94,11 +109,14 @@ async function performApiFetch<T>(
   const client = await getSupabaseClient();
   if (client) {
     const { data, error } = await client.auth.getSession();
-    if (error) throw new ApiError("로그인을 다시 확인해 주세요.", 401);
+    if (error) {
+      if (isAuthRetryableFetchError(error)) throw connectionError();
+      throw new ApiError("로그인을 다시 확인해 주세요.", 401);
+    }
     if (data.session)
       headers.set("Authorization", `Bearer ${data.session.access_token}`);
   }
-  const response = await fetch(apiUrl(path), {
+  const response = await fetchResponse(apiUrl(path), {
     ...init,
     headers,
     cache: "no-store",
@@ -107,7 +125,13 @@ async function performApiFetch<T>(
     conditional.receiveEtag(response.headers.get("ETag"));
     if (response.status === 304) return undefined;
   }
-  const payload: unknown = await response.json().catch(() => ({}));
+  let payload: unknown;
+  try { payload = await response.json(); }
+  catch (error) {
+    if (init.signal?.aborted || (error as {name?:string})?.name === "AbortError") throw error;
+    if (response.ok) throw new ApiError("서버 응답을 끝까지 받지 못했어요. 다시 시도해 주세요.", 502);
+    payload = {};
+  }
   if (!response.ok) {
     const parsed = z
       .object({

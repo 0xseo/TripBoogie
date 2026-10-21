@@ -35,6 +35,7 @@ import type {
 import {
   apiFetch as api,
   jsonRequest,
+  isTemporaryApiError,
   getSupabaseClient,
   signOut,
 } from "./client-api";
@@ -165,6 +166,7 @@ function TripAppContent({
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState(""),
     [error, setError] = useState(""),
+    [syncIssue, setSyncIssue] = useState<{tripId:string; userId:string|null} | null>(null),
     [search, setSearch] = useState(""),
     [selected, setSelected] = useState(""),
     [bookingFocus, setBookingFocus] = useState(""),
@@ -233,6 +235,7 @@ function TripAppContent({
         setModal(null);
         setAccountScreen(null);
         setError("");
+        setSyncIssue(null);
       }
       setUser(next);
     },
@@ -470,12 +473,17 @@ function TripAppContent({
               receiveEtag: value => { etag = value; },
             } }
           );
-          if (!next) return identity.current === uid && wsRef.current?.trip.id === current.trip.id;
+          if (!next) {
+            const sameTrip = identity.current === uid && wsRef.current?.trip.id === current.trip.id;
+            if (sameTrip) setSyncIssue(null);
+            return sameTrip;
+          }
           if (
             identity.current === uid &&
             wsRef.current?.trip.id === next.trip.id &&
             !mutating.current
           ) {
+            setSyncIssue(null);
             setWorkspace((w) => {
               if (w && next.revision >= w.revision) {
                 const accepted = reconcileWorkspace(w, next);
@@ -490,7 +498,11 @@ function TripAppContent({
           }
           return false;
         } catch (e) {
-          if (identity.current === uid) fail(e, current.trip.id);
+          if (identity.current === uid && wsRef.current?.trip.id === current.trip.id) {
+            if (background && isTemporaryApiError(e)) {
+              setSyncIssue(previous => previous?.tripId === current.trip.id && previous.userId === uid ? previous : {tripId:current.trip.id,userId:uid});
+            } else fail(e, current.trip.id);
+          }
           return false;
         }
       })();
@@ -527,11 +539,22 @@ function TripAppContent({
   }, [refresh, loadList, atHome, accountScreen, userId, changeUser, setProfile, fail]);
   useEffect(() => {
     if (!workspace?.trip.id || atHome || modal || busy) return;
-    const timer = setInterval(() => {
+    const synchronize = () => {
       if (document.visibilityState === "visible" && !mutating.current)
         void refresh(true);
-    }, tab === "plan" && planView === "overview" ? 3000 : 8000);
-    return () => clearInterval(timer);
+    };
+    const timer = setInterval(synchronize, tab === "plan" && planView === "overview" ? 3000 : 8000);
+    window.addEventListener("online", synchronize);
+    window.addEventListener("focus", synchronize);
+    window.addEventListener("tripboogie:foreground", synchronize);
+    document.addEventListener("visibilitychange", synchronize);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("online", synchronize);
+      window.removeEventListener("focus", synchronize);
+      window.removeEventListener("tripboogie:foreground", synchronize);
+      document.removeEventListener("visibilitychange", synchronize);
+    };
   }, [workspace?.trip.id, atHome, modal, busy, refresh, tab, planView]);
   useEffect(() => {
     if (!notice) return;
@@ -1048,6 +1071,12 @@ function TripAppContent({
                 >
                   ×
                 </button>
+              </div>
+            )}
+            {!error && !atHome && !accountScreen && syncIssue && syncIssue.tripId === workspace?.trip.id && syncIssue.userId === userId && (
+              <div className="global-error" role="status">
+                <span>연결이 불안정해요. 연결되면 자동으로 다시 동기화해요.</span>
+                <button onClick={() => void refresh(true)}><RefreshCw size={17}/>다시 연결</button>
               </div>
             )}
             <PullToRefresh
