@@ -7,6 +7,7 @@ public class MainActivity extends BridgeActivity {
     @Override public void onCreate(android.os.Bundle state) {
         SplashScreen.installSplashScreen(this);
         registerPlugin(TripBoogieAuthPlugin.class);
+        registerPlugin(TripBoogieImagesPlugin.class);
         super.onCreate(state);
         KeyboardInsets.attach(this, getBridge().getWebView());
     }

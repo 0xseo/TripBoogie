@@ -128,6 +128,9 @@ export class TripRepository {
   mapBudget(): Promise<{ ok: true }> {
     return this.rpc("map-budget");
   }
+  toolBudget(service: "rate" | "weather" | "holidays"): Promise<{ ok: true }> {
+    return this.rpc("tool-budget", null, { service });
+  }
   list(): Promise<Trip[]> {
     return this.rpc("list");
   }

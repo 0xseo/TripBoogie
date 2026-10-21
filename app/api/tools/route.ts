@@ -7,11 +7,11 @@ export const maxDuration = 30;
 export async function POST(request: Request) {
   return createToolsHandler({
     resolveUser: resolveRequestUser,
-    budget: (r) =>
+    budget: (r, service) =>
       new TripRepository({
         url: process.env.SUPABASE_URL ?? "",
         publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY ?? "",
         authorization: r.headers.get("authorization") ?? "",
-      }).mapBudget(),
+      }).toolBudget(service),
   })(request);
 }

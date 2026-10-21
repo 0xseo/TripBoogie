@@ -1,6 +1,6 @@
 import type { ItemRecord, Workspace, OverviewRow, OverviewChange } from "./types";
 import { comparePlans } from "./planning";
-import { airportLabel } from "./booking-display";
+import { airportCode, airportLabel } from "./booking-display";
 import { memoText } from "./memo";
 
 export const overviewTextLimit = 10000;
@@ -60,6 +60,18 @@ export function writeOverviewDay(draft: OverviewDraft, date: string, text: strin
 const string = (value: unknown) => typeof value === "string" ? value : "";
 const clock = (plan: ItemRecord, times: boolean) => times && string(plan.data.time) ? `${plan.data.time} ` : "";
 const customTitle = (plan: ItemRecord) => Array.isArray(plan.data.bookingOverrides) ? plan.data.bookingOverrides.includes("title") : plan.data.bookingManaged === false;
+function customFlightTitle(plan: ItemRecord, booking: ItemRecord) {
+  if (!customTitle(plan)) return false;
+  const departure = plan.data.bookingEvent === "departure";
+  const airport = departure ? booking.data.departureAirport : booking.data.arrivalAirport;
+  const fallback = departure ? booking.data.departure : booking.data.arrival;
+  const suffix = departure ? "출발" : "도착";
+  const title = string(plan.data.title).trim();
+  // Older imported default airport titles can carry a title override flag.
+  // Recognize only exact defaults; descriptive handwritten titles stay intact.
+  return ![airportCode(airport, fallback), airportLabel(airport, fallback)].filter(Boolean)
+    .some(label => title === `${label} · ${suffix}` || title === `${label} ${suffix}`);
+}
 
 export function overviewDuration(value: unknown) {
   if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) return "";
@@ -82,9 +94,26 @@ export function overviewCandidates(workspace: Workspace, date: string, times = t
   return overviewCandidatesByDate(workspace, [date], times).get(date) ?? [];
 }
 function candidatesForPlans(bookings: Map<string, ItemRecord>, plans: ItemRecord[], date: string, times: boolean): OverviewCandidate[] {
+  const events = new Map<string, { departures: ItemRecord[]; arrivals: ItemRecord[] }>();
+  for (const plan of plans) {
+    const bookingId = string(plan.data.bookingId), event = plan.data.bookingEvent;
+    if (bookings.get(bookingId)?.data.type !== "flight" || plan.data.entryType === "memo" || !["departure", "arrival"].includes(string(event))) continue;
+    const group = events.get(bookingId) ?? { departures: [], arrivals: [] };
+    (event === "departure" ? group.departures : group.arrivals).push(plan);
+    events.set(bookingId, group);
+  }
+  const pairs = new Map<string, ItemRecord>();
   const consumed = new Set<string>();
+  // Pair by flight and date, independently of itinerary order. Ambiguous or
+  // handwritten events remain separate so no source wording is discarded.
+  for (const [bookingId, { departures, arrivals }] of events) {
+    const booking = bookings.get(bookingId)!;
+    if (departures.length !== 1 || arrivals.length !== 1 || customFlightTitle(departures[0], booking) || customFlightTitle(arrivals[0], booking)) continue;
+    pairs.set(departures[0].id, arrivals[0]);
+    consumed.add(arrivals[0].id);
+  }
   const result: OverviewCandidate[] = [];
-  for (const [index, plan] of plans.entries()) {
+  for (const plan of plans) {
     if (consumed.has(plan.id)) continue;
     const booking = bookings.get(string(plan.data.bookingId));
     const hotel = booking?.data.type === "hotel";
@@ -93,17 +122,16 @@ function candidatesForPlans(bookings: Map<string, ItemRecord>, plans: ItemRecord
     let text = `${clock(plan, times)}${string(plan.data.title)}${duration}`;
     if (plan.data.entryType === "memo") text = memoText(plan.data);
     else if (booking?.data.type === "flight" && ["departure", "arrival"].includes(string(plan.data.bookingEvent))) {
-      const overridden = customTitle(plan);
-      const next = plans[index + 1];
-      const pair = !overridden && plan.data.bookingEvent === "departure" && next?.data.bookingId === booking.id && next.data.bookingEvent === "arrival" && !customTitle(next);
-      if (pair) {
-        consumed.add(next.id);
+      const overridden = customFlightTitle(plan, booking);
+      const next = pairs.get(plan.id);
+      if (next) {
         sourceIds.push(next.id);
         text = `${clock(plan, times)}${airportLabel(booking.data.departureAirport, booking.data.departure)}${duration} → ${clock(next, times)}${airportLabel(booking.data.arrivalAirport, booking.data.arrival)}${overviewDuration(next.data.duration)}`;
       } else if (!overridden) {
         const departure = plan.data.bookingEvent === "departure";
         text = `${clock(plan, times)}${airportLabel(departure ? booking.data.departureAirport : booking.data.arrivalAirport, departure ? booking.data.departure : booking.data.arrival)} ${departure ? "출발" : "도착"}${duration}`;
       }
+      text = `✈ ${text}`;
     }
     result.push({ id: plan.id, date, text: hotel ? `숙소: ${text}` : text, sourceIds, hotel });
   }

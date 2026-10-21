@@ -127,10 +127,10 @@ public class FormKeyboardTest {
             pull(scenario,"touchend",130);expect(scenario,"!document.querySelector('.pull-indicator')&&window.keyboardFixture.refreshes===0");
             pull(scenario,"touchstart",100);pull(scenario,"touchmove",210);expect(scenario,"document.querySelector('.pull-indicator')?.textContent==='놓으면 새로고침'");SystemClock.sleep(500);System.out.println("PULL_INDICATOR_LAYOUT "+js(scenario,"(()=>{const e=document.querySelector('.pull-indicator'),r=e.getBoundingClientRect(),s=getComputedStyle(e);return JSON.stringify({x:r.x,y:r.y,width:r.width,height:r.height,translate:s.translate,transform:s.transform,opacity:s.opacity,visibility:s.visibility,z:s.zIndex,color:s.color,background:s.backgroundColor,dialogs:document.querySelectorAll('dialog[open]').length})})()"));screenshot("pull-ready");pull(scenario,"touchend",210);pull(scenario,"touchend",210);
             expect(scenario,"window.keyboardFixture.refreshes===1&&!!document.querySelector('body>.refresh-overlay')&&document.querySelector('main').inert");
-            expect(scenario,"(()=>{const e=document.querySelector('.refresh-overlay'),r=document.querySelector('.refresh-loader').getBoundingClientRect();return Math.abs(r.x+r.width/2-innerWidth/2)<2&&Math.abs(r.y+r.height/2-innerHeight/2)<2&&getComputedStyle(e).backgroundColor==='rgb(255, 255, 255)'&&document.elementFromPoint(innerWidth-20,innerHeight-100)===e})()");screenshot("refresh-centered");
+            expect(scenario,"(()=>{const e=document.querySelector('.refresh-overlay'),r=document.querySelector('.refresh-loader').getBoundingClientRect(),s=getComputedStyle(e);return Math.abs(r.x+r.width/2-innerWidth/2)<2&&Math.abs(r.y+r.height/2-innerHeight/2)<2&&s.backgroundColor!=='rgb(255, 255, 255)'&&s.backdropFilter.includes('blur')&&document.elementFromPoint(innerWidth-20,innerHeight-100)===e})()");screenshot("refresh-centered");
             js(scenario,"window.keyboardFixture.finishRefresh();true");expect(scenario,"!document.querySelector('.refresh-overlay')&&!document.querySelector('main').inert&&document.body.style.overflow!==\"hidden\"");
             pull(scenario,"touchstart",100);pull(scenario,"touchmove",210);pull(scenario,"touchend",210);expect(scenario,"window.keyboardFixture.refreshes===2");js(scenario,"window.keyboardFixture.finishRefresh(true);true");expect(scenario,"!document.querySelector('.refresh-overlay')&&!document.querySelector('main').inert");
-            System.out.println("RESERVATION_REFRESH_UI_PASS linkedTourNotice=true hotelPlaceOnly=true multiHotel=true linkedBookingPreserved=true pullFeedback=true centeredOpaqueLoading=true refreshCleanup=true");
+            System.out.println("RESERVATION_REFRESH_UI_PASS linkedTourNotice=true hotelPlaceOnly=true multiHotel=true linkedBookingPreserved=true pullFeedback=true centeredBlurLoading=true refreshCleanup=true");
         }
     }
     @Test public void allFormInputsClearKeyboardAndStickyActions() throws Exception {
@@ -326,6 +326,33 @@ public class FormKeyboardTest {
                 assertEquals(200,read.getInt("status"));assertEquals("cors",read.getString("type"));assertTrue(read.getBoolean("config"));
             }
             assertEquals(401,result.getInt("deniedStatus"));
+        }
+    }
+
+    @Test public void overviewImagesSaveToGalleryAndShareSeparately() throws Exception {
+        try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
+            loadFixture(scenario);show(scenario,"overview");click(scenario,"이미지 저장");
+            long start=SystemClock.elapsedRealtime();click(scenario,"이미지 미리보기");
+            expect(scenario,"document.querySelectorAll('dialog[open] figure img').length>=2");
+            long initial=SystemClock.elapsedRealtime()-start;
+            expect(scenario,"[...document.querySelectorAll('dialog[open] button')].some(e=>e.textContent.trim()==='공유')");
+            screenshot("overview-export-actions");
+            int[] before={0},after={0};String selection="relative_path=? and _display_name like ?";String[] args={"Pictures/TripBoogie/","키보드 검증 여행_%"};
+            scenario.onActivity(a->{try(android.database.Cursor c=a.getContentResolver().query(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,new String[]{"_id"},selection,args,null)){before[0]=c.getCount();}});
+            js(scenario,"[...document.querySelectorAll('dialog[open] button')].find(e=>e.textContent.includes('장 기기에 저장')).click();true");
+            expect(scenario,"!!document.querySelector('dialog[open] [role=status]')?.textContent.includes('사진에 저장했어요')");
+            scenario.onActivity(a->{try(android.database.Cursor c=a.getContentResolver().query(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,new String[]{"_id","is_pending"},selection,args,null)){after[0]=c.getCount();while(c.moveToNext())assertEquals(0,c.getInt(1));}});
+            int pages=Integer.parseInt(js(scenario,"document.querySelectorAll('dialog[open] figure img').length"));assertEquals(pages,after[0]-before[0]);
+            // Saving completed inside the app without launching the share chooser.
+            expect(scenario,"document.hasFocus()&&!!document.querySelector('dialog[open]')");
+            click(scenario,"공유");SystemClock.sleep(800);
+            assertTrue("Share chooser must open",InstrumentationRegistry.getInstrumentation().getUiAutomation().getRootInActiveWindow()!=null);
+            InstrumentationRegistry.getInstrumentation().getUiAutomation().performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK);
+            expect(scenario,"[...document.querySelectorAll('dialog[open] button')].some(e=>e.textContent.trim()==='공유'&&!e.disabled)");
+            click(scenario,"닫기");click(scenario,"이미지 저장");
+            start=SystemClock.elapsedRealtime();click(scenario,"이미지 미리보기");expect(scenario,"document.querySelectorAll('dialog[open] figure img').length>=2");
+            long repeated=SystemClock.elapsedRealtime()-start;
+            System.out.println("OVERVIEW_EXPORT_ANDROID pages="+pages+" initialMs="+initial+" cachedMs="+repeated+" gallerySaved="+(after[0]-before[0])+" shareSeparate=true");
         }
     }
 

@@ -4,20 +4,21 @@ import type { CurrentUser } from "../types";
 import { ApiError, object, readJson, date } from "./validation";
 type Deps = {
   resolveUser: (r: Request) => Promise<CurrentUser | null>;
-  budget: (r: Request) => Promise<unknown>;
+  budget: (r: Request, service: "rate" | "weather" | "holidays") => Promise<unknown>;
   fetch?: typeof fetch;
 };
 const cache = new Map<string, { expires: number; value: unknown }>();
-async function getJson(url: URL, fetcher: typeof fetch) {
-  const r = await fetcher(url, {
+async function getJson(url: URL, fetcher: typeof fetch, label: string) {
+  let r: Response;
+  try { r = await fetcher(url, {
     redirect: "error",
     signal: AbortSignal.timeout(15000),
     cache: "no-store",
-  });
+  }); } catch { throw new ApiError(503, `${label} 서비스에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.`); }
   if (!r.ok)
     throw new ApiError(
       503,
-      "외부 여행 정보 서비스를 불러오지 못했습니다. 직접 입력하거나 잠시 후 다시 확인하세요.",
+      `${label} 정보를 불러오지 못했어요. 직접 입력하거나 잠시 후 다시 확인해 주세요.`,
     );
   return object(await boundedJson(r, 1048576));
 }
@@ -46,7 +47,7 @@ export function createToolsHandler(deps: Deps) {
           hit = cache.get(key);
         if (hit && hit.expires > Date.now())
           return Response.json(hit.value, { headers });
-        await deps.budget(request);
+        await deps.budget(request, "holidays");
         const response = await (deps.fetch ?? fetch)(
           new URL(
             `https://date.nager.at/api/v3/PublicHolidays/${year}/${country}`,
@@ -190,8 +191,8 @@ export function createToolsHandler(deps: Deps) {
       for (const [k, v] of cache) if (v.expires < Date.now()) cache.delete(k);
       const hit = cache.get(key);
       if (hit) return Response.json(hit.value, { headers });
-      await deps.budget(request);
-      const raw = await getJson(url, deps.fetch ?? fetch);
+      await deps.budget(request, op === "rate" ? "rate" : "weather");
+      const raw = await getJson(url, deps.fetch ?? fetch, op === "rate" ? "환율" : "날씨");
       let result: unknown;
       if (op === "rate") {
         if (

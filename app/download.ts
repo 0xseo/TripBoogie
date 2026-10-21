@@ -1,14 +1,17 @@
 import { isNativeApp } from "./runtime";
+export function blobBase64(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("파일을 준비하지 못했어요."));
+    reader.onload = () => resolve(String(reader.result).split(",", 2)[1]);
+    reader.readAsDataURL(blob);
+  });
+}
 export async function saveDownload(blob: Blob, name: string) {
   if (isNativeApp()) {
     const { Filesystem, Directory } = await import("@capacitor/filesystem");
     const { Share } = await import("@capacitor/share");
-    const data = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error("파일을 준비하지 못했어북"));
-      reader.onload = () => resolve(String(reader.result).split(",", 2)[1]);
-      reader.readAsDataURL(blob);
-    });
+    const data = await blobBase64(blob);
     const path =
       "exports/" +
       crypto.randomUUID() +

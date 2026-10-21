@@ -1,4 +1,7 @@
 import Capacitor
 class TripBoogieViewController: CAPBridgeViewController {
-    override func capacitorDidLoad() { bridge?.registerPluginInstance(TripBoogieAuthPlugin()) }
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(TripBoogieAuthPlugin())
+        bridge?.registerPluginInstance(TripBoogieImagesPlugin())
+    }
 }

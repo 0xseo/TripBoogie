@@ -935,7 +935,10 @@ function TripAppContent({
     setEditing(undefined);
     setSelected("");
     setNavigationEpoch((value) => value + 1);
-    if (next === "plan" && workspace) setDate(workspace.trip.startDate);
+    if (next === "plan") {
+      setPlanView("map");
+      if (workspace) setDate(workspace.trip.startDate);
+    }
     window.scrollTo({ top: 0, behavior: "instant" });
   }
   function goHome() {

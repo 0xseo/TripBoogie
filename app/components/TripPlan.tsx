@@ -14,7 +14,6 @@ import {
   ChevronRight,
   MapPin,
   StickyNote,
-  Table2,
 } from "lucide-react";
 import type { ItemRecord, Workspace, OverviewChange } from "../types";
 import { travelContext } from "../travel-context";
@@ -25,7 +24,6 @@ import ItineraryEditor from "../ItineraryEditor";
 import { Dialog, text } from "./ui";
 import WeekDays from "./WeekDays";
 import { lazyPanel } from "./LazyPanel";
-import overviewStyles from "./TripOverview.module.css";
 
 const TripOverview = lazyPanel(() => import("./TripOverview"));
 
@@ -34,10 +32,10 @@ export default function TripPlan(props: Parameters<typeof DailyTripPlan>[0] & { 
   const view = props.view ?? localView;
   const setView = (next: "map" | "overview") => { setLocalView(next); props.onViewChange?.(next); };
   return <>
-    <div className={overviewStyles.viewSwitcher} role="group" aria-label="일정 보기 방식">
-      <button type="button" aria-pressed={view === "map"} onClick={() => setView("map")}><MapPin size={15} />지도·일정</button>
-      <button type="button" aria-pressed={view === "overview"} onClick={() => setView("overview")}><Table2 size={15} />한눈에 보기</button>
-    </div>
+    <nav className="itinerary-tabs" aria-label="일정 보기 방식">
+      <button type="button" aria-current={view === "map" ? "page" : undefined} onClick={() => setView("map")}>지도</button>
+      <button type="button" aria-current={view === "overview" ? "page" : undefined} onClick={() => setView("overview")}>한눈에 보기</button>
+    </nav>
     {view === "overview" ? (props.accountId ? <TripOverview workspace={props.workspace} days={props.days} accountId={props.accountId} disabled={props.disabled} onSave={props.onSaveOverview} preview={props.preview} /> : <p>로그인 정보를 확인하고 있어요.</p>) : <DailyTripPlan {...props} />}
   </>;
 }

@@ -511,6 +511,36 @@ test("travel tools validate currencies and dates, authenticate requests and norm
  const future=await(await req({operation:"weather",lat:35,lng:139,start:"2099-01-01",end:"2099-01-02"})).json();assert.deepEqual(future.daily,[]);assert.equal(future.timezone,"Asia/Tokyo");assert.equal(calls,3);
 });
 
+test('tool budgets allow a normal currency burst independently of maps and other providers',async()=>{
+ const {db,rpc,asUser}=await fixture();try{
+  await db.query("insert into tripboogie_private.map_rate_limits(scope,window_at,requests) values('global',clock_timestamp(),0),($1,clock_timestamp(),30)",[users.owner.id]);
+  for(let i=0;i<4;i++)assert.equal((await rpc('owner','tool-budget',null,{service:'rate'})).ok,true);
+  await db.exec("update tripboogie_private.map_rate_limits set requests=4,window_at=clock_timestamp() where scope='tool:rate:global'");
+  await assert.rejects(rpc('owner','tool-budget',null,{service:'rate'}),e=>e.code==='PT429'&&/환율/.test(e.message)&&!/지도/.test(e.message));
+  assert.equal((await rpc('owner','tool-budget',null,{service:'weather'})).ok,true);
+  assert.equal((await rpc('owner','tool-budget',null,{service:'holidays'})).ok,true);
+  await db.exec("update tripboogie_private.map_rate_limits set requests=0,window_at='2000-01-01' where scope='tool:rate:global'");
+  await db.query("update tripboogie_private.map_rate_limits set requests=30,window_at=clock_timestamp() where scope=$1",['tool:rate:'+users.owner.id]);
+  await assert.rejects(rpc('owner','tool-budget',null,{service:'rate'}),e=>e.code==='PT429'&&/환율.*분당 30회/.test(e.message));
+  assert.equal((await rpc('editor','tool-budget',null,{service:'rate'})).ok,true);
+  await assert.rejects(rpc('owner','tool-budget',null,{service:'arbitrary'}),e=>e.code==='PT400');
+  await assert.rejects(rpc('missing','tool-budget',null,{service:'rate'}),e=>e.code==='PT401');
+  await assert.rejects(asUser('owner',tx=>tx.query("select tripboogie_private.tool_budget('rate')")),e=>e.code==='42501');
+ }finally{await db.close();}
+});
+
+test('tools pass independent provider budgets and explain exchange failures accurately',async()=>{
+ const {createToolsHandler}=await import(pathToFileURL(path.join(directory,'tools.mjs'))),{ApiError}=await import(pathToFileURL(path.join(directory,'validation.mjs')));
+ const services=[];
+ const req=()=>new Request('https://trip.example/api/tools',jsonRequest({operation:'rate',base:'AUD',quote:'NZD'},{headers:{Origin:'https://trip.example'}}));
+ const limited=createToolsHandler({resolveUser:async()=>users.owner,budget:async(r,service)=>{services.push(service);throw new ApiError(429,'환율 조회 요청이 많아요.');}});
+ let response=await limited(req());assert.equal(response.status,429);assert.match((await response.json()).error,/환율/);assert.deepEqual(services,['rate']);
+ for(const fetch of [async()=>{throw Error('offline');},async()=>new Response(null,{status:503})]){
+  const handler=createToolsHandler({resolveUser:async()=>users.owner,budget:async()=>{},fetch});
+  response=await handler(req());assert.equal(response.status,503);const {error}=await response.json();assert.match(error,/환율/);assert.doesNotMatch(error,/지도/);
+ }
+});
+
 test("city periods, profile calendar country and custom expense shares persist atomically with permissions and CAS", async()=>{
  const {db,request}=await fixture();try{
  const city={id:'30000000-0000-4000-8000-000000000001',name:'항저우',address:'중국 저장성',countryCode:'CN',timezone:'Asia/Shanghai',currency:'CNY',lat:30.25,lng:120.15,startDate:details.startDate,endDate:details.endDate};
