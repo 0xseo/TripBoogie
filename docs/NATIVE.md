@@ -2,6 +2,10 @@
 
 웹/PWA와 Android/iOS 앱은 `app/`의 여행 UI를 공유한다. Capacitor 앱은 빌드된 화면을 패키지에 포함하고, HTTPS 운영 API와 Supabase에 연결한다. 앱 표시 이름은 **트립부기**, 앱 식별자는 두 플랫폼 모두 `com.tripboogie.app`이다.
 
+## 0.3.1 / Android 빌드 32
+
+브레인스토밍의 선택 영역 안 이동·묶음 크기 조절·지운 부분 보존, 문서 검색·정렬·하단 + 추가와 공통 새로고침 배경 변경을 네이티브 번들에 포함했다. Android release/debug assemble·lint와 기존 릴리즈 인증서·패키지·non-debuggable 검사를 통과했다. APK 안의 시작 파일과 브레인스토밍 번들이 이번 `native-dist` 결과와 동일함을 확인했다. 서명 APK는 `TripBoogie_0.3.1.apk`이며 빌드 번호는 32다.
+
 ## 구현과 검증
 
 - Android: Google Credential Manager, Kakao Android SDK. iOS: Google Sign-In, Kakao iOS SDK.
