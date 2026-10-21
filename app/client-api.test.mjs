@@ -9,21 +9,21 @@ import ts from "typescript";
 const source = ts.transpileModule(await readFile(new URL("./client-api.ts", import.meta.url), "utf8"), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText;
-function fixture({ fetch, sessionError = null, configFetch } = {}) {
+function fixture({ fetch, sessionError = null, configFetch, native = false } = {}) {
   const api = {};
   const calls = [];
   const configuration = () => Response.json({ url: "https://auth.example.test", publishableKey: "public-test", providers: { email: false, google: true, kakao: true } });
   runInNewContext(source, {
     exports: api, Headers, Response, Error,
     fetch: async (url, init) => {
-      if (url === "/api/auth-config") return configFetch ? configFetch() : configuration();
+      if (url.endsWith("/api/auth-config")) return configFetch ? configFetch() : configuration();
       calls.push({ url, init });
       return fetch(url, init);
     },
     require: name => {
       if (name === "@supabase/supabase-js") return { ...supabase, createClient: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: "test-session" } }, error: sessionError }) } }) };
       if (name === "zod") return zod;
-      if (name === "./runtime") return { apiUrl: path => path, isNativeApp: () => false };
+      if (name === "./runtime") return { apiUrl: path => native ? `https://service.example.test${path}` : path, isNativeApp: () => native };
       if (name === "./native-runtime") return {};
       throw new Error(`Unexpected dependency: ${name}`);
     },
@@ -108,4 +108,17 @@ test("cancelling the response body preserves cancellation instead of reporting a
   const { api } = fixture({ fetch: async () => new Response(new ReadableStream({ start(controller) { controller.error(cancelled); } })) });
   await assert.rejects(api.apiFetch("/api/trips/trip"), error => error === cancelled);
   assert.equal(api.getApiPending(), 0);
+});
+
+test("native conditional reads preserve the session and validator across unchanged responses", async () => {
+  let polls = 0, etag;
+  const { api, calls } = fixture({ native: true, fetch: async () => ++polls === 1 ? Response.json({ revision: 4 }, { headers: { ETag: 'W/"current"' } }) : new Response(null, { status: 304, headers: { ETag: 'W/"current"', 'Access-Control-Allow-Origin': 'https://localhost' } }) });
+  const conditional = { get etag() { return etag; }, receiveEtag: value => { etag = value; } };
+  assert.deepEqual(await api.apiFetch("/api/trips/trip", {}, { background: true, conditional }), { revision: 4 });
+  assert.equal(await api.apiFetch("/api/trips/trip", {}, { background: true, conditional }), undefined);
+  assert.equal(calls[0].url, "https://service.example.test/api/trips/trip");
+  assert.equal(calls[0].init.headers.get("If-None-Match"), null);
+  assert.equal(calls[1].init.headers.get("If-None-Match"), 'W/"current"');
+  assert.equal(calls[1].init.headers.get("Authorization"), "Bearer test-session");
+  assert.equal(etag, 'W/"current"');
 });

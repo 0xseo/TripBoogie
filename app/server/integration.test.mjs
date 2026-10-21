@@ -1345,3 +1345,30 @@ test("conditional API clients accept empty 304 bodies without hiding failures or
     assert.equal(client.getApiPending(),0);
   } finally {globalThis.fetch=originalFetch;}
 });
+
+test("native workspace polls attach CORS to both full and unchanged responses without bypassing access checks", async () => {
+  const value={trip:{id:"trip",role:"owner"},revision:1,records:[],members:[],files:[],overview:[{date:"2026-11-01",text:"공유 요약",sourceIds:[],version:1}]};
+  let authenticated=true,allowed=true,authChecks=0,reads=0;
+  const {ApiError}=await import(pathToFileURL(path.join(directory,"validation.mjs")));
+  const handler=createApiHandler({resolveUser:async()=>{authChecks++;return authenticated?users.owner:null;},repository:()=>({workspace:async()=>{reads++;if(!allowed)throw new ApiError(403,"권한 없음");return value;}})});
+  const send=(origin,etag)=>handler(new Request("https://tripboogie.example.test/api/trips/trip",{headers:{...(origin?{Origin:origin}:{}),...(etag?{"If-None-Match":etag}:{})}}),["trips","trip"]);
+  const web=await send();const etag=web.headers.get("ETag");assert.ok(etag);
+  assert.equal((await send(undefined,etag)).status,304);
+  for(const origin of ["https://localhost","capacitor://localhost"]){
+    for(const validator of [undefined,etag]){
+      const response=await send(origin,validator);
+      assert.equal(response.status,validator?304:200);
+      if(validator)assert.equal(await response.text(),"");else assert.deepEqual(await response.json(),value);
+      assert.equal(response.headers.get("ETag"),etag);
+      assert.equal(response.headers.get("Access-Control-Allow-Origin"),origin);
+      assert.equal(response.headers.get("Access-Control-Expose-Headers"),"ETag");
+      assert.equal(response.headers.get("Access-Control-Allow-Credentials"),null);
+      assert.match(response.headers.get("Cache-Control"),/private.*no-store/);
+      assert.match(response.headers.get("Vary"),/Authorization/);
+      assert.match(response.headers.get("Vary"),/Origin/);
+    }
+  }
+  assert.equal(authChecks,6);assert.equal(reads,6);
+  allowed=false;assert.equal((await send("https://localhost",etag)).status,403);
+  authenticated=false;assert.equal((await send("https://localhost",etag)).status,401);
+});

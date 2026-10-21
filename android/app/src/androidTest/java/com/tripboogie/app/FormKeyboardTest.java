@@ -285,6 +285,50 @@ public class FormKeyboardTest {
         assertTrue(label+" never settles: "+m,m.getDouble("tailY")<=1&&m.getDouble("tailHeight")<=1&&m.getDouble("tailScroll")<=1);
         assertTrue(label+" moves the caret",m.getBoolean("caretPreserved"));
     }
+    @Test public void nativeSyncProductionCorsTransport() throws Exception {
+        try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
+            KeyboardTestHost.html(scenario,"""
+                <!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+                <body>Native sync transport check<script>
+                (async()=>{
+                  const probe={origin:location.origin,reads:[]};
+                  try{
+                    for(const conditional of [false,true]){
+                      const headers={Authorization:'Bearer native-cors-probe'};
+                      if(conditional)headers['If-None-Match']='W/"native-probe"';
+                      const response=await fetch('https://tripboogie.0xseo94.com/api/auth-config',{headers,cache:'no-store'});
+                      const config=await response.json();
+                      probe.reads.push({status:response.status,type:response.type,config:!!config.providers});
+                    }
+                    const denied=await fetch('https://tripboogie.0xseo94.com/api/trips/00000000-0000-4000-8000-000000000000',{
+                      headers:{Authorization:'Bearer native-cors-probe','If-None-Match':'W/"native-probe"'},cache:'no-store'
+                    });
+                    probe.deniedStatus=denied.status;await denied.text();
+                  }catch(error){probe.error={name:error.name,message:error.message};}
+                  window.nativeCorsProbe=probe;
+                })();
+                </script>
+                """);
+            boolean complete=false;
+            for(int i=0;i<150&&!complete;i++){
+                complete="true".equals(js(scenario,"!!window.nativeCorsProbe"));
+                if(!complete)SystemClock.sleep(200);
+            }
+            assertTrue("Native CORS probe did not finish",complete);
+            String encoded=js(scenario,"JSON.stringify(window.nativeCorsProbe)");
+            JSONObject result=new JSONObject(new org.json.JSONTokener(encoded).nextValue().toString());
+            System.out.println("NATIVE_SYNC_CORS_PROBE "+result);
+            assertFalse("Native HTTPS transport failed: "+result,result.has("error"));
+            assertEquals("https://localhost",result.getString("origin"));
+            assertEquals(2,result.getJSONArray("reads").length());
+            for(int i=0;i<2;i++){
+                JSONObject read=result.getJSONArray("reads").getJSONObject(i);
+                assertEquals(200,read.getInt("status"));assertEquals("cors",read.getString("type"));assertTrue(read.getBoolean("config"));
+            }
+            assertEquals(401,result.getInt("deniedStatus"));
+        }
+    }
+
     @Test public void overviewCellKeyboardRestoresWholeEditor() throws Exception {
         try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
             loadFixture(scenario);show(scenario,"overview");

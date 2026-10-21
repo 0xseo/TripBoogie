@@ -1,5 +1,6 @@
 import type { CurrentUser } from "../types";
 import { TripRepository } from "./repository";
+import { nativeCorsHeaders } from "./origin-policy";
 import {
   ApiError,
   assertSameOrigin,
@@ -23,6 +24,9 @@ function json(value: unknown, status = 200) {
 }
 async function workspaceJson(request: Request, value: unknown) {
   const body = JSON.stringify(value);
+  // The deployed 304 path omits headers added only by the Next.js proxy.
+  // Put native CORS on this response itself, including unchanged snapshots.
+  const headers = { ...privateHeaders, ...nativeCorsHeaders(request.headers.get("Origin")), Vary: "Authorization, Origin", "Content-Type": "application/json" };
   // No private response cache: authentication and the repository run before every comparison.
   let etag: string | undefined;
   try {
@@ -32,7 +36,7 @@ async function workspaceJson(request: Request, value: unknown) {
   const unchanged = etag !== undefined && request.headers.get("If-None-Match")?.split(",").some(candidate => candidate.trim() === etag);
   return new Response(unchanged ? null : body, {
     status: unchanged ? 304 : 200,
-    headers: { ...privateHeaders, "Content-Type": "application/json", ...(etag ? { ETag: etag } : {}) },
+    headers: { ...headers, ...(etag ? { ETag: etag } : {}) },
   });
 }
 
