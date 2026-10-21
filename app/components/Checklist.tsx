@@ -7,6 +7,8 @@ import { Dialog, Field, Empty, text } from "./ui";
 import ChoiceField from "./ChoiceField";
 import AddButton from "./AddButton";
 import FeatureToolbar from "./FeatureToolbar";
+import ListControls from "./ListControls";
+import { matchesListQuery, compareListRecords } from "../list-records";
 import {checklistEntries, compareChecklist, mergeChecklistOrder} from "../checklist";
 import SortHandle from "./SortHandle";
 import styles from "./Checklist.module.css";
@@ -27,6 +29,7 @@ export default function Checklist({
   onToggle: (r: ItemRecord, done: boolean) => Promise<void>;
   onReorder: (category: string, ids: string[]) => Promise<void>;
 }) {
+  const [query, setQuery] = useState(""), [order, setOrder] = useState("manual");
   const [editing, setEditing] = useState<ItemRecord | "new" | null>(null),
     [categoryId, setCategoryId] = useState<string | null>(null),
     [hideCompleted, setHideCompleted] = useState(false),
@@ -48,7 +51,11 @@ export default function Checklist({
       id,
       rows: rows.filter((r) => text(r.data.category) === id).sort(compareChecklist),
     }))
-    .filter((group) => group.rows.length > 0);
+    .filter((group) => group.rows.some(r => matchesListQuery(query, [r.data.title, r.createdName, categories.find(c => c.id === group.id)?.label,
+      workspace.members.find(m => m.id === r.createdBy)?.name])));
+  const matches = (r: ItemRecord) => matchesListQuery(query, [r.data.title, r.createdName, categories.find(c => c.id === r.data.category)?.label,
+    workspace.members.find(m => m.id === r.createdBy)?.name]);
+  const matchingCount = shownGroups.reduce((count, group) => count + checklistEntries(group.rows, userId, hideCompleted).filter(e => matches(e.record)).length, 0);
   function selectCategory(id: string | null) {
     setCategoryId(id);
     setEditing(null);
@@ -84,16 +91,19 @@ export default function Checklist({
         ))}
       </nav>
       </FeatureToolbar>
+      <ListControls label="체크리스트" query={query} onQuery={setQuery} order={order} onOrder={value=>{setOrder(value);setOrderingCategory(null);}} count={matchingCount} options={[
+        {id:"manual",label:"지정한 순서"},{id:"title",label:"이름순"},{id:"updated-desc",label:"최근 수정순"},
+      ]}/>
       {error && <p className="error">{error}</p>}
       <div className={styles.grid}>
         {shownGroups.map(({ id, rows: group }) => {
-          const allEntries=checklistEntries(group,userId), entries=checklistEntries(group,userId,hideCompleted);
+          const allEntries=checklistEntries(group,userId), entries=checklistEntries(group,userId,hideCompleted).filter(entry=>matches(entry.record)).sort((a,b)=>Number(a.done)-Number(b.done)||(order==="manual"?compareChecklist(a.record,b.record):compareListRecords(a.record,b.record,order)));
           const completedCount=allEntries.filter(entry=>entry.done).length, ordering=orderingCategory===id;
           return (
             <section className={styles.group} key={id}>
               <header className={styles.groupHeader}>
                 <h3>{categories.find((c) => c.id === id)?.label || id || "미분류"}</h3>
-                {!readOnly && <button type="button" className={styles.orderButton} aria-pressed={ordering} onClick={()=>setOrderingCategory(ordering?null:id)}>{ordering?"완료":"순서 조정"}</button>}
+                {!readOnly && <button type="button" className={styles.orderButton} aria-pressed={ordering} onClick={()=>{setOrder("manual");setOrderingCategory(ordering?null:id);}}>{ordering?"완료":"순서 조정"}</button>}
                 <span className={styles.progress} data-complete={completedCount===group.length} aria-label={`완료 ${completedCount}개, 전체 ${group.length}개`}>{completedCount}/{group.length}</span>
               </header>
               {entries.map(({record:r,done,checks}) => {
@@ -171,13 +181,13 @@ export default function Checklist({
                   </article>
                 );
               })}
-              {!entries.length && <p className={styles.allDone}>모든 할 일을 완료했어요.</p>}
+              {!entries.length && <p className={styles.allDone}>{query.trim()?"검색 결과가 없어요.":"모든 할 일을 완료했어요."}</p>}
             </section>
           );
         })}
       </div>
 
-      {!shownGroups.length && <Empty title="아직 할 일이 없어북" />}
+      {!shownGroups.length && <Empty title={query.trim()?"검색 결과가 없어북":"아직 할 일이 없어북"} />}
       {editing && (
         <CheckForm
           initialCategory={activeCategory ?? undefined}

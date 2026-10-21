@@ -14,6 +14,7 @@ import { shortDate } from "../calendar";
 import { DayPicker, type DateRange } from "react-day-picker";
 import { ko } from "react-day-picker/locale";
 import "react-day-picker/style.css";
+import calendarStyles from "./RangeCalendar.module.css";
 
 export const CalendarCountry = createContext("");
 type Holidays = {
@@ -180,7 +181,7 @@ export function RangeCalendar({
     ? { from: localDate(start), to: end ? localDate(end) : undefined }
     : undefined;
   return (
-    <div className="range-calendar">
+    <div className={`range-calendar ${calendarStyles.calendar}`}>
       <div className="range-label">
         <span>
           출발 <strong>{start ? dateLabel(start) : "날짜 선택"}</strong>

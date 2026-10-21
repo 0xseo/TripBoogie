@@ -1,0 +1,14 @@
+/* The range fill and the round endpoints share the exact same block size. */
+.calendar:global(.range-calendar) :global(.rdp-root) {
+  --calendar-dot-size:var(--rdp-day-height);
+  --rdp-day_button-width:var(--calendar-dot-size);
+  --rdp-day_button-height:var(--calendar-dot-size);
+}
+.calendar:global(.range-calendar) :global(.rdp-day) {padding:0;vertical-align:middle}
+.calendar:global(.range-calendar) :global(.rdp-day_button) {
+  display:flex;align-items:center;justify-content:center;box-sizing:border-box;
+  inline-size:var(--calendar-dot-size);block-size:var(--calendar-dot-size);
+  min-inline-size:var(--calendar-dot-size);min-block-size:var(--calendar-dot-size);
+  max-inline-size:var(--calendar-dot-size);max-block-size:var(--calendar-dot-size);
+  aspect-ratio:1;line-height:1;margin:0 auto;padding:0;
+}

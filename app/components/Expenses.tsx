@@ -1,6 +1,9 @@
 "use client";
 import Form from "./Form";
 import BookingIcon from "./BookingIcon";
+import ListControls from "./ListControls";
+import { matchesListQuery, compareListRecords } from "../list-records";
+import styles from "./Expenses.module.css";
 import { bookingTitle } from "../booking-display";
 import {
   expenseCategories,
@@ -35,7 +38,7 @@ export function useRate(
   base: string,
   quote: string,
   onQuote?: (q: Quote) => void,
-  enabled = true,
+  enabled = true
 ) {
   const callback = useRef(onQuote);
   useEffect(() => {
@@ -56,7 +59,7 @@ export function useRate(
         })
       : api<Quote>(
           "/api/tools",
-          jsonRequest({ operation: "rate", base, quote }),
+          jsonRequest({ operation: "rate", base, quote })
         )
     )
       .then((r) => {
@@ -106,6 +109,7 @@ export default function Expenses({
   onBooking?: (id: string) => void;
   focused?: string;
 }) {
+  const [query, setQuery] = useState(""), [order, setOrder] = useState("date-asc");
   const [period, setPeriod] = useState("all"),
     [editing, setEditing] = useState<ItemRecord | "new" | null>(null);
   useEffect(() => {
@@ -116,15 +120,15 @@ export default function Expenses({
   }, [focused]);
   const categories = expenseCategories(workspace.trip.settings);
   const all = workspace.records.filter((r) => r.kind === "expense"),
-    rows = all.filter(
-      (r) => period === "all" || effectivePeriod(r, workspace) === period,
+    periodRows = all.filter(
+      (r) => period === "all" || effectivePeriod(r, workspace) === period
     );
   const [conversionRates, setConversionRates] = useState<{
     base: string;
     rates: Record<string, string>;
     key: string;
   }>({ base: profile.baseCurrency, rates: {}, key: "" });
-  const neededCurrencies = expenseBaseTotal(rows, profile.baseCurrency)
+  const neededCurrencies = expenseBaseTotal(periodRows, profile.baseCurrency)
       .missing.sort()
       .join(","),
     conversionKey = profile.baseCurrency + ":" + neededCurrencies,
@@ -139,17 +143,17 @@ export default function Expenses({
           "/api/tools",
           jsonRequest(
             { operation: "rate", base, quote: profile.baseCurrency },
-            { signal: controller.signal },
-          ),
+            { signal: controller.signal }
+          )
         );
         return [base, String(Number(quote.rate.toFixed(6)))] as const;
-      }),
+      })
     ).then((results) => {
       if (active) {
         setConversionRates({
           base: profile.baseCurrency,
           rates: Object.fromEntries(
-            results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])),
+            results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []))
           ),
           key: conversionKey,
         });
@@ -160,7 +164,26 @@ export default function Expenses({
       controller.abort();
     };
   }, [neededCurrencies, profile.baseCurrency, conversionKey]);
-  const actualTotals = paidExpenseTotals(rows, workspace.trip.currency),
+  const filteredRows = periodRows.filter(r => {
+    const booking = workspace.records.find(b => b.kind === "booking" && b.id === r.data.bookingId);
+    const people = [...(Array.isArray(r.data.payers) ? r.data.payers : []), ...(Array.isArray(r.data.participants) ? r.data.participants : [])] as Person[];
+    return matchesListQuery(query, [r.data.title, r.data.note, r.data.date, r.data.paidCurrency, r.data.payer,
+      categories.find(c => c.id === r.data.category)?.label, booking && bookingTitle(booking.data), ...people.map(p => p.name)]);
+  });
+  const rowAmounts = new Map(filteredRows.map(r => {
+    const total = expenseBaseTotal([r], profile.baseCurrency, conversionRates.base === profile.baseCurrency ? conversionRates.rates : {});
+    return [r.id, total.missing.length ? null : units(total.amount)] as const;
+  }));
+  const rows = [...filteredRows].sort((a, b) => {
+    if (order.startsWith("amount-")) {
+      const left = rowAmounts.get(a.id), right = rowAmounts.get(b.id);
+      if (left == null || right == null) return Number(left == null) - Number(right == null) || compareListRecords(a, b, "date-asc");
+      const difference = left < right ? -1 : left > right ? 1 : 0;
+      return difference * (order === "amount-desc" ? -1 : 1) || compareListRecords(a, b, "date-asc");
+    }
+    return compareListRecords(a, b, order);
+  });
+  const actualTotals = paidExpenseTotals(periodRows, workspace.trip.currency),
     totals = [
       ...new Set([
         ...tripCurrencies(workspace.trip),
@@ -172,22 +195,20 @@ export default function Expenses({
       amount: actualTotals.find((t) => t.currency === currency)?.amount || "0",
     })),
     baseTotal = expenseBaseTotal(
-      rows,
+      periodRows,
       profile.baseCurrency,
-      conversionRates.base === profile.baseCurrency
-        ? conversionRates.rates
-        : {},
+      conversionRates.base === profile.baseCurrency ? conversionRates.rates : {}
     );
   const periodLabel = (r: ItemRecord) =>
     effectivePeriod(r, workspace) === "before"
       ? "여행 전"
       : effectivePeriod(r, workspace) === "after"
-        ? "여행 후"
-        : `DAY ${
-            days(workspace.trip.startDate, workspace.trip.endDate).indexOf(
-              text(r.data.date),
-            ) + 1
-          }`;
+      ? "여행 후"
+      : `DAY ${
+          days(workspace.trip.startDate, workspace.trip.endDate).indexOf(
+            text(r.data.date)
+          ) + 1
+        }`;
   return (
     <section className="feature">
       <FeatureToolbar
@@ -222,7 +243,7 @@ export default function Expenses({
               >
                 DAY {i + 1}
               </button>
-            ),
+            )
           )}
           <button
             className={period === "after" ? "active" : ""}
@@ -232,15 +253,24 @@ export default function Expenses({
           </button>
         </div>
       </FeatureToolbar>
-      <div className="expense-summary">
-        <span>
-          사용금액 (
+      <ListControls label="경비" query={query} onQuery={setQuery} order={order} onOrder={setOrder} count={rows.length} options={[
+        {id:"date-asc",label:"날짜 빠른순"},{id:"date-desc",label:"날짜 늦은순"},
+        {id:"amount-desc",label:"금액 높은순"},{id:"amount-asc",label:"금액 낮은순"},
+        {id:"title",label:"이름순"},{id:"updated-desc",label:"최근 수정순"},
+      ]}/>
+      <div className={`expense-summary ${styles.summary}`}>
+        <span className={styles.heading}>
+          사용금액 <span>(
           {baseTotal.missing.length
             ? converting
               ? "환산 중…"
               : "환산 확인 필요"
-            : `${profile.baseCurrency} ${money(baseTotal.amount, profile.baseCurrency, "narrowSymbol")}`}
-          )
+            : `${profile.baseCurrency} ${money(
+                baseTotal.amount,
+                profile.baseCurrency,
+                "narrowSymbol"
+              )}`}
+          )</span>
         </span>
         {baseTotal.live && (
           <small className="muted">
@@ -256,12 +286,12 @@ export default function Expenses({
                 t.currency === profile.baseCurrency
                   ? "base"
                   : t.currency === workspace.trip.currency
-                    ? "trip"
-                    : "other"
+                  ? "trip"
+                  : "other"
               }
             >
               <span className="currency-code">{t.currency}</span>{" "}
-              {money(t.amount, t.currency, "narrowSymbol")}
+              <span className={styles.totalAmount}>{money(t.amount, t.currency, "narrowSymbol")}</span>
             </strong>
           ))}
         </div>
@@ -272,11 +302,11 @@ export default function Expenses({
             payers = Array.isArray(d.payers) ? (d.payers as Person[]) : [],
             participants = Array.isArray(d.participants) ? d.participants : [],
             booking = workspace.records.find(
-              (b) => b.kind === "booking" && b.id === d.bookingId,
+              (b) => b.kind === "booking" && b.id === d.bookingId
             );
           return (
             <article
-              className="expense-row"
+              className={`expense-row ${styles.row}`}
               key={r.id}
               id={`expense-${r.id}`}
               data-focused={focused === r.id}
@@ -284,11 +314,11 @@ export default function Expenses({
               {booking ? (
                 <button
                   type="button"
-                  className="record-icon icon"
+                  className={`record-icon icon ${styles.bookingIcon}`}
                   aria-label={`${text(booking.data.title)} 예약 열기`}
                   onClick={() => onBooking?.(booking.id)}
                 >
-                  <BookingIcon type={booking.data.type} />
+                  <BookingIcon type={booking.data.type} size={22} />
                 </button>
               ) : (
                 <div className="record-icon">₩</div>
@@ -297,7 +327,8 @@ export default function Expenses({
                 <small>
                   {periodLabel(r)} ·{" "}
                   {categories.find((c) => c.id === d.category)?.label ||
-                    text(d.category, "기타")}{" "}
+                    text(d.category, "기타")}
+                  {" · "}
                   {booking && (
                     <button
                       type="button"
@@ -314,7 +345,7 @@ export default function Expenses({
                     ? payers
                         .map(
                           (p) =>
-                            `${p.name} ${money(p.amount, text(d.paidCurrency))}`,
+                            `${p.name} ${money(p.amount, text(d.paidCurrency))}`
                         )
                         .join(" · ")
                     : text(d.payer)}{" "}
@@ -330,7 +361,7 @@ export default function Expenses({
                         ? d.tripAmount
                         : d.baseAmount
                       : d.amount,
-                    text(d.paidCurrency, text(d.currency)),
+                    text(d.paidCurrency, text(d.currency))
                   )}
                 </strong>
                 {d.model === 2 && d.paidCurrency !== d.baseCurrency && (
@@ -360,8 +391,8 @@ export default function Expenses({
         })}
       </div>
       {!rows.length && (
-        <Empty title="첫 경비를 기록해북">
-          결제한 통화와 나눌 동행을 골라북
+        <Empty title={query.trim() ? "검색 결과가 없어북" : "첫 경비를 기록해북"}>
+          {query.trim() ? "다른 검색어로 찾아봐북" : "결제한 통화와 나눌 동행을 골라북"}
         </Empty>
       )}
 
@@ -411,13 +442,13 @@ export function ExpenseForm({
     old = !!record && d.model !== 2;
   const [bookingId, setBookingId] = useState(text(d.bookingId));
   const linkedBooking = workspace.records.find(
-    (r) => r.kind === "booking" && r.id === bookingId,
+    (r) => r.kind === "booking" && r.id === bookingId
   );
   const [tripCurrency, setTripCurrency] = useState(() =>
       text(
         d.tripCurrency,
-        old ? text(d.currency) : currencyForDate(workspace.trip, initialDate),
-      ),
+        old ? text(d.currency) : currencyForDate(workspace.trip, initialDate)
+      )
     ),
     [baseCurrency] = useState(() => text(d.baseCurrency, profile.baseCurrency));
   const [country, setCountry] = useState(
@@ -425,25 +456,25 @@ export function ExpenseForm({
       d.countryCode,
       (workspace.trip.settings.cities || []).find(
         (c) =>
-          c.startDate <= initialDate && c.endDate >= initialDate && !c.transit,
+          c.startDate <= initialDate && c.endDate >= initialDate && !c.transit
       )?.countryCode ||
         tripCountries(workspace.trip)[0] ||
-        "",
-    ),
+        ""
+    )
   );
   const [paid, setPaid] = useState(text(d.paidCurrency, tripCurrency)),
     [title, setTitle] = useState(text(d.title)),
     [category, setCategory] = useState(
-      text(d.category, categories[0]?.id ?? "other"),
+      text(d.category, categories[0]?.id ?? "other")
     ),
     [a, setA] = useState(String(d.tripAmount ?? d.amount ?? "")),
     [b, setB] = useState(
       String(
-        d.baseAmount ?? (tripCurrency === baseCurrency ? (d.amount ?? "") : ""),
-      ),
+        d.baseAmount ?? (tripCurrency === baseCurrency ? d.amount ?? "" : "")
+      )
     ),
     [rate, setRate] = useState(
-      String(d.exchangeRate ?? (tripCurrency === baseCurrency ? 1 : "")),
+      String(d.exchangeRate ?? (tripCurrency === baseCurrency ? 1 : ""))
     ),
     [rateDate, setRateDate] = useState(text(d.rateDate)),
     [period, setPeriod] = useState(
@@ -451,14 +482,14 @@ export function ExpenseForm({
         ? effectivePeriod(record, workspace) === "before"
           ? "before"
           : effectivePeriod(record, workspace) === "after"
-            ? "after"
-            : "day"
+          ? "after"
+          : "day"
         : initialPeriod === "before" || initialPeriod === "after"
-          ? initialPeriod
-          : "day",
+        ? initialPeriod
+        : "day"
     ),
     [date, setDate] = useState(
-      text(d.date, initialPeriod.length === 10 ? initialPeriod : initialDate),
+      text(d.date, initialPeriod.length === 10 ? initialPeriod : initialDate)
     ),
     [note, setNote] = useState(text(d.note));
   const basePaid = paid === baseCurrency;
@@ -466,13 +497,13 @@ export function ExpenseForm({
   const equal = (
     rows: Person[],
     amount = paidAmount,
-    currency = paid,
+    currency = paid
   ): Person[] => {
     try {
       const values = splitAmount(
         amount || "0",
         rows.length,
-        currencyDigits(currency),
+        currencyDigits(currency)
       );
       return rows.map((p, i) => ({ ...p, amount: values[i] }));
     } catch {
@@ -488,11 +519,11 @@ export function ExpenseForm({
               name: profile.name,
               amount: String(
                 paid === tripCurrency
-                  ? (d.tripAmount ?? d.amount ?? "0")
-                  : (d.baseAmount ?? "0"),
+                  ? d.tripAmount ?? d.amount ?? "0"
+                  : d.baseAmount ?? "0"
               ),
             },
-          ],
+          ]
     ),
     [participants, setParticipants] = useState<Person[]>(() => {
       const rows: Person[] =
@@ -504,14 +535,14 @@ export function ExpenseForm({
   const isEqual = (rows: Person[]) => {
     const expected = equal(rows);
     return rows.every(
-      (p, i) => String(p.amount) === String(expected[i].amount),
+      (p, i) => String(p.amount) === String(expected[i].amount)
     );
   };
   const [payerEqual, setPayerEqual] = useState(
-      () => !record || isEqual(payers),
+      () => !record || isEqual(payers)
     ),
     [shareEqual, setShareEqual] = useState(
-      () => !record || isEqual(participants),
+      () => !record || isEqual(participants)
     ),
     [screen, setScreen] = useState<
       "money" | "people" | "payers" | "participants" | "rate"
@@ -537,7 +568,7 @@ export function ExpenseForm({
             const converted = convert(
               paidAmount,
               String(Number(quote.rate.toFixed(6))),
-              paid !== tripCurrency,
+              paid !== tripCurrency
             );
             if (paid === tripCurrency) setB(converted);
             else setA(converted);
@@ -547,7 +578,7 @@ export function ExpenseForm({
         }
       }
     },
-    !basePaid,
+    !basePaid
   );
   const people = Array.from(
     new Map(
@@ -555,8 +586,8 @@ export function ExpenseForm({
         ...workspace.members.map((m) => ({ userId: m.id, name: m.name })),
         ...payers,
         ...participants,
-      ].map((p) => [p.userId, p]),
-    ).values(),
+      ].map((p) => [p.userId, p])
+    ).values()
   );
   function changeLocalCurrency(next: string) {
     if (next === tripCurrency) return;
@@ -640,8 +671,8 @@ export function ExpenseForm({
       diff === BigInt(0)
         ? "합계가 맞아요"
         : diff > BigInt(0)
-          ? `${money(decimal(diff), paid)} 더 배분하세요`
-          : `${money(decimal(-diff), paid)} 초과했어요`;
+        ? `${money(decimal(diff), paid)} 더 배분하세요`
+        : `${money(decimal(-diff), paid)} 초과했어요`;
   } catch {
     difference = "금액을 확인하세요";
   }
@@ -652,12 +683,12 @@ export function ExpenseForm({
         screen === "payers"
           ? "결제자별 금액 수정"
           : screen === "participants"
-            ? "함께 나눌 금액 수정"
-            : screen === "rate"
-              ? "환율 수정"
-              : record
-                ? "경비 수정"
-                : "경비 기록"
+          ? "함께 나눌 금액 수정"
+          : screen === "rate"
+          ? "환율 수정"
+          : record
+          ? "경비 수정"
+          : "경비 기록"
       }
       onClose={onClose}
       wide
@@ -748,7 +779,7 @@ export function ExpenseForm({
                     .filter(
                       (r) =>
                         r.kind === "booking" &&
-                        (!r.data.expenseId || r.data.expenseId === record?.id),
+                        (!r.data.expenseId || r.data.expenseId === record?.id)
                     )
                     .map((r) => ({
                       id: r.id,
@@ -772,7 +803,7 @@ export function ExpenseForm({
                     setTripCurrency(
                       currency === baseCurrency
                         ? currencyForDate(workspace.trip, date)
-                        : currency,
+                        : currency
                     );
                     setA(currency === baseCurrency ? "" : amount);
                     setB(currency === baseCurrency ? amount : "");
@@ -820,14 +851,14 @@ export function ExpenseForm({
                         (c) =>
                           c.startDate <= value &&
                           c.endDate >= value &&
-                          !c.transit,
+                          !c.transit
                       );
                       if (city) {
                         setCountry(city.countryCode);
                         changeLocalCurrency(
                           city.currency ||
                             countryCurrencies[city.countryCode] ||
-                            tripCurrency,
+                            tripCurrency
                         );
                       }
                     }
@@ -836,7 +867,7 @@ export function ExpenseForm({
                     { id: "before", label: "여행 전" },
                     ...days(
                       workspace.trip.startDate,
-                      workspace.trip.endDate,
+                      workspace.trip.endDate
                     ).map((v, i) => ({
                       id: v,
                       label: `DAY ${i + 1} · ${dateLabel(v)}`,
@@ -879,7 +910,7 @@ export function ExpenseForm({
                         setB("");
                       }
                       const code = tripCountries(workspace.trip).find(
-                        (code) => countryCurrencies[code] === c,
+                        (code) => countryCurrencies[code] === c
                       );
                       if (code) setCountry(code);
                     }
@@ -896,8 +927,8 @@ export function ExpenseForm({
                       c === baseCurrency
                         ? b
                         : c === tripCurrency && paid !== baseCurrency
-                          ? a
-                          : paidAmount;
+                        ? a
+                        : paidAmount;
                     if (payerEqual) setPayers(equal(payers, value, c));
                     if (shareEqual)
                       setParticipants(equal(participants, value, c));
@@ -907,7 +938,7 @@ export function ExpenseForm({
                       ...tripCurrencies(workspace.trip),
                       tripCurrency,
                       baseCurrency,
-                    ]),
+                    ])
                   ).map((c) => ({ id: c, label: c }))}
                 />
               </Field>
@@ -1071,8 +1102,8 @@ export function ExpenseForm({
                         rows.map((x) =>
                           x.userId === p.userId
                             ? { ...x, amount: e.target.value }
-                            : x,
-                        ),
+                            : x
+                        )
                       );
                       setEqualMode(false);
                     }}
@@ -1128,7 +1159,7 @@ export function ExpenseForm({
                   onClick={() =>
                     applyRate(
                       String(Number(current.quote!.rate.toFixed(6))),
-                      current.quote!.date,
+                      current.quote!.date
                     )
                   }
                 >
@@ -1177,8 +1208,8 @@ export function ExpenseForm({
               {busy
                 ? "서버에 저장 중…"
                 : screen === "money"
-                  ? "함께 나누기"
-                  : "경비 저장"}
+                ? "함께 나누기"
+                : "경비 저장"}
             </button>
           </footer>
         )}

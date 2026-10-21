@@ -1,0 +1,11 @@
+.bookingIcon:global(.record-icon) {display:grid;place-items:center;flex:none;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;aspect-ratio:1;border:0;background:var(--soft);color:var(--green)}
+.bookingIcon>svg {display:block;flex:none;width:22px;height:22px;aspect-ratio:1}
+.summary:global(.expense-summary) {min-width:0}
+.summary>.heading {display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 6px;max-width:100%;min-width:0;line-height:1.7}
+.summary>.heading>span {min-width:0;max-width:100%;overflow-wrap:anywhere}
+.summary :global(.expense-totals) {min-width:0;max-width:100%;gap:10px 20px}
+.summary :global(.expense-totals)>strong {display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;min-width:0;max-width:100%;line-height:1.4}
+.totalAmount {min-width:0;max-width:100%;overflow-wrap:anywhere}
+@media(max-width:960px){.bookingIcon:global(.record-icon){width:36px;height:36px;min-width:36px;min-height:36px}.summary :global(.expense-totals)>strong{font-size:clamp(19px,5.7vw,24px)}}
+
+@media(max-width:960px){.row:global(.expense-row) :global(.amount){max-width:100%;min-width:0;flex:0 1 auto}}

@@ -3,6 +3,8 @@ import Form from "./Form";
 import ChoiceField from "./ChoiceField";
 import AddButton from "./AddButton";
 import FeatureToolbar from "./FeatureToolbar";
+import ListControls from "./ListControls";
+import { matchesListQuery, compareListRecords } from "../list-records";
 import { useConfirm } from "./Confirmation";
 import DateField from "./DateField";
 import TurtleIcon from "./TurtleIcon";
@@ -83,13 +85,14 @@ export default function Bookings({
   onExpense?: (id: string) => void;
   onNotice: (message: string) => void;
 }) {
+  const [query, setQuery] = useState(""), [order, setOrder] = useState("date-asc");
   const [type, setType] = useState(() => {
       const booking = workspace.records.find(
         (r) => r.kind === "booking" && r.id === focused,
       );
       return booking
         ? String(booking.data.category || booking.data.type)
-        : "hotel";
+        : "all";
     }),
     [editing, setEditing] = useState<ItemRecord | "new" | null>(null),
     [reviewPayment, setReviewPayment] = useState(false),
@@ -123,9 +126,11 @@ export default function Bookings({
     .filter(
       (r) =>
         r.kind === "booking" &&
-        (r.data.category || r.data.type) === selectedCategory.id,
+        (type === "all" || (r.data.category || r.data.type) === selectedCategory.id) &&
+        matchesListQuery(query, [displayBookingTitle(r.data), r.data.title, r.data.note, r.data.platform, r.data.reference, r.data.flightNumber, r.data.departure, r.data.arrival, r.data.startDate, r.data.roomName,
+          categories.find(c => c.id === (r.data.category || r.data.type))?.label]),
     )
-    .sort(compareBookings);
+    .sort((a,b) => order === "date-asc" ? compareBookings(a,b) : compareListRecords(a,b,order));
   return (
     <section className="feature">
       <FeatureToolbar
@@ -152,11 +157,12 @@ export default function Bookings({
           >
             자료함
           </button>
+          <button type="button" aria-current={!showFiles && type === "all" ? "page" : undefined} onClick={() => selectBookingCategory("all")}>전체</button>
           {categories.map((t) => (
             <button
               type="button"
               aria-current={
-                !showFiles && selectedCategory.id === t.id ? "page" : undefined
+                !showFiles && type !== "all" && selectedCategory.id === t.id ? "page" : undefined
               }
               key={t.id}
               onClick={() => selectBookingCategory(t.id)}
@@ -166,6 +172,10 @@ export default function Bookings({
           ))}
         </nav>
       </FeatureToolbar>
+      {!showFiles && <ListControls label="예약" query={query} onQuery={setQuery} order={order} onOrder={setOrder} count={rows.length} options={[
+        {id:"date-asc",label:"날짜 빠른순"},{id:"date-desc",label:"날짜 늦은순"},
+        {id:"title",label:"이름순"},{id:"updated-desc",label:"최근 수정순"},
+      ]}/>}
       {!showFiles && (
         <div className="booking-grid">
           {rows.map((r) => (
@@ -178,11 +188,11 @@ export default function Bookings({
               <div className="inline">
                 <div className="booking-kind">
                   <span className="booking-type">
-                    {selectedCategory.kind === "hotel" ? (
+                    {r.data.type === "hotel" ? (
                       <Hotel />
-                    ) : selectedCategory.kind === "flight" ? (
+                    ) : r.data.type === "flight" ? (
                       <Plane />
-                    ) : selectedCategory.kind === "tour" ? (
+                    ) : r.data.type === "tour" ? (
                       <Ticket />
                     ) : (
                       <TurtleIcon />
@@ -336,7 +346,7 @@ export default function Bookings({
           ))}
         </div>
       )}
-      {!rows.length && !showFiles && <Empty title="아직 예약이 없어북" />}
+      {!rows.length && !showFiles && <Empty title={query.trim() ? "검색 결과가 없어북" : "아직 예약이 없어북"} />}
       {showFiles && (
         <section className="reservation-files">
           <Files
