@@ -62,3 +62,13 @@ JSON 직렬화와 Content-Type 설정을 client-api의 jsonRequest에 모으고 
 도시 검색 보완은 Open-Meteo Geocoding/GeoNames의 도시 유형·국가·시간대를 검증한다. 장소 이름 보완은 Wikipedia의 명확한 언어 연결만 사용하며 검색 요청을 앱 User-Agent로 식별한다. 외부 서비스 장애가 정상 직접 검색 결과를 지우지 않는다. 무료 데이터의 모든 한글 별칭을 보장하는 기능은 아니다.
 
 최종 검증: 서버 36개·클라이언트 24개 통과, TypeScript/ESLint/Next 운영 빌드 성공, Android debug/release assemble·lint 성공(기존 경고는 유지), iOS simulator 0.0.1/build 5 성공. Vercel dpl_ErWAdYXfqQrjPdaQjX89qUV6JQ6p READY, 운영 HTTP 200, QA 3개 404, 익명 bootstrap private/no-store와 빈 데이터 확인. 공개 APK 9,158,484 bytes의 실제 다운로드 SHA-256은 28c98ea28cdd466e92098f65e70176ccd2fd44fe033a2e9275fb611c3c3e92d3로 검증했다. 연결 기기 SM_S948N에 debug build 5 install -r Success, 2026-10-19 21:45:55 KST. 실제 운영 모바일 브라우저에서 설정의 직접 소셜 로그인·앱 정보 표시를 확인했다. 릴리스 APK 로그인·실기기 키보드·iPhone 설치는 미검증이다.
+
+## 2026-10-21 Android 한눈에 보기 자동 갱신 오류
+
+설치 앱에서는 처음 여행 조회가 성공한 뒤 몇 초 후 `Failed to fetch`가 발생했다. 같은 로그인 세션으로 운영 서버를 조회해 일반 요청은 200/CORS 정상, 같은 데이터의 조건부 요청은 304이며 `Access-Control-Allow-Origin`이 사라지는 것을 확인했다. 응답에 직접 CORS를 추가해도 운영 304 경로에서 제거되는 현상은 같았고, 원본 HTTPS 응답으로도 재확인했다.
+
+현재 서버는 정확한 앱 Origin(`https://localhost`, `capacitor://localhost`)의 workspace 조회에 항상 200 전체 스냅샷을 반환하고 ETag를 주지 않는다. 기존 APK도 정상 응답을 받은 뒤 저장해 둔 validator를 버려 이후 조건부 요청을 중단한다. 웹의 조건부 304 최적화는 유지한다. 네이티브 CORS 허용 출처·Bearer 검증·여행 멤버십 검사는 기존과 같으며 개인 데이터 캐시는 사용하지 않는다.
+
+이 변경은 기존 0.2.0 APK에 서버 배포로 반영된다. APK·버전 번호·Supabase 데이터는 변경하지 않았다. Android 14 WebView에서 실제 배포 서버의 공개 설정 조회·조건부 헤더 요청·비인증 여행 API 401을 검증했고, 실제 여행의 인증된 요청은 로컬 전용 진단으로 헤더만 비교했다. 진단 코드와 인증 정보는 배포물에 포함하지 않았다. 실기기 전체 로그인·편집 종단 검증을 수행한 결과는 아니다.
+
+최종 운영 배포: `dpl_EvBU1GFNwteUykgKH3MZUJd3ciXL` READY. 수정 후 같은 여행의 Android 일반·조건부 요청이 모두 200과 정확한 앱 CORS 헤더를 반환하고 ETag가 제거됨을 원본 HTTPS 응답으로 확인했다. 웹 ETag와 데이터 본문 크기는 이전과 같았다. 서버 통합 검사 62개, 클라이언트/네이티브 계약 검사 17개와 Android 네트워크 계측 검사 1개를 통과했다. 공개 APK 메타데이터·SHA-256은 기존 0.2.0과 동일하다.
