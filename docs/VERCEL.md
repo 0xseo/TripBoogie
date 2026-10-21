@@ -14,6 +14,8 @@ TripBoogie는 표준 Next.js App Router와 Node.js 서버에서 실행한다. �
 
 `.github/workflows/deploy.yml`이 `main` 푸시 또는 수동 실행을 감지해 검사 후 기존 Vercel 프로젝트의 운영 배포를 실행한다. GitHub 저장소의 암호화된 Actions secret `VERCEL_TOKEN`을 사용하며, 팀·프로젝트 식별자는 워크플로에 고정한다. 운영 배포는 차례로 실행해 이전 커밋이 늦게 배포되는 일을 막는다.
 
+`VERCEL_TOKEN`에는 Vercel 계정 설정에서 발급한 해당 팀의 배포 토큰을 등록한다. 로컬 CLI 로그인 파일의 단기 OAuth 토큰은 사용하지 않는다. GitHub 저장소 연결은 유지하며, `vercel.json`의 `git.deploymentEnabled: false`로 연결 자체에서 시작하는 중복 배포를 막는다. `main` 푸시는 Actions의 검사·릴리즈 APK 복원·운영 배포 순서로 처리한다.
+
 APK는 Git에 저장하지 않는다. 워크플로는 현재 `package.json` 버전의 GitHub Release에서 `TripBoogie_버전.apk`와 `release.json`을 받고, 패키지·버전·빌드·공개 인증서 지문·크기·SHA-256을 검사한 뒤 웹 다운로드에 포함한다. 앱 버전을 올리는 릴리즈는 서명 APK를 빌드하고 같은 커밋에 태그를 붙여 GitHub Release를 게시한 후 `main`을 푸시한다. 버전을 유지한 웹 수정은 그대로 푸시하면 된다. 서명키와 Android 빌드는 이 워크플로에 포함하지 않는다.
 
 1. 기존 Vercel 계정에서 새 tripboogie 프로젝트를 생성하고 폴더를 연결한다.
