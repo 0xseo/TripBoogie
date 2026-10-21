@@ -12,7 +12,9 @@ function firstVisible(offsets: number[], position: number) { let lo = 0, hi = of
 
 export default function BrainSheet({ document: doc, store, disabled, onCell }: { document: BrainDocument; store: BrainStore; disabled: boolean; onCell?: (label: string) => void }) {
   const entities = doc.entities, rows = useMemo(() => axis(entities, "rows"), [entities]), columns = useMemo(() => axis(entities, "cols"), [entities]);
-  const viewport = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null), dragging = useRef(false);
+  const viewport = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null), cellInput = useRef<HTMLTextAreaElement>(null), dragging = useRef(false);
+  const [editingCell, setEditingCell] = useState<{ key: string; rowId: string; colId: string } | null>(null), inlineEditing = useRef<string | null>(null);
+  const editingKey = editingCell?.key ?? null;
   const [view, setView] = useState({ left: 0, top: 0, width: 900, height: 500 });
   const [zoom, setZoom] = useState(1), zoomRef = useRef(1), zoomScroll = useRef<{ left: number; top: number } | null>(null);
   const touchGesture = useRef(new TableTouchGesture());
@@ -21,8 +23,8 @@ export default function BrainSheet({ document: doc, store, disabled, onCell }: {
   const resize = useRef<{ pointerId: number; key: string; start: number; size: number; value: number; stamp: string | null; axis: "rows" | "cols"; zoom: number } | null>(null);
   const [resizeDraft, setResizeDraft] = useState<{ key: string; value: number } | null>(null);
   const [selection, setSelection] = useState<Selection>({ row: 0, col: 0, endRow: 0, endCol: 0 });
-  const row = Math.min(selection.row, rows.length - 1), col = Math.min(selection.col, columns.length - 1);
-  const key = cellKey(rows[row], columns[col]), value = cellValue(entities, key);
+  const row = Math.min(editingCell ? Math.max(0, rows.indexOf(editingCell.rowId)) : selection.row, rows.length - 1), col = Math.min(editingCell ? Math.max(0, columns.indexOf(editingCell.colId)) : selection.col, columns.length - 1);
+  const key = editingKey || cellKey(rows[row], columns[col]), value = cellValue(entities, key);
   const [buffer, setBuffer] = useState({ key, text: value.text, stamp: entities[key]?.stamp ?? null, dirty: false });
   const draft = buffer.text; const [message, setMessage] = useState("");
   if (buffer.key !== key || (!buffer.dirty && (buffer.text !== value.text || buffer.stamp !== (entities[key]?.stamp ?? null)))) setBuffer({ key, text: value.text, stamp: entities[key]?.stamp ?? null, dirty: false });
@@ -36,6 +38,7 @@ export default function BrainSheet({ document: doc, store, disabled, onCell }: {
   };
   const commitRef = useRef(commit);
   useLayoutEffect(() => { commitRef.current = commit; });
+  useLayoutEffect(() => { if (editingKey && cellInput.current) { const el = cellInput.current; el.focus({ preventScroll: true }); el.setSelectionRange(el.value.length, el.value.length); } }, [editingKey]);
   useEffect(() => () => commitRef.current(), []);
   useEffect(() => { onCell?.(`${columnLabel(col)}${row + 1}`); }, [col, row, onCell]);
   useEffect(() => {
@@ -52,7 +55,7 @@ export default function BrainSheet({ document: doc, store, disabled, onCell }: {
   useLayoutEffect(() => { zoomRef.current = zoom; const el = viewport.current; if (el && zoomScroll.current) { el.scrollLeft = zoomScroll.current.left; el.scrollTop = zoomScroll.current.top; zoomScroll.current = null; setView({ left: el.scrollLeft, top: el.scrollTop, width: el.clientWidth, height: el.clientHeight }); } }, [zoom]);
   useEffect(() => { const el = viewport.current; if (!el) return; const wheel = (e: globalThis.WheelEvent) => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); const rect = el.getBoundingClientRect(); zoomTable(zoomRef.current * Math.exp(-e.deltaY * .005), { x: e.clientX - rect.left, y: e.clientY - rect.top }); }; el.addEventListener("wheel", wheel, { passive: false }); return () => el.removeEventListener("wheel", wheel); }, [zoomTable]);
   const startTouch = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.pointerType !== "touch" || (e.target as HTMLElement).closest("button,[role=separator]")) return;
+    if (e.pointerType !== "touch" || (e.target as HTMLElement).closest("button,input,textarea,[role=separator]")) return;
     const el = e.currentTarget, rect = el.getBoundingClientRect(); el.setPointerCapture(e.pointerId);
     touchGesture.current.start(e.pointerId, { x: e.clientX - rect.left, y: e.clientY - rect.top }, { zoom: zoomRef.current, left: el.scrollLeft, top: el.scrollTop });
   };
@@ -63,7 +66,7 @@ export default function BrainSheet({ document: doc, store, disabled, onCell }: {
   };
   const endTouch = (e: ReactPointerEvent<HTMLDivElement>) => { if (e.pointerType === "touch") touchGesture.current.end(e.pointerId, { zoom: zoomRef.current, left: e.currentTarget.scrollLeft, top: e.currentTarget.scrollTop }); };
   useEffect(() => { const end = () => { dragging.current = false; }; window.addEventListener("pointerup", end); return () => window.removeEventListener("pointerup", end); }, []);
-  const bounds = { r0: Math.min(row, selection.endRow), r1: Math.min(rows.length - 1, Math.max(row, selection.endRow)), c0: Math.min(col, selection.endCol), c1: Math.min(columns.length - 1, Math.max(col, selection.endCol)) };
+  const bounds = editingCell ? { r0: row, r1: row, c0: col, c1: col } : { r0: Math.min(row, selection.endRow), r1: Math.min(rows.length - 1, Math.max(row, selection.endRow)), c0: Math.min(col, selection.endCol), c1: Math.min(columns.length - 1, Math.max(col, selection.endCol)) };
   const selectedKeys = () => {
     const keys: string[] = [];
     for (let r = bounds.r0; r <= bounds.r1; r++) for (let c = bounds.c0; c <= bounds.c1; c++) keys.push(cellKey(rows[r], columns[c]));
@@ -71,7 +74,7 @@ export default function BrainSheet({ document: doc, store, disabled, onCell }: {
     return keys;
   };
   const format = (patch: Partial<CellValue>) => { commit(); store.edit(Object.fromEntries(selectedKeys().map(k => [k, { ...cellValue(store.getSnapshot().document.entities, k), ...patch }]))); };
-  const select = (r: number, c: number, extend = false) => { commit(); setSelection(s => extend ? { ...s, endRow: r, endCol: c } : { row: r, col: c, endRow: r, endCol: c }); };
+  const select = (r: number, c: number, extend = false) => { commit(); inlineEditing.current = null; setEditingCell(null); setSelection(s => extend ? { ...s, endRow: r, endCol: c } : { row: r, col: c, endRow: r, endCol: c }); };
   const scrollTo = (r: number, c: number) => {
     const el = viewport.current; if (!el) return;
     if (rowOffsets[r] * zoom < el.scrollTop) el.scrollTop = rowOffsets[r] * zoom;
@@ -80,14 +83,33 @@ export default function BrainSheet({ document: doc, store, disabled, onCell }: {
     else if ((colOffsets[c + 1] + 48) * zoom > el.scrollLeft + el.clientWidth) el.scrollLeft = (colOffsets[c + 1] + 48) * zoom - el.clientWidth;
   };
   const move = (r: number, c: number, extend = false) => { r = Math.max(0, Math.min(rows.length - 1, r)); c = Math.max(0, Math.min(columns.length - 1, c)); select(r, c, extend); scrollTo(r, c); };
+  const beginInline = (r: number, c: number, replacement?: string) => {
+    if (disabled) return;
+    commit(); dragging.current = false;
+    const k = cellKey(rows[r], columns[c]), current = store.getSnapshot().document.entities;
+    setSelection({ row: r, col: c, endRow: r, endCol: c });
+    setBuffer({ key: k, text: replacement ?? cellValue(current, k).text, stamp: current[k]?.stamp ?? null, dirty: replacement !== undefined });
+    inlineEditing.current = k; setEditingCell({ key: k, rowId: rows[r], colId: columns[c] }); scrollTo(r, c);
+  };
+  const finishInline = (save: boolean) => {
+    inlineEditing.current = null; setEditingCell(null); setSelection({ row, col, endRow: row, endCol: col });
+    if (save) commit();
+    else { const current = store.getSnapshot().document.entities; setBuffer({ key, text: cellValue(current, key).text, stamp: current[key]?.stamp ?? null, dirty: false }); }
+  };
+  const inlineKeyboard = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+    if (e.key === "Enter" && e.altKey) { e.preventDefault(); const el = e.currentTarget; if (el.value.length - (el.selectionEnd - el.selectionStart) >= 5000) return; el.setRangeText("\n", el.selectionStart, el.selectionEnd, "end"); setBuffer(b => ({ ...b, text: el.value, dirty: true })); }
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finishInline(false); viewport.current?.focus({ preventScroll: true }); }
+    else if (e.key === "Tab" || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); finishInline(true); move(row + (e.key === "Enter" ? e.shiftKey ? -1 : 1 : 0), col + (e.key === "Tab" ? e.shiftKey ? -1 : 1 : 0)); viewport.current?.focus({ preventScroll: true }); }
+  };
   const keyboard = (e: KeyboardEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest("input,textarea,select,button,[role=separator]")) return;
     const r = e.shiftKey ? selection.endRow : row, c = e.shiftKey ? selection.endCol : col;
     if (["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Tab"].includes(e.key)) {
       e.preventDefault(); move(r + (e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0), c + (e.key === "ArrowRight" || e.key === "Tab" ? 1 : e.key === "ArrowLeft" ? -1 : 0), e.shiftKey && e.key !== "Tab");
     } else if (!disabled && (e.key === "Delete" || e.key === "Backspace")) { e.preventDefault(); format({ text: "" }); }
-    else if (!disabled && (e.key === "Enter" || e.key === "F2")) { e.preventDefault(); input.current?.focus(); }
-    else if (!disabled && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); input.current?.focus(); setBuffer({ key, text: e.key, stamp: entities[key]?.stamp ?? null, dirty: true }); }
+    else if (!disabled && (e.key === "Enter" || e.key === "F2")) { e.preventDefault(); beginInline(row, col); }
+    else if (!disabled && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); beginInline(row, col, e.key); }
   };
   const copy = (e: ClipboardEvent) => { if ((e.target as HTMLElement).matches("input,textarea")) return; e.preventDefault(); e.clipboardData.setData("text/plain", sheetTsv(entities, rows.slice(bounds.r0, bounds.r1 + 1), columns.slice(bounds.c0, bounds.c1 + 1))); };
   const paste = (e: ClipboardEvent) => {
@@ -147,14 +169,14 @@ export default function BrainSheet({ document: doc, store, disabled, onCell }: {
     {buffer.dirty && buffer.stamp !== (entities[key]?.stamp ?? null) && <p className={styles.inlineMessage}>동행이 이 셀을 변경했어요. 입력한 내용은 유지되며 저장할 때 충돌을 확인합니다.</p>}
     {message && <p role="status" className={styles.inlineMessage}>{message}<button onClick={() => setMessage("")}>닫기</button></p>}
     {rangeMode && <p className={styles.inlineMessage}>시작 셀을 누른 뒤 마지막 셀을 누르면 그 사이의 셀이 함께 선택돼요.</p>}
-    <div ref={viewport} className={styles.sheetViewport} tabIndex={0} aria-label="스프레드시트. 방향키로 이동하고 Enter로 편집. 두 손가락으로 표 확대·축소" onPointerDown={startTouch} onPointerMove={moveTouch} onPointerUp={endTouch} onPointerCancel={endTouch} onScroll={e => { const el = e.currentTarget; setView({ left: el.scrollLeft, top: el.scrollTop, width: el.clientWidth, height: el.clientHeight }); }}>
+    <div ref={viewport} className={styles.sheetViewport} tabIndex={0} aria-label="스프레드시트. 방향키로 이동하고 Enter로 편집. 두 손가락으로 표 확대·축소" onPointerDown={startTouch} onPointerMove={moveTouch} onPointerUp={endTouch} onPointerCancel={endTouch} onScroll={e => { const el = e.currentTarget; if (inlineEditing.current && ((rowOffsets[row + 1] + 32) * zoom <= el.scrollTop + 32 * zoom || (rowOffsets[row] + 32) * zoom >= el.scrollTop + el.clientHeight || (colOffsets[col + 1] + 48) * zoom <= el.scrollLeft + 48 * zoom || (colOffsets[col] + 48) * zoom >= el.scrollLeft + el.clientWidth)) finishInline(true); setView({ left: el.scrollLeft, top: el.scrollTop, width: el.clientWidth, height: el.clientHeight }); }}>
       <div style={{ width: (colOffsets.at(-1)! + 48) * zoom, height: (rowOffsets.at(-1)! + 32) * zoom, position: "relative", overflow: "hidden" }}><div role="grid" aria-label={doc.title} aria-rowcount={rows.length + 1} aria-colcount={columns.length + 1} style={{ width: colOffsets.at(-1)! + 48, height: rowOffsets.at(-1)! + 32, position: "absolute", transform: `scale(${zoom})`, transformOrigin: "0 0" }}>
         <div role="row" className={styles.columnHeaders} style={{ top: view.top / zoom }}>
           {columns.slice(cStart, cEnd).map((id, ci) => { const c = ci + cStart, width = colOffsets[c + 1] - colOffsets[c]; return <div role="columnheader" key={id} data-active={c === col} style={{ left: colOffsets[c] + 48, width }}><span>{columnLabel(c)}</span><button className={styles.axisInsert} disabled={disabled} aria-label={`${columnLabel(c)}열 왼쪽에 열 삽입`} data-hint="← 왼쪽에 열 삽입" onClick={() => changeAxis("cols", "insert", c)}><Plus size={13}/><span>열 삽입</span></button>{resizeHandle("cols", id, `${columnLabel(c)}열`, width)}</div>; })}
         </div>
         {rows.slice(rStart, rEnd).map((id, ri) => { const r = ri + rStart; return <div role="row" aria-rowindex={r + 2} key={id} className={styles.gridRow} style={{ top: rowOffsets[r] + 32, height: rowOffsets[r + 1] - rowOffsets[r], width: "100%" }}>
           <div role="rowheader" className={styles.rowHeader} data-active={r === row} style={{ left: view.left / zoom }}><span>{r + 1}</span><button className={styles.axisInsert} disabled={disabled} aria-label={`${r + 1}행 위에 행 삽입`} data-hint="↑ 위에 행 삽입" onClick={() => changeAxis("rows", "insert", r)}><Plus size={12}/><span>행 삽입</span></button>{resizeHandle("rows", id, `${r + 1}행`, rowOffsets[r + 1] - rowOffsets[r])}</div>
-          {columns.slice(cStart, cEnd).map((cid, ci) => { const c = ci + cStart, k = cellKey(id, cid), cell = cellValue(entities, k), selected = r >= bounds.r0 && r <= bounds.r1 && c >= bounds.c0 && c <= bounds.c1; return <div key={cid} role="gridcell" aria-colindex={c + 2} aria-label={`${columnLabel(c)}${r + 1}${cell.text ? `: ${cell.text}` : ""}`} aria-selected={selected} className={styles.gridCell} data-current={r === row && c === col} data-selected={selected} style={{ left: colOffsets[c] + 48, width: colOffsets[c + 1] - colOffsets[c], color: cell.color, backgroundColor: cell.background, fontWeight: cell.bold ? 700 : 400, textAlign: cell.align || "left" }} onPointerDown={e => { if (e.button !== 0 || (e.pointerType === "touch" && !e.isPrimary)) return; if (e.pointerType === "mouse") { e.preventDefault(); dragging.current = true; } viewport.current?.focus({ preventScroll: true }); select(r, c, e.shiftKey || (rangeMode && rangeStarted.current)); if (rangeMode) rangeStarted.current = true; }} onPointerEnter={() => { if (dragging.current) setSelection(s => ({ ...s, endRow: r, endCol: c })); }} onDoubleClick={() => input.current?.focus()}>{cell.text}</div>; })}
+          {columns.slice(cStart, cEnd).map((cid, ci) => { const c = ci + cStart, k = cellKey(id, cid), cell = cellValue(entities, k), selected = r >= bounds.r0 && r <= bounds.r1 && c >= bounds.c0 && c <= bounds.c1, editing = editingKey === k && !disabled; return <div key={cid} role="gridcell" aria-colindex={c + 2} aria-label={`${columnLabel(c)}${r + 1}${cell.text ? `: ${cell.text}` : ""}`} aria-selected={selected} className={styles.gridCell} data-current={r === row && c === col} data-selected={selected} data-editing={editing} style={{ left: colOffsets[c] + 48, width: colOffsets[c + 1] - colOffsets[c], color: cell.color, backgroundColor: cell.background, fontWeight: cell.bold ? 700 : 400, textAlign: cell.align || "left" }} onPointerDown={e => { if ((e.target as HTMLElement).closest("textarea") || e.button !== 0 || (e.pointerType === "touch" && !e.isPrimary)) return; if (e.pointerType === "mouse") { e.preventDefault(); dragging.current = true; } viewport.current?.focus({ preventScroll: true }); select(r, c, e.shiftKey || (rangeMode && rangeStarted.current)); if (rangeMode) rangeStarted.current = true; }} onPointerEnter={() => { if (dragging.current) setSelection(s => ({ ...s, endRow: r, endCol: c })); }} onDoubleClick={e => { e.stopPropagation(); beginInline(r, c); }}>{editing ? <textarea ref={cellInput} className={styles.cellEditor} aria-label={`${columnLabel(c)}${r + 1} 셀 편집`} maxLength={5000} value={draft} spellCheck={false} onChange={e => setBuffer(b => ({ ...b, text: e.target.value, dirty: true }))} onKeyDown={inlineKeyboard} onPointerDown={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()} onBlur={() => { if (inlineEditing.current === k) finishInline(true); }}/> : cell.text}</div>; })}
         </div>; })}
         <div className={styles.gridCorner} style={{ top: view.top / zoom, left: view.left / zoom }} aria-hidden="true"/>
       </div></div>
