@@ -32,7 +32,7 @@ export const BoardArtwork = memo(function BoardArtwork({ items, prefix = "board"
 });
 export function BoardPreview({ preview, id }: { preview: Record<string, unknown>; id: string }) {
   const items = Object.entries(preview).filter(([key, value]) => key.startsWith("shape:") && value && typeof value === "object" && "type" in value) as [string, ShapeValue][];
-  if (!items.length) return <div className={styles.emptyBoard}><Pencil size={30}/><span>생각을 자유롭게 그려 보세요</span></div>;
+  if (!items.length) return <div className={styles.emptyBoard}><Pencil size={30}/><span>빈 그림판</span></div>;
   const boxes = items.filter(([, v]) => v.type !== "eraser").map(([, v]) => shapeBounds(v));
   if (!boxes.length) return <div className={styles.emptyBoard}>빈 그림판</div>;
   const x = Math.min(...boxes.map(b => b.x)), y = Math.min(...boxes.map(b => b.y)), right = Math.max(...boxes.map(b => b.x + b.width)), bottom = Math.max(...boxes.map(b => b.y + b.height));

@@ -36,9 +36,11 @@
   accent-color: var(--green);
   flex: none;
 }
+.file-library > .file-list {
+  min-height: 72px;
+}
 .file-list {
   position: relative;
-  min-height: 72px;
 }
 .file-list:has(.file-selection-box) {
   user-select: none;

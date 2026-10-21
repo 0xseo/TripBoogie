@@ -210,7 +210,7 @@ export default function Files({
   }
   return (
     <div
-      className={`files ${bookingId ? "" : "file-library"} ${dragging ? "file-dragging" : ""}`}
+      className={`files ${bookingId ? "booking-files" : "file-library"} ${dragging ? "file-dragging" : ""}`}
       aria-busy={busy}
       onDragEnter={(e) => {
         if (!isFileDrag(e.dataTransfer)) return;
@@ -245,6 +245,7 @@ export default function Files({
         <div className="file-heading">
           <strong>첨부파일</strong>
           <button
+            type="button"
             className="secondary"
             aria-label="파일 추가"
             disabled={readOnly || busy}
@@ -351,7 +352,7 @@ export default function Files({
           </div>
         </div>
       )}
-      {!readOnly && (
+      {!readOnly && !bookingId && (
         <p className="file-drop-hint">
           <Upload size={16} />
           파일을 끌어놓아북
