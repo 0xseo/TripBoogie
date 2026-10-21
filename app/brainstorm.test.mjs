@@ -158,6 +158,8 @@ test('resizing mixed selections keeps their layout and erased cuts through save,
  const textCut={type:'eraser',x:260,y:100,points:[[260,100],[260,140]],width:20,color:'#254c41',order:'4',targets:['shape:text']};
  const boundTextCut=attachSelectionErasers({'shape:text':{value:text,stamp:'text'},'shape:cut':{value:textCut,stamp:'cut'}},{'shape:text':text})[0].value;
  assert.equal(eraserTransform(resized['shape:text'],'shape:text',boundTextCut),'translate(400 100) scale(2 2) translate(-250 -100)');
+ const shortText={...text,text:'가',fontSize:28},legacyTextCut={...textCut,origins:{'shape:text':[250,100,40,28*1.4]}};
+ assert.equal(eraserTransform(shortText,'shape:text',legacyTextCut),'translate(250 100) scale(1 1) translate(-250 -100)');
  const cut={type:'eraser',x:150,y:100,points:[[150,100],[150,160]],width:20,color:'#254c41',order:'4',targets:['shape:pen']};
  const s=server(),store=new BrainStore(initial(),s.transport);store.edit({...originals,'shape:cut':cut});await settled(store);
  const doc=store.getSnapshot().document,erasers=attachSelectionErasers(doc.entities,originals);

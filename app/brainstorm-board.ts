@@ -18,7 +18,11 @@ export function eraserTransform(shape: ShapeValue, key: string, eraser: ShapeVal
   const origin = eraser.origins?.[key];
   if (!origin) return undefined;
   const box = shapeBounds(shape);
-  return `translate(${box.x} ${box.y}) scale(${box.width / Math.max(1, origin[2])} ${box.height / Math.max(1, origin[3])}) translate(${-origin[0]} ${-origin[1]})`;
+  const scaleY = box.height / Math.max(1, origin[3]);
+  // Text scales uniformly with its font. Older short text used a fixed minimum
+  // width, which must not stretch existing cuts when its bounds are updated.
+  const scaleX = shape.type === "text" ? scaleY : box.width / Math.max(1, origin[2]);
+  return `translate(${box.x} ${box.y}) scale(${scaleX} ${scaleY}) translate(${-origin[0]} ${-origin[1]})`;
 }
 
 // Older boards stored erasers in canvas coordinates. Bind each cut to its
