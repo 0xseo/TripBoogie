@@ -8,13 +8,14 @@ import ts from 'typescript';
 const directory=await mkdtemp(path.join(tmpdir(),'tripboogie-brain-'));
 test.after(()=>rm(directory,{recursive:true,force:true}));
 await writeFile(path.join(directory,'package.json'),'{"type":"commonjs"}');
-for(const name of ['brainstorm','brainstorm-store','brainstorm-backup'])await writeFile(path.join(directory,`${name}.js`),ts.transpileModule(await readFile(new URL(`./${name}.ts`,import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText);
+for(const name of ['brainstorm','brainstorm-store','brainstorm-backup','brainstorm-board'])await writeFile(path.join(directory,`${name}.js`),ts.transpileModule(await readFile(new URL(`./${name}.ts`,import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText);
 let mockApi;
 await writeFile(path.join(directory,'client-api.js'),'exports.jsonRequest=data=>({body:JSON.stringify(data)});exports.apiFetch=(...args)=>global.__brainTestApi(...args);');
 const require=createRequire(path.join(directory,'package.json'));
 const {BrainStore}=require('./brainstorm-store.js'),{axis,cellKey,parseTsv,sheetTsv,mergeDelta}=require('./brainstorm.js');
 global.__brainTestApi=(...args)=>mockApi(...args);
 const {brainImportBatches,importBrainDocuments}=require('./brainstorm-backup.js');
+const {attachLegacyErasers,eraserTransform}=require('./brainstorm-board.js');
 const copy=value=>structuredClone(value);
 const initial=()=>({id:'doc',tripId:'trip',kind:'sheet',title:'표',revision:1,metaVersion:1,deletedAt:null,updatedAt:'',entities:{},preview:{}});
 function server(){
@@ -72,6 +73,38 @@ test('inserting rows preserves stable cell addresses, and TSV round trips Unicod
 });
 test('an older response cannot roll back a newer document snapshot',()=>{
  const current={...initial(),revision:8,entities:{a:{value:{text:'최신'}}}};assert.equal(mergeDelta(current,{...initial(),revision:7,entities:{},reset:true}),current);
+});
+test('legacy eraser cuts follow their shape through moves and resize without moving other targets',()=>{
+ const shape={type:'line',x:100,y:100,x2:300,y2:100,color:'#254c41',width:4,order:'1'};
+ const eraser={type:'eraser',x:200,y:80,points:[[200,80],[200,120]],targets:['shape:line','shape:other'],color:'#254c41',width:24,order:'2'};
+ const entities={'shape:line':{value:shape,stamp:'line',revision:1},'shape:cut':{value:eraser,stamp:'cut',revision:1}};
+ const changes=attachLegacyErasers(entities,'shape:line',shape);
+ assert.equal(changes.length,1);assert.equal(changes[0].expected,'cut');
+ const bound=changes[0].value;
+ assert.deepEqual(bound.origins['shape:line'],[100,100,200,1]);
+ assert.equal(eraser.origins,undefined);assert.deepEqual(bound.targets,eraser.targets);
+ const moved={...shape,x:180,y:220,x2:380,y2:220};
+ assert.equal(eraserTransform(moved,'shape:line',bound),'translate(180 220) scale(1 1) translate(-100 -100)');
+ assert.equal(eraserTransform(moved,'shape:other',bound),undefined);
+ const saved={...entities,'shape:line':{...entities['shape:line'],value:moved},'shape:cut':{...entities['shape:cut'],value:bound}};
+ assert.deepEqual(attachLegacyErasers(saved,'shape:line',moved),[]);
+ assert.equal(eraserTransform({...moved,x2:580},'shape:line',bound),'translate(180 220) scale(2 1) translate(-100 -100)');
+ // A shared eraser can be bound to another target later without changing the first cut.
+ const other=attachLegacyErasers(saved,'shape:other',{...shape,x:0})[0].value;
+ assert.deepEqual(other.origins['shape:line'],bound.origins['shape:line']);
+ assert.deepEqual(other.origins['shape:other'],[0,100,300,1]);
+});
+test('moving a legacy erased shape saves, undoes and redoes the cut and movement together',async()=>{
+ const s=server(),store=new BrainStore(initial(),s.transport);
+ const shape={type:'pen',x:100,y:100,points:[[100,100],[300,150]],color:'#254c41',width:4,order:'1'};
+ const eraser={type:'eraser',x:200,y:100,points:[[200,100],[200,150]],targets:['shape:line'],color:'#254c41',width:24,order:'2'};
+ store.edit({'shape:line':shape,'shape:cut':eraser});await settled(store);
+ const doc=store.getSnapshot().document,changes=attachLegacyErasers(doc.entities,'shape:line',shape);
+ const moved={...shape,x:180,y:220,points:[[180,220],[380,270]]};
+ store.edit({...Object.fromEntries(changes.map(c=>[c.key,c.value])),'shape:line':moved},{...Object.fromEntries(changes.map(c=>[c.key,c.expected])),'shape:line':doc.entities['shape:line'].stamp});await settled(store);
+ assert.equal(eraserTransform(s.document.entities['shape:line'].value,'shape:line',s.document.entities['shape:cut'].value),'translate(180 220) scale(1 1) translate(-100 -100)');
+ await store.undo();assert.deepEqual(s.document.entities['shape:line'].value,shape);assert.deepEqual(s.document.entities['shape:cut'].value,eraser);
+ await store.undo(true);assert.deepEqual(s.document.entities['shape:line'].value,moved);assert.deepEqual(s.document.entities['shape:cut'].value.origins['shape:line'],[100,100,200,50]);
 });
 test('large backup restoration stays within hosted payload limits and resumes without duplicate documents',async()=>{
  const source=initial();source.entities=Object.fromEntries(Array.from({length:1200},(_,i)=>[`cell:r${i}:c0`,{value:{text:'한글'.repeat(350)},stamp:'old',revision:1}]));

@@ -1,7 +1,8 @@
 "use client";
 import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent } from "react";
 import { ArrowUpRight, Circle, Eraser, Hand, Minus, MousePointer2, Pencil, RectangleHorizontal, Trash2, Type, ZoomIn, ZoomOut, LocateFixed } from "lucide-react";
-import { shapes, type BrainDocument, type ShapeValue } from "../brainstorm";
+import { shapes, type BrainChange, type BrainDocument, type ShapeValue } from "../brainstorm";
+import { attachLegacyErasers, eraserTransform, pathFor, shapeBounds } from "../brainstorm-board";
 import type { BrainStore } from "../brainstorm-store";
 import Dialog from "./Dialog";
 import styles from "./Brainstorming.module.css";
@@ -9,12 +10,6 @@ import styles from "./Brainstorming.module.css";
 type Tool = ShapeValue["type"] | "hand" | "select";
 type Camera = { x: number; y: number; zoom: number };
 const tools = [{ id: "select", label: "선택", Icon: MousePointer2 }, { id: "pen", label: "펜", Icon: Pencil }, { id: "eraser", label: "지우개", Icon: Eraser }, { id: "hand", label: "손 · 이동", Icon: Hand }, { id: "line", label: "선분", Icon: Minus }, { id: "arrow", label: "화살표", Icon: ArrowUpRight }, { id: "rect", label: "사각형", Icon: RectangleHorizontal }, { id: "ellipse", label: "원", Icon: Circle }, { id: "text", label: "글씨", Icon: Type }] as const;
-export function pathFor(points: number[][] = []) { return points.length === 1 ? `M${points[0][0]},${points[0][1]} l0.01,0` : points.map((p, i) => `${i ? "L" : "M"}${p[0]},${p[1]}`).join(" "); }
-export function shapeBounds(shape: ShapeValue) {
-  const points = shape.points || [[shape.x, shape.y], [shape.x2 ?? shape.x + Math.max(40, (shape.text?.length || 1) * (shape.fontSize || 24) * .65), shape.y2 ?? shape.y + (shape.fontSize || 24) * (shape.text?.split("\n").length || 1) * 1.4]];
-  const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
-  return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(1, Math.max(...xs) - Math.min(...xs)), height: Math.max(1, Math.max(...ys) - Math.min(...ys)) };
-}
 export const BoardArtwork = memo(function BoardArtwork({ items, prefix = "board", onSelect }: { items: [string, ShapeValue][]; prefix?: string; onSelect?: (key: string, event: ReactPointerEvent<SVGGElement>) => void }) {
   const erasers = items.filter(([, s]) => s.type === "eraser");
   return <>{items.filter(([, s]) => s.type !== "eraser").map(([key, shape]) => {
@@ -24,7 +19,7 @@ export const BoardArtwork = memo(function BoardArtwork({ items, prefix = "board"
     const angle = Math.atan2(y2 - shape.y, x2 - shape.x), arrowSize = Math.max(12, shape.width * 4);
     const arrow = [[x2 - arrowSize * Math.cos(angle - Math.PI / 6), y2 - arrowSize * Math.sin(angle - Math.PI / 6)], [x2, y2], [x2 - arrowSize * Math.cos(angle + Math.PI / 6), y2 - arrowSize * Math.sin(angle + Math.PI / 6)]];
     return <g key={key} onPointerDown={event => onSelect?.(key, event)} style={{ cursor: onSelect ? "move" : undefined }}>
-      {masks.length > 0 && <defs><mask id={maskId} maskUnits="userSpaceOnUse" x={box.x - 100} y={box.y - 100} width={box.width + 200} height={box.height + 200}><rect x={box.x - 100} y={box.y - 100} width={box.width + 200} height={box.height + 200} fill="white"/>{masks.map(([id, e]) => <path key={id} d={pathFor(e.points)} fill="none" stroke="black" strokeWidth={e.width} strokeLinecap="round" strokeLinejoin="round" transform={e.origins?.[key] ? `translate(${box.x} ${box.y}) scale(${box.width / Math.max(1, e.origins[key][2])} ${box.height / Math.max(1, e.origins[key][3])}) translate(${-e.origins[key][0]} ${-e.origins[key][1]})` : undefined}/>)}</mask></defs>}
+      {masks.length > 0 && <defs><mask id={maskId} maskUnits="userSpaceOnUse" x={box.x - 100} y={box.y - 100} width={box.width + 200} height={box.height + 200}><rect x={box.x - 100} y={box.y - 100} width={box.width + 200} height={box.height + 200} fill="white"/>{masks.map(([id, e]) => <path key={id} d={pathFor(e.points)} fill="none" stroke="black" strokeWidth={e.width} strokeLinecap="round" strokeLinejoin="round" transform={eraserTransform(shape, key, e)}/>)}</mask></defs>}
       <g mask={masks.length ? `url(#${maskId})` : undefined} fill="none" stroke={shape.color} strokeWidth={shape.width} strokeLinecap="round" strokeLinejoin="round">
         {shape.type === "pen" && <path d={pathFor(shape.points)} pointerEvents="stroke"/>}
         {(shape.type === "line" || shape.type === "arrow") && <><line x1={shape.x} y1={shape.y} x2={x2} y2={y2} pointerEvents="stroke"/>{shape.type === "arrow" && <path d={pathFor(arrow)} pointerEvents="stroke"/>}</>}
@@ -48,15 +43,18 @@ export default function BrainBoard({ document: doc, store, disabled }: { documen
   const [camera, setCamera] = useState<Camera>({ x: 80, y: 80, zoom: 1 }), cameraRef = useRef(camera);
   useLayoutEffect(() => { cameraRef.current = camera; }, [camera]);
   const [draftKey, setDraftKey] = useState<string | null>(null);
+  const [draftErasers, setDraftErasers] = useState<BrainChange[]>([]);
   const [draft, setDraft] = useState<ShapeValue | null>(null), draftRef = useRef<ShapeValue | null>(null);
   const [selected, setSelected] = useState<string | null>(null), [textEdit, setTextEdit] = useState<{ key?: string; x: number; y: number; text: string; stamp: string | null } | null>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null), [message, setMessage] = useState("");
+  const [showSizePreview, setShowSizePreview] = useState(false);
   const svg = useRef<SVGSVGElement>(null), pointers = useRef(new Map<number, { x: number; y: number }>());
-  const gesture = useRef<{ kind: "draw" | "pan" | "pinch" | "move" | "resize"; startX: number; startY: number; camera: Camera; distance?: number; anchor?: { x: number; y: number }; original?: ShapeValue; key?: string; stamp?: string | null } | null>(null);
+  const gesture = useRef<{ kind: "draw" | "pan" | "pinch" | "move" | "resize"; startX: number; startY: number; camera: Camera; distance?: number; anchor?: { x: number; y: number }; original?: ShapeValue; key?: string; stamp?: string | null; erasers?: BrainChange[] } | null>(null);
   const id = useId().replaceAll(":", ""), items = useMemo(() => shapes(doc.entities), [doc.entities]), chosen = selected ? doc.entities[selected]?.value as ShapeValue | null : null;
   const point = (e: { clientX: number; clientY: number }) => { const rect = svg.current!.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; };
   const world = (p: { x: number; y: number }, c = cameraRef.current) => ({ x: (p.x - c.x) / c.zoom, y: (p.y - c.y) / c.zoom });
   const changeDraft = (value: ShapeValue | null) => { draftRef.current = value; setDraft(value); };
+  const attachErasers = (key: string, original: ShapeValue) => { const changes = attachLegacyErasers(doc.entities, key, original); setDraftErasers(changes); return changes; };
   const cancelGesture = () => { gesture.current = null; pointers.current.clear(); changeDraft(null); };
   const updateZoom = (factor: number, anchor?: { x: number; y: number }) => { const c = cameraRef.current, p = anchor || { x: (svg.current?.clientWidth || 800) / 2, y: (svg.current?.clientHeight || 500) / 2 }, w = world(p, c), zoom = Math.max(.1, Math.min(8, c.zoom * factor)); setCamera({ zoom, x: p.x - w.x * zoom, y: p.y - w.y * zoom }); };
   const begin = (e: ReactPointerEvent<SVGSVGElement>) => {
@@ -76,7 +74,7 @@ export default function BrainBoard({ document: doc, store, disabled }: { documen
     changeDraft({ type: tool, x: w.x, y: w.y, x2: w.x, y2: w.y, color, width: tool === "eraser" ? eraserSize : penSize, order: `${Math.round(performance.timeOrigin + e.timeStamp)}:${crypto.randomUUID()}`, ...(tool === "pen" || tool === "eraser" ? { points: [[w.x, w.y]] } : {}), ...(tool === "eraser" ? { targets: items.filter(([, shape]) => shape.type !== "eraser").map(([key]) => key), origins: Object.fromEntries(items.filter(([, shape]) => shape.type !== "eraser").map(([key, shape]) => { const b = shapeBounds(shape); return [key, [b.x, b.y, b.width, b.height]]; })) } : {}) });
   };
   const move = (e: ReactPointerEvent<SVGSVGElement>) => {
-    const p = point(e); if (tool === "eraser") setCursor(p); if (!pointers.current.has(e.pointerId)) return;
+    const p = point(e); if (tool === "eraser" || tool === "pen") setCursor(p); if (!pointers.current.has(e.pointerId)) return;
     pointers.current.set(e.pointerId, p); const g = gesture.current; if (!g) return;
     if (g.kind === "pinch") {
       if (pointers.current.size < 2) return;
@@ -102,7 +100,7 @@ export default function BrainBoard({ document: doc, store, disabled }: { documen
     if (g?.kind === "pinch") { if (pointers.current.size === 0) gesture.current = null; return; }
     if (!cancel && draftRef.current && !disabled && g && ["draw", "move", "resize"].includes(g.kind)) {
       const key = g.key || `shape:${crypto.randomUUID()}`;
-      store.edit({ [key]: draftRef.current }, g.key ? { [key]: g.stamp ?? null } : undefined);
+      store.edit({ ...Object.fromEntries((g.erasers || []).map(change => [change.key, change.value])), [key]: draftRef.current }, g.key ? { ...Object.fromEntries((g.erasers || []).map(change => [change.key, change.expected])), [key]: g.stamp ?? null } : undefined);
     }
     gesture.current = null; changeDraft(null);
   };
@@ -110,11 +108,14 @@ export default function BrainBoard({ document: doc, store, disabled }: { documen
     if (tool !== "select" || disabled || pointers.current.size) return;
     e.preventDefault(); e.stopPropagation(); const p = point(e), w = world(p), original = doc.entities[key]?.value as ShapeValue;
     setSelected(key); setDraftKey(key); svg.current?.focus({ preventScroll: true }); svg.current?.setPointerCapture(e.pointerId); pointers.current.set(e.pointerId, p);
-    gesture.current = { kind: "move", key, original, startX: w.x, startY: w.y, camera: cameraRef.current, stamp: doc.entities[key]?.stamp ?? null };
+    gesture.current = { kind: "move", key, original, startX: w.x, startY: w.y, camera: cameraRef.current, stamp: doc.entities[key]?.stamp ?? null, erasers: attachErasers(key, original) };
   };
   const wheel = (e: WheelEvent<SVGSVGElement>) => { if (e.ctrlKey || e.metaKey) updateZoom(Math.exp(-e.deltaY * .005), point(e)); else setCamera(c => ({ ...c, x: c.x - e.deltaX, y: c.y - e.deltaY })); };
   useEffect(() => { const el = svg.current; const prevent = (e: globalThis.WheelEvent) => e.preventDefault(); el?.addEventListener("wheel", prevent, { passive: false }); return () => el?.removeEventListener("wheel", prevent); }, []);
-  const workingItems = draft && draftKey ? items.map(([key, shape]) => [key, key === draftKey ? draft : shape] as [string, ShapeValue]) : draft ? [...items, ["draft", draft] as [string, ShapeValue]] : items;
+  const boundErasers = new Map(draftErasers.map(change => [change.key, change.value as ShapeValue]));
+  const workingItems = draft && draftKey ? items.map(([key, shape]) => [key, key === draftKey ? draft : boundErasers.get(key) || shape] as [string, ShapeValue]) : draft ? [...items, ["draft", draft] as [string, ShapeValue]] : items;
+  const brushSize = tool === "eraser" ? eraserSize : penSize, previewSize = brushSize * camera.zoom;
+  const previewWidth = Math.max(144, previewSize + 96), previewHeight = Math.max(64, previewSize + 16);
   const shownChosen = draftKey === selected && draft ? draft : chosen;
   const box = shownChosen && shownChosen.type !== "eraser" ? shapeBounds(shownChosen) : null;
   const fit = () => {
@@ -128,18 +129,24 @@ export default function BrainBoard({ document: doc, store, disabled }: { documen
     <div className={styles.drawingTools} aria-label="그림 도구">{tools.map(({ id, label, Icon }) => <button key={id} aria-label={label} title={label} aria-pressed={tool === id} disabled={disabled && id !== "hand"} onClick={() => { cancelGesture(); setTool(id); }}><Icon size={20}/><span>{label}</span></button>)}</div>
     <div className={styles.penOptions}>
       <label>색상<input type="color" aria-label="펜 색상" value={color} disabled={disabled} onChange={e => setColor(e.target.value)}/></label>
-      <label>{tool === "eraser" ? "지우개" : "펜"} 크기 <input type="range" aria-label={tool === "eraser" ? "지우개 크기" : "펜 크기"} min="1" max={tool === "eraser" ? 80 : 30} value={tool === "eraser" ? eraserSize : penSize} disabled={disabled} onChange={e => tool === "eraser" ? setEraserSize(Number(e.target.value)) : setPenSize(Number(e.target.value))}/><output>{tool === "eraser" ? eraserSize : penSize}</output></label>
+      <label>{tool === "eraser" ? "지우개" : "펜"} 크기 <input type="range" aria-label={tool === "eraser" ? "지우개 크기" : "펜 크기"} min="1" max={tool === "eraser" ? 80 : 30} value={brushSize} disabled={disabled} onFocus={() => setShowSizePreview(true)} onBlur={() => setShowSizePreview(false)} onChange={e => { setShowSizePreview(true); if (tool === "eraser") setEraserSize(Number(e.target.value)); else setPenSize(Number(e.target.value)); }}/><output>{brushSize}</output></label>
       {tool === "text" && <label>글자 크기<input aria-label="글자 크기" type="range" min="12" max="96" value={fontSize} onChange={e => setFontSize(Number(e.target.value))}/><output>{fontSize}</output></label>}
       {selected && <><button disabled={disabled} onClick={remove}><Trash2 size={16}/>선택 삭제</button>{chosen?.type === "text" && <button disabled={disabled} onClick={() => setTextEdit({ key: selected, x: chosen.x, y: chosen.y, text: chosen.text || "", stamp: doc.entities[selected].stamp })}>글씨 편집</button>}</>}
     </div>
+    {showSizePreview && !disabled && <div className={styles.brushPreview} role="img" aria-label={`${tool === "eraser" ? "지우개" : "펜"} 굵기 미리보기 ${brushSize}, 확대율 ${Math.round(camera.zoom * 100)}%`}>
+      <span>{tool === "eraser" ? "지우개" : "펜"} 크기 <strong>{brushSize}</strong></span>
+      <svg width={previewWidth} height={previewHeight} aria-hidden="true">{tool === "eraser" ? <circle cx={previewWidth / 2} cy={previewHeight / 2} r={previewSize / 2} fill="#fff" stroke="#6f817b" strokeWidth="1"/> : <line x1={previewWidth / 2 - 32} y1={previewHeight / 2} x2={previewWidth / 2 + 32} y2={previewHeight / 2} stroke={color} strokeWidth={previewSize} strokeLinecap="round"/>}</svg>
+      <small>현재 화면에서 보이는 굵기 · {Math.round(camera.zoom * 100)}%</small>
+    </div>}
     {message && <p role="status" className={styles.boardMessage}>{message}<button onClick={() => setMessage("")}>닫기</button></p>}
     <svg ref={svg} className={styles.boardCanvas} role="application" aria-label={`${doc.title} 그림판. 도구를 선택해 그리거나 두 손가락으로 확대하세요.`} tabIndex={0} data-tool={disabled ? "hand" : tool} onPointerDown={begin} onPointerMove={move} onPointerUp={e => finish(e)} onPointerCancel={e => finish(e, true)} onPointerLeave={() => setCursor(null)} onWheel={wheel} onKeyDown={e => { if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); remove(); } if (e.key === "Escape") { cancelGesture(); setSelected(null); } }}>
       <defs><pattern id={`${id}-dots`} x={camera.x % (24 * camera.zoom)} y={camera.y % (24 * camera.zoom)} width={24 * camera.zoom} height={24 * camera.zoom} patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="currentColor" opacity=".16"/></pattern></defs>
       <rect width="100%" height="100%" fill={`url(#${id}-dots)`}/>
       <g transform={`translate(${camera.x} ${camera.y}) scale(${camera.zoom})`}><BoardArtwork items={draft && (draft.type === "eraser" || draftKey) ? workingItems : items} prefix={id} onSelect={tool === "select" && !disabled ? selectShape : undefined}/>{draft && draft.type !== "eraser" && !draftKey && <BoardArtwork items={[["draft", draft]]} prefix={`${id}-draft`}/> }
-        {box && tool === "select" && <g><rect x={box.x - 6} y={box.y - 6} width={box.width + 12} height={box.height + 12} fill="none" stroke="#358872" strokeWidth={1.5 / camera.zoom} strokeDasharray={`${5 / camera.zoom} ${4 / camera.zoom}`} pointerEvents="none"/>{chosen && ["rect", "ellipse", "line", "arrow"].includes(chosen.type) && <rect x={box.x + box.width - 5 / camera.zoom} y={box.y + box.height - 5 / camera.zoom} width={10 / camera.zoom} height={10 / camera.zoom} fill="#358872" style={{ cursor: "nwse-resize" }} onPointerDown={e => { e.preventDefault(); e.stopPropagation(); const p = point(e); pointers.current.set(e.pointerId, p); svg.current?.setPointerCapture(e.pointerId); setDraftKey(selected); gesture.current = { kind: "resize", key: selected!, original: chosen, startX: 0, startY: 0, camera: cameraRef.current, stamp: doc.entities[selected!].stamp }; }}/>}</g>}
+        {box && tool === "select" && <g><rect x={box.x - 6} y={box.y - 6} width={box.width + 12} height={box.height + 12} fill="none" stroke="#358872" strokeWidth={1.5 / camera.zoom} strokeDasharray={`${5 / camera.zoom} ${4 / camera.zoom}`} pointerEvents="none"/>{chosen && ["rect", "ellipse", "line", "arrow"].includes(chosen.type) && <rect x={box.x + box.width - 5 / camera.zoom} y={box.y + box.height - 5 / camera.zoom} width={10 / camera.zoom} height={10 / camera.zoom} fill="#358872" style={{ cursor: "nwse-resize" }} onPointerDown={e => { e.preventDefault(); e.stopPropagation(); const p = point(e); pointers.current.set(e.pointerId, p); svg.current?.setPointerCapture(e.pointerId); setDraftKey(selected); gesture.current = { kind: "resize", key: selected!, original: chosen, startX: 0, startY: 0, camera: cameraRef.current, stamp: doc.entities[selected!].stamp, erasers: attachErasers(selected!, chosen) }; }}/>}</g>}
       </g>
       {cursor && tool === "eraser" && !disabled && <circle cx={cursor.x} cy={cursor.y} r={eraserSize * camera.zoom / 2} fill="#ffffff50" stroke="#6f817b" strokeWidth="1" pointerEvents="none"/>}
+      {cursor && tool === "pen" && !disabled && !showSizePreview && <circle cx={cursor.x} cy={cursor.y} r={penSize * camera.zoom / 2} fill={color} opacity=".45" pointerEvents="none"/>}
     </svg>
     <div className={styles.boardHint}>{tool === "hand" ? "드래그해서 화면 이동" : tool === "select" ? "그림을 눌러 이동 · 모서리로 도형 크기 조절" : "한 손가락으로 그리기 · 두 손가락으로 이동·확대"}</div>
     <div className={styles.zoomTools}><button aria-label="축소" onClick={() => updateZoom(.8)}><ZoomOut size={18}/></button><output>{Math.round(camera.zoom * 100)}%</output><button aria-label="확대" onClick={() => updateZoom(1.25)}><ZoomIn size={18}/></button><button aria-label="전체 그림에 맞추기" title="전체 그림에 맞추기" onClick={fit}><LocateFixed size={18}/></button></div>
