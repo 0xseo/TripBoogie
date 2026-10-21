@@ -72,6 +72,17 @@ export function createApiHandler(deps: Dependencies) {
       if (!user)
         throw new ApiError(401, "로그인이 필요합니다.", "UNAUTHENTICATED");
       const repository = deps.repository(request);
+      if (segments[0] === "trips" && segments[2] === "brainstorm" && segments.length >= 3 && segments.length <= 4) {
+        const documentId = segments[3];
+        if (method === "GET") {
+          const since = Number(new URL(request.url).searchParams.get("since") ?? 0);
+          return json(await repository.brainstorm(segments[1], documentId ? "read" : "list", documentId ? { documentId, since } : {}));
+        }
+        if (method === "POST") {
+          const payload = await readJson(request, documentId ? 1048576 : 65536);
+          return json(await repository.brainstorm(segments[1], documentId ? (payload.action ? "meta" : "patch") : "create", documentId ? { ...payload, documentId } : payload));
+        }
+      }
       if(segments.length===1&&segments[0]==="account"&&(method==="DELETE"||method==="POST"))return json(await repository.accountStatus(method==="DELETE"?"withdraw":"restore",await readJson(request)));
       if (segments.length === 1 && segments[0] === "profile") {
         if (method === "GET") return json(await repository.profile());

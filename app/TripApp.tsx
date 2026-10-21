@@ -22,6 +22,7 @@ import Toast from "./components/Toast";
 import KeyboardFocus from "./components/KeyboardFocus";
 import TripGrid from "./components/TripGrid";
 import { saveDownload } from "./download";
+import { brainImportBatches, exportBrainDocuments, importBrainDocuments } from "./brainstorm-backup";
 import { Plus, Users, RefreshCw, LoaderCircle } from "lucide-react";
 import type {
   CurrentUser,
@@ -103,7 +104,8 @@ const compactCollectionLayout = () =>
   isNativeApp() || window.matchMedia(collectionQuery).matches;
 const serverCollectionLayout = () => false;
 type Modal = "create" | "trip" | "plan" | "travel-settings" | null;
-async function downloadJson(workspace: Workspace) {
+async function downloadJson(workspace: Workspace, includeCloud = true) {
+  const brainstorm = workspace.brainstorm ?? (includeCloud ? await exportBrainDocuments(workspace.trip.id) : []);
   await saveDownload(
     new Blob(
       [
@@ -111,10 +113,8 @@ async function downloadJson(workspace: Workspace) {
           {
             format: "tripboogie-v1",
             exportedAt: new Date().toISOString(),
-            workspace,
-          },
-          null,
-          2
+            workspace: { ...workspace, brainstorm },
+          }
         ),
       ],
       { type: "application/json" }
@@ -146,7 +146,7 @@ function TripAppContent({
     [openingTrip, setOpeningTrip] = useState<Trip | null>(null),
     [workspace, setWorkspace] = useState<Workspace | null>(null),
     [tab, setTab] = useState<TripTab>("plan"),
-    [planView, setPlanView] = useState<"map" | "overview">("map"),
+    [planView, setPlanView] = useState<"map" | "overview" | "brainstorm">("map"),
     [navigationEpoch, setNavigationEpoch] = useState(0),
     [lastPreparation, setLastPreparation] =
       useState<PreparationTab>("checklist"),
@@ -212,6 +212,7 @@ function TripAppContent({
     mutationQueue = useRef<WorkspaceMutations | null>(null),
     importInput = useRef<HTMLInputElement>(null),
     importAttempt = useRef<{ text: string; key: string } | null>(null),
+    copyAttempt = useRef<{ sourceId: string; key: string; workspace: Workspace } | null>(null),
     listRequest = useRef(0),
     authRequest = useRef(0);
   const resolveTravelCity = useMemo(() => createTravelCityLookup(async point =>
@@ -223,6 +224,8 @@ function TripAppContent({
   const changeUser = useCallback(
     (next: CurrentUser | null) => {
       if (identity.current !== (next?.id ?? null)) {
+        copyAttempt.current = null;
+        importAttempt.current = null;
         cancelConfirmation();
         identity.current = next?.id ?? null;
         workspaceCache.current.clear();
@@ -769,12 +772,20 @@ function TripAppContent({
     }));
   }
   async function importWorkspace(source: Workspace, key: string) {
+    if (source.brainstorm && (!Array.isArray(source.brainstorm) || source.brainstorm.length > 30)) throw new Error("브레인스토밍 문서는 최대 30개까지 가져올 수 있어요.");
+    source.brainstorm?.forEach(brainImportBatches);
     const next = await run<Workspace>("/api/trips/import", {
       key,
       trip: source.trip,
       records: source.records.map(({ id, kind, data }) => ({ id, kind, data })),
       ...(source.overview ? { overview: source.overview } : {}),
     });
+    if (source.brainstorm?.length) {
+      setBusy(true);
+      try { await importBrainDocuments(next.trip.id, source.brainstorm, key); }
+      catch { throw new Error("문서 복원이 중단됐어요. 같은 가져오기·복사를 다시 시도하면 이어서 복원합니다. 생성된 여행은 보존됐어요."); }
+      finally { setBusy(false); }
+    }
     accept(next);
     setAtHome(false);
     setDate(next.trip.startDate);
@@ -788,8 +799,8 @@ function TripAppContent({
       return;
     }
     try {
-      if (file.size > 4194304)
-        throw new Error("4 MiB 이하의 JSON 백업을 선택하세요.");
+      if (file.size > 25165824)
+        throw new Error("24 MiB 이하의 JSON 백업을 선택하세요.");
       const content = await file.text(),
         data = JSON.parse(content);
       if (
@@ -1121,7 +1132,7 @@ function TripAppContent({
                             서버로 가져오기
                           </button>
                           <button
-                            onClick={() => void downloadJson(w).catch(fail)}
+                            onClick={() => void downloadJson(w, false).catch(fail)}
                           >
                             JSON 백업
                           </button>
@@ -1494,22 +1505,20 @@ function TripAppContent({
                 workspace
                   ? async () => {
                       try {
-                        await importWorkspace(
-                          {
-                            ...workspace,
-                            trip: {
-                              ...workspace.trip,
-                              title: `${workspace.trip.title.slice(
-                                0,
-                                190
-                              )} (복사)`,
+                        if (!copyAttempt.current || copyAttempt.current.sourceId !== workspace.trip.id) {
+                          copyAttempt.current = {
+                            sourceId: workspace.trip.id,
+                            key: crypto.randomUUID(),
+                            workspace: {
+                              ...workspace,
+                              brainstorm: await exportBrainDocuments(workspace.trip.id),
+                              trip: { ...workspace.trip, title: `${workspace.trip.title.slice(0, 190)} (복사)` },
+                              records: workspace.records.filter(r => r.kind !== "expense"),
                             },
-                            records: workspace.records.filter(
-                              (r) => r.kind !== "expense"
-                            ),
-                          },
-                          crypto.randomUUID()
-                        );
+                          };
+                        }
+                        await importWorkspace(copyAttempt.current.workspace, copyAttempt.current.key);
+                        copyAttempt.current = null;
                         setModal(null);
                         setNotice(
                           "여행을 복사했어북. 동행과 파일 원본·경비는 포함되지 않아북"

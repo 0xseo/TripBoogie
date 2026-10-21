@@ -137,6 +137,9 @@ export class TripRepository {
   workspace(id: string): Promise<Workspace> {
     return this.rpc("workspace", uuid(id));
   }
+  brainstorm(id: string, operation: "list" | "read" | "create" | "patch" | "meta" | "export", input: unknown = {}): Promise<unknown> {
+    return this.rpc(`brain-${operation}`, uuid(id), object(input));
+  }
   create(input: unknown): Promise<Workspace> {
     return this.rpc("create", null, { data: object(input) });
   }

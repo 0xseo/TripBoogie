@@ -36,6 +36,7 @@ export interface Member {
   role: Role;
 }
 export interface Workspace {
+  brainstorm?: import("./brainstorm").BrainDocument[];
   trip: Trip;
   records: ItemRecord[];
   members: Member[];

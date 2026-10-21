@@ -26,17 +26,20 @@ import WeekDays from "./WeekDays";
 import { lazyPanel } from "./LazyPanel";
 
 const TripOverview = lazyPanel(() => import("./TripOverview"));
+const Brainstorming = lazyPanel(() => import("./Brainstorming"));
+type PlanView = "map" | "overview" | "brainstorm";
 
-export default function TripPlan(props: Parameters<typeof DailyTripPlan>[0] & { accountId: string; initialView?: "map" | "overview"; view?: "map" | "overview"; onViewChange?: (view:"map"|"overview")=>void; onSaveOverview: (rows:OverviewChange[])=>Promise<void>; preview?:boolean }) {
+export default function TripPlan(props: Parameters<typeof DailyTripPlan>[0] & { accountId: string; initialView?: PlanView; view?: PlanView; onViewChange?: (view:PlanView)=>void; onSaveOverview: (rows:OverviewChange[])=>Promise<void>; preview?:boolean }) {
   const [localView, setLocalView] = useState(props.initialView ?? "map");
   const view = props.view ?? localView;
-  const setView = (next: "map" | "overview") => { setLocalView(next); props.onViewChange?.(next); };
+  const setView = (next: PlanView) => { setLocalView(next); props.onViewChange?.(next); };
   return <>
     <nav className="itinerary-tabs" aria-label="일정 보기 방식">
       <button type="button" aria-current={view === "map" ? "page" : undefined} onClick={() => setView("map")}>지도</button>
       <button type="button" aria-current={view === "overview" ? "page" : undefined} onClick={() => setView("overview")}>한눈에 보기</button>
+      {!props.preview && <button type="button" aria-current={view === "brainstorm" ? "page" : undefined} onClick={() => setView("brainstorm")}>브레인스토밍</button>}
     </nav>
-    {view === "overview" ? (props.accountId ? <TripOverview workspace={props.workspace} days={props.days} accountId={props.accountId} disabled={props.disabled} onSave={props.onSaveOverview} preview={props.preview} /> : <p>로그인 정보를 확인하고 있어요.</p>) : <DailyTripPlan {...props} />}
+    {view === "brainstorm" ? <Brainstorming key={`${props.accountId}:${props.workspace.trip.id}`} workspace={props.workspace} accountId={props.accountId} disabled={props.disabled}/> : view === "overview" ? (props.accountId ? <TripOverview workspace={props.workspace} days={props.days} accountId={props.accountId} disabled={props.disabled} onSave={props.onSaveOverview} preview={props.preview} /> : <p>로그인 정보를 확인하고 있어요.</p>) : <DailyTripPlan {...props} />}
   </>;
 }
 

@@ -74,7 +74,7 @@ const users = Object.fromEntries(["owner", "editor", "viewer", "outsider"].map((
 const details = { title: "Private Tokyo", destination: "Tokyo", startDate: "2026-11-01", endDate: "2026-11-05", currency: "JPY", timezone: "Asia/Tokyo" };
 const checklist = { title: "Passport", done: false, category: "before" };
 
-async function fixture({beforeMigration}={}) {
+async function fixture({beforeMigration,withRealtime=false}={}) {
   const db = new PGlite();
   await db.exec(`create role anon; create role authenticated; create schema auth; create schema storage;
     create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
@@ -86,6 +86,13 @@ async function fixture({beforeMigration}={}) {
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     grant usage on schema auth to authenticated,anon;
     grant execute on function auth.uid() to authenticated,anon;`);
+  if(withRealtime)await db.exec(`create schema realtime;
+    create table realtime.messages(topic text,extension text,payload jsonb,event text);
+    alter table realtime.messages enable row level security;
+    grant usage on schema realtime to authenticated;
+    grant select,insert on realtime.messages to authenticated;
+    create function realtime.topic() returns text language sql stable as $$select current_setting('test.realtime.topic',true)$$;
+    create function realtime.send(body jsonb,event_name text,room text,private boolean) returns void language sql as $$insert into realtime.messages(topic,extension,payload,event) values(room,'broadcast',body,event_name)$$;`);
   const migrations = new URL("../../supabase/migrations/", import.meta.url);
   for (const file of (await readdir(migrations)).filter((name) => name.endsWith(".sql")).sort()) {
     if(beforeMigration && file.endsWith(beforeMigration))break;
@@ -317,7 +324,7 @@ test("database-owned resource limits and grants cannot be bypassed through RPC",
     assert.equal((await rpc("owner", "list")).length, 100);
 
     const grants = (await asUser("owner", (tx) => tx.query("select c.relname, has_table_privilege(current_user,c.oid,'INSERT') as ins,has_table_privilege(current_user,c.oid,'UPDATE') as upd,has_table_privilege(current_user,c.oid,'DELETE') as del from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'"))).rows;
-    assert.equal(grants.length, 7);
+    assert.equal(grants.length, 9);
     assert.ok(grants.every((r) => !r.ins && !r.upd && !r.del));
   } finally { await db.close(); }
 });
@@ -1401,4 +1408,96 @@ test("native workspace polls avoid production 304 CORS stripping and retire vali
   assert.equal(authChecks,6);assert.equal(reads,6);
   allowed=false;assert.equal((await send("https://localhost",etag)).status,403);
   authenticated=false;assert.equal((await send("https://localhost",etag)).status,401);
+});
+
+test('brainstorm documents: independent cells merge, stale same-cell edits fail, retry and undo are conditional', async () => {
+  const {db,rpc,request,asUser}=await fixture();
+  try {
+    const ws=await rpc('owner','create',null,{data:details}), trip=ws.trip.id;
+    const invite=await request(`trips/${trip}/invites`,'owner','POST',{role:'editor'});
+    await request(`invites/${invite.body.url.split('/').at(-1)}`,'editor','POST',{});
+    const created=await request(`trips/${trip}/brainstorm`,'owner','POST',{documentId:crypto.randomUUID(),kind:'sheet',title:'공동 아이디어'});
+    assert.equal(created.status,200); const doc=created.body;
+    const path=`trips/${trip}/brainstorm/${doc.id}`;
+    const patch=(user,key,text,expected=null,mutationId=crypto.randomUUID(),since=1)=>request(path,user,'POST',{mutationId,since,changes:[{key,expected,value:{text}}]});
+    const firstId=crypto.randomUUID(); const a=await patch('owner','cell:r0:c0','가',null,firstId);
+    assert.equal(a.status,200); assert.equal(a.body.revision,2);
+    const b=await patch('editor','cell:r0:c1','나'); assert.equal(b.status,200);
+    assert.equal(b.body.entities['cell:r0:c0'].value.text,'가'); assert.equal(b.body.entities['cell:r0:c1'].value.text,'나');
+    const duplicate=await patch('owner','cell:r0:c0','가',null,firstId); assert.equal(duplicate.status,200); assert.equal(duplicate.body.revision,3);
+    const badRetry=await patch('owner','cell:r0:c0','조작',null,firstId); assert.equal(badRetry.status,409);
+    const conflict=await patch('editor','cell:r0:c0','동시 수정'); assert.equal(conflict.status,409);assert.equal(conflict.body.code,'BRAIN_CONFLICT');
+    const latest=await request(path,'editor'); assert.equal(latest.body.entities['cell:r0:c0'].value.text,'가');
+    const changed=await patch('editor','cell:r0:c0','동행의 최신',firstId);assert.equal(changed.status,200);
+    const undo=await request(path,'owner','POST',{mutationId:crypto.randomUUID(),changes:[{key:'cell:r0:c0',expected:firstId,value:null}]});assert.equal(undo.status,409);
+    const staleBulk=await request(path,'owner','POST',{mutationId:crypto.randomUUID(),changes:[{key:'cell:r0:c2',expected:null,value:{text:'유실되면 안 됨'}},{key:'cell:r0:c0',expected:firstId,value:{text:'오래된'}}]});assert.equal(staleBulk.status,409);
+    assert.equal((await request(path)).body.entities['cell:r0:c2'],undefined);
+    assert.equal((await request(path,'outsider')).status,404);
+    await assert.rejects(asUser('owner',tx=>tx.query('update public.trip_brain_documents set title=$1 where id=$2',['bypass',doc.id])),e=>e.code==='42501');
+    assert.equal((await request(`trips/${trip}/brainstorm`,'outsider')).status,404);
+  } finally {await db.close();}
+});
+
+test('brainstorm documents: viewer permissions, trash, restore, validation and backup preserve original travel data',async()=>{
+ const {db,rpc,request}=await fixture();
+ try{
+  const ws=await rpc('owner','create',null,{data:details}),trip=ws.trip.id;
+  const invite=await request(`trips/${trip}/invites`,'owner','POST',{role:'viewer'});await request(`invites/${invite.body.url.split('/').at(-1)}`,'viewer','POST',{});
+  const baseline=await rpc('owner','workspace',trip);
+  const doc=await rpc('owner','brain-create',trip,{documentId:crypto.randomUUID(),kind:'board',title:'그림판'});
+  const path=`trips/${trip}/brainstorm/${doc.id}`,shapeKey=`shape:${crypto.randomUUID()}`,mutationId=crypto.randomUUID();
+  const shape={type:'pen',x:10,y:20,color:'#123456',width:4,order:'1',points:[[10,20],[30,40]]};
+  const saved=await request(path,'owner','POST',{mutationId,changes:[{key:shapeKey,expected:null,value:shape}]});assert.equal(saved.status,200);
+  assert.equal((await request(path,'viewer')).status,200);
+  assert.equal((await request(path,'viewer','POST',{mutationId:crypto.randomUUID(),changes:[{key:shapeKey,expected:mutationId,value:null}]})).status,403);
+  assert.equal((await request(`trips/${trip}/brainstorm`,'viewer','POST',{documentId:crypto.randomUUID(),kind:'sheet',title:'금지'})).status,403);
+  assert.equal((await request(path,'owner','POST',{mutationId:crypto.randomUUID(),changes:[{key:`shape:${crypto.randomUUID()}`,expected:null,value:{...shape,points:[['x',20]]}}]})).status,400);
+  assert.equal((await request(path,'owner','POST',{action:'purge',version:1})).status,409);
+  const deleted=await request(path,'owner','POST',{action:'delete',version:1});assert.equal(deleted.status,200);assert.ok(deleted.body.deletedAt);
+  assert.equal((await request(path,'owner','POST',{mutationId:crypto.randomUUID(),changes:[{key:shapeKey,expected:mutationId,value:null}]})).status,409);
+  const restored=await request(path,'owner','POST',{action:'restore',version:2});assert.equal(restored.status,200);assert.equal(restored.body.deletedAt,null);assert.deepEqual(restored.body.entities[shapeKey].value,shape);
+  assert.equal((await request(path,'owner','POST',{action:'rename',title:'새 이름',version:1})).status,409);
+  const exported={body:await rpc('owner','brain-export',trip)};assert.equal(exported.body.length,1);
+  const copy=await rpc('owner','import',null,{key:crypto.randomUUID(),trip:ws.trip,records:[],brainstorm:exported.body});
+  const copies=await rpc('owner','brain-export',copy.trip.id);assert.equal(copies.length,1);assert.notEqual(copies[0].id,doc.id);assert.deepEqual(copies[0].entities[shapeKey].value,shape);
+  const original=await rpc('owner','workspace',trip);assert.equal(original.revision,baseline.revision);assert.deepEqual(original.records,baseline.records);
+  await rpc('owner','delete-trip',copy.trip.id,{revision:copy.revision});
+  assert.equal((await db.query('select count(*)::int n from public.trip_brain_documents where trip_id=$1',[copy.trip.id])).rows[0].n,0);
+  await request(path,'owner','POST',{action:'delete',version:3});assert.equal((await request(path,'owner','POST',{action:'purge',version:4})).status,200);assert.equal((await request(path)).status,404);
+ }finally{await db.close();}
+});
+
+test('brainstorm documents: structural undo protects newer collaborator cells, previews are validated, and initial axes undo safely',async()=>{
+ const {db,rpc}=await fixture();try{
+  const ws=await rpc('owner','create',null,{data:details}),trip=ws.trip.id,doc=await rpc('owner','brain-create',trip,{documentId:crypto.randomUUID(),kind:'sheet',title:'행 열 검사'});
+  const axisId=crypto.randomUUID(),cellId=crypto.randomUUID();
+  await rpc('owner','brain-patch',trip,{documentId:doc.id,mutationId:axisId,changes:[{key:'sheet:rows',expected:null,value:['r0','extra']}]});
+  await rpc('owner','brain-patch',trip,{documentId:doc.id,mutationId:cellId,changes:[{key:'cell:extra:c0',expected:null,value:{text:'다른 사람이 추가한 셀'}}]});
+  await assert.rejects(rpc('owner','brain-patch',trip,{documentId:doc.id,mutationId:crypto.randomUUID(),protect:true,changes:[{key:'sheet:rows',expected:axisId,value:null}]}),e=>e.detail==='BRAIN_CONFLICT');
+  await assert.rejects(rpc('owner','brain-patch',trip,{documentId:doc.id,mutationId:crypto.randomUUID(),changes:[{key:'cell:r0:c0',expected:null,value:{text:'내용'}}],preview:{'0:0':{text:{invalid:true}}}}),e=>e.code==='PT400');
+  assert.equal((await rpc('owner','brain-read',trip,{documentId:doc.id})).entities['cell:r0:c0'],undefined);
+  await rpc('owner','brain-patch',trip,{documentId:doc.id,mutationId:crypto.randomUUID(),changes:[{key:'cell:extra:c0',expected:cellId,value:null}]});
+  const undone=await rpc('owner','brain-patch',trip,{documentId:doc.id,mutationId:crypto.randomUUID(),protect:true,changes:[{key:'sheet:rows',expected:axisId,value:null}]});assert.equal(undone.entities['sheet:rows'].value,null);
+  await assert.rejects(rpc('owner','brain-patch',trip,{documentId:doc.id,mutationId:crypto.randomUUID(),changes:[{key:'sheet:cols',expected:null,value:['duplicate','duplicate']}]}),e=>e.code==='PT400');
+ }finally{await db.close();}
+});
+
+test('brainstorm realtime: only members receive, presence is allowed, and clients cannot forge document broadcasts',async()=>{
+ const {db,rpc,asUser,request}=await fixture({withRealtime:true});try{
+  const ws=await rpc('owner','create',null,{data:details}),trip=ws.trip.id;
+  const invite=await request(`trips/${trip}/invites`,'owner','POST',{role:'viewer'});await request(`invites/${invite.body.url.split('/').at(-1)}`,'viewer','POST',{});
+  const doc=await rpc('owner','brain-create',trip,{documentId:crypto.randomUUID(),kind:'sheet',title:'권한'});
+  const message=(await db.query('select payload,event,topic from realtime.messages')).rows.at(-1);
+  assert.equal(message.topic,`brain:${trip}`);assert.equal(message.event,'changed');assert.deepEqual(message.payload,{documentId:doc.id});
+  const context=(user,fn)=>asUser(user,async tx=>{await tx.query("select set_config('test.realtime.topic',$1,true)",[`brain:${trip}`]);return fn(tx);});
+  assert.equal((await context('viewer',tx=>tx.query('select count(*)::int n from realtime.messages'))).rows[0].n,1);
+  assert.equal((await context('outsider',tx=>tx.query('select count(*)::int n from realtime.messages'))).rows[0].n,0);
+  await context('viewer',tx=>tx.query("insert into realtime.messages(topic,extension,payload) values($1,'presence','{}')",[`brain:${trip}`]));
+  await assert.rejects(context('viewer',tx=>tx.query("insert into realtime.messages(topic,extension,payload) values($1,'broadcast','{}')",[`brain:${trip}`])),e=>e.code==='42501');
+  await assert.rejects(context('owner',tx=>tx.query("insert into realtime.messages(topic,extension,payload) values($1,'broadcast','{}')",[`brain:${trip}`])),e=>e.code==='42501');
+  await assert.rejects(context('outsider',tx=>tx.query("insert into realtime.messages(topic,extension,payload) values($1,'presence','{}')",[`brain:${trip}`])),e=>e.code==='42501');
+  await rpc('owner','remove-member',trip,{userId:users.viewer.id});
+  assert.equal((await context('viewer',tx=>tx.query('select count(*)::int n from realtime.messages'))).rows[0].n,0);
+  assert.equal((await request(`trips/${trip}/brainstorm/${doc.id}`,'viewer')).status,404);
+ }finally{await db.close();}
 });
