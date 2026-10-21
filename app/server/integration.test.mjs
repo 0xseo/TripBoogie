@@ -1346,7 +1346,7 @@ test("conditional API clients accept empty 304 bodies without hiding failures or
   } finally {globalThis.fetch=originalFetch;}
 });
 
-test("native workspace polls attach CORS to both full and unchanged responses without bypassing access checks", async () => {
+test("native workspace polls avoid production 304 CORS stripping and retire validators without bypassing access checks", async () => {
   const value={trip:{id:"trip",role:"owner"},revision:1,records:[],members:[],files:[],overview:[{date:"2026-11-01",text:"공유 요약",sourceIds:[],version:1}]};
   let authenticated=true,allowed=true,authChecks=0,reads=0;
   const {ApiError}=await import(pathToFileURL(path.join(directory,"validation.mjs")));
@@ -1357,9 +1357,9 @@ test("native workspace polls attach CORS to both full and unchanged responses wi
   for(const origin of ["https://localhost","capacitor://localhost"]){
     for(const validator of [undefined,etag]){
       const response=await send(origin,validator);
-      assert.equal(response.status,validator?304:200);
-      if(validator)assert.equal(await response.text(),"");else assert.deepEqual(await response.json(),value);
-      assert.equal(response.headers.get("ETag"),etag);
+      assert.equal(response.status,200);
+      assert.deepEqual(await response.json(),value);
+      assert.equal(response.headers.get("ETag"),null);
       assert.equal(response.headers.get("Access-Control-Allow-Origin"),origin);
       assert.equal(response.headers.get("Access-Control-Expose-Headers"),"ETag");
       assert.equal(response.headers.get("Access-Control-Allow-Credentials"),null);

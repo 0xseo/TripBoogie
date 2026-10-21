@@ -122,3 +122,14 @@ test("native conditional reads preserve the session and validator across unchang
   assert.equal(calls[1].init.headers.get("Authorization"), "Bearer test-session");
   assert.equal(etag, 'W/"current"');
 });
+
+test("native full snapshots retire old validators before subsequent automatic polls", async () => {
+  let etag = 'W/"old-session"';
+  const { api, calls } = fixture({ native: true, fetch: async () => Response.json({ revision: 4 }) });
+  const conditional = { get etag() { return etag; }, receiveEtag: value => { etag = value; } };
+  for (let i = 0; i < 2; i++) assert.deepEqual(await api.apiFetch("/api/trips/trip", {}, { background: true, conditional }), { revision: 4 });
+  assert.equal(calls[0].init.headers.get("If-None-Match"), 'W/"old-session"');
+  assert.equal(calls[1].init.headers.get("If-None-Match"), null);
+  assert.equal(calls[1].init.headers.get("Authorization"), "Bearer test-session");
+  assert.equal(etag, null);
+});

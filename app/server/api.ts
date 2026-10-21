@@ -1,6 +1,6 @@
 import type { CurrentUser } from "../types";
 import { TripRepository } from "./repository";
-import { nativeCorsHeaders } from "./origin-policy";
+import { isNativeOrigin, nativeCorsHeaders } from "./origin-policy";
 import {
   ApiError,
   assertSameOrigin,
@@ -24,9 +24,11 @@ function json(value: unknown, status = 200) {
 }
 async function workspaceJson(request: Request, value: unknown) {
   const body = JSON.stringify(value);
-  // The deployed 304 path omits headers added only by the Next.js proxy.
-  // Put native CORS on this response itself, including unchanged snapshots.
-  const headers = { ...privateHeaders, ...nativeCorsHeaders(request.headers.get("Origin")), Vary: "Authorization, Origin", "Content-Type": "application/json" };
+  const origin = request.headers.get("Origin");
+  const headers = { ...privateHeaders, ...nativeCorsHeaders(origin), Vary: "Authorization, Origin", "Content-Type": "application/json" };
+  // Production 304 delivery strips native CORS even when attached here.
+  // Full snapshots retire existing APK validators and avoid that delivery path.
+  if (isNativeOrigin(origin)) return new Response(body, { headers });
   // No private response cache: authentication and the repository run before every comparison.
   let etag: string | undefined;
   try {
