@@ -8,14 +8,15 @@ import ts from 'typescript';
 const directory=await mkdtemp(path.join(tmpdir(),'tripboogie-brain-'));
 test.after(()=>rm(directory,{recursive:true,force:true}));
 await writeFile(path.join(directory,'package.json'),'{"type":"commonjs"}');
-for(const name of ['brainstorm','brainstorm-store','brainstorm-backup','brainstorm-board'])await writeFile(path.join(directory,`${name}.js`),ts.transpileModule(await readFile(new URL(`./${name}.ts`,import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText);
+for(const name of ['brainstorm','brainstorm-store','brainstorm-backup','brainstorm-board','brainstorm-sheet'])await writeFile(path.join(directory,`${name}.js`),ts.transpileModule(await readFile(new URL(`./${name}.ts`,import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText);
 let mockApi;
 await writeFile(path.join(directory,'client-api.js'),'exports.jsonRequest=data=>({body:JSON.stringify(data)});exports.apiFetch=(...args)=>global.__brainTestApi(...args);');
 const require=createRequire(path.join(directory,'package.json'));
 const {BrainStore}=require('./brainstorm-store.js'),{axis,cellKey,parseTsv,sheetTsv,mergeDelta}=require('./brainstorm.js');
 global.__brainTestApi=(...args)=>mockApi(...args);
 const {brainImportBatches,importBrainDocuments}=require('./brainstorm-backup.js');
-const {attachLegacyErasers,eraserTransform}=require('./brainstorm-board.js');
+const {attachLegacyErasers,attachSelectionErasers,dragBox,eraserTransform,objectsAlongEraser,selectionBounds,shapesInBox,translateShape}=require('./brainstorm-board.js');
+const {TableTouchGesture,zoomTableView}=require('./brainstorm-sheet.js');
 const copy=value=>structuredClone(value);
 const initial=()=>({id:'doc',tripId:'trip',kind:'sheet',title:'표',revision:1,metaVersion:1,deletedAt:null,updatedAt:'',entities:{},preview:{}});
 function server(){
@@ -105,6 +106,35 @@ test('moving a legacy erased shape saves, undoes and redoes the cut and movement
  assert.equal(eraserTransform(s.document.entities['shape:line'].value,'shape:line',s.document.entities['shape:cut'].value),'translate(180 220) scale(1 1) translate(-100 -100)');
  await store.undo();assert.deepEqual(s.document.entities['shape:line'].value,shape);assert.deepEqual(s.document.entities['shape:cut'].value,eraser);
  await store.undo(true);assert.deepEqual(s.document.entities['shape:line'].value,moved);assert.deepEqual(s.document.entities['shape:cut'].value.origins['shape:line'],[100,100,200,50]);
+});
+test('table pinch zoom stays anchored inside the table and resumes one-finger scrolling without a jump',()=>{
+ const g=new TableTouchGesture(),view={zoom:1,left:200,top:300};
+ g.start(1,{x:100,y:100},view);g.start(2,{x:200,y:100},view);
+ const enlarged=g.move(2,{x:300,y:100});assert.deepEqual(enlarged,{zoom:2,left:500,top:700});
+ assert.equal((enlarged.left+200)/enlarged.zoom,350);assert.equal((enlarged.top+100)/enlarged.zoom,400);
+ g.end(2,enlarged);assert.deepEqual(g.move(1,{x:100,y:100}),enlarged);assert.deepEqual(g.move(1,{x:80,y:120}),{zoom:2,left:520,top:680});
+ g.end(1,enlarged);assert.equal(g.move(1,{x:40,y:40}),null);
+ assert.equal(zoomTableView(view,20,{x:100,y:100}).zoom,2.5);assert.equal(zoomTableView(view,.1,{x:100,y:100}).zoom,.5);
+ assert.deepEqual(view,{zoom:1,left:200,top:300});
+});
+test('marquee selection works in either direction and group moves preserve shared eraser cuts',()=>{
+ const a={type:'pen',x:100,y:100,points:[[100,100],[200,140]],width:4,color:'#254c41',order:'1'},b={...a,x:300,points:[[300,100],[400,140]],order:'2'};
+ const eraser={type:'eraser',x:150,y:100,points:[[150,100],[350,140]],targets:['shape:a','shape:b'],width:24,color:'#254c41',order:'3'};
+ const items=[['shape:a',a],['shape:b',b],['shape:eraser',eraser]];
+ const box=dragBox({x:420,y:170},{x:80,y:80});assert.deepEqual(shapesInBox(items,box),['shape:a','shape:b']);assert.deepEqual(selectionBounds(items),{x:100,y:100,width:300,height:40});
+ const entities=Object.fromEntries(items.map(([key,value])=>[key,{value,stamp:'initial',revision:1}]));
+ const changes=attachSelectionErasers(entities,{'shape:a':a,'shape:b':b});assert.equal(changes.length,1);assert.deepEqual(Object.keys(changes[0].value.origins).sort(),['shape:a','shape:b']);
+ for(const [key,shape]of items.slice(0,2)){const moved=translateShape(shape,40,60);assert.equal(eraserTransform(moved,key,changes[0].value),`translate(${shape.x+40} 160) scale(1 1) translate(${-shape.x} -100)`);assert.equal(moved.points[0][1],160);assert.equal(moved.y2,undefined);}
+});
+test('object eraser hits complete strokes along fast drags and ignores empty shape interiors',()=>{
+ const base={width:4,color:'#254c41',order:'1'},line={...base,type:'line',x:100,y:100,x2:300,y2:100},rect={...base,type:'rect',x:400,y:100,x2:600,y2:300},ellipse={...base,type:'ellipse',x:700,y:100,x2:900,y2:300};
+ const items=[['shape:line',line],['shape:rect',rect],['shape:ellipse',ellipse],['shape:eraser',{...line,type:'eraser'}]];
+ assert.deepEqual(objectsAlongEraser(items,{x:200,y:0},{x:200,y:200},2),['shape:line']);
+ assert.deepEqual(objectsAlongEraser(items,{x:500,y:200},{x:500,y:200},12),[]);
+ assert.deepEqual(objectsAlongEraser(items,{x:800,y:200},{x:800,y:200},12),[]);
+ assert.deepEqual(objectsAlongEraser(items,{x:600,y:150},{x:600,y:150},1),['shape:rect']);
+ assert.deepEqual(objectsAlongEraser(items,{x:900,y:200},{x:900,y:200},1),['shape:ellipse']);
+ assert.deepEqual(objectsAlongEraser([['dot',{...base,type:'pen',x:0,y:0,points:[[0,0]]}]],{x:0,y:0},{x:0,y:0},.5),['dot']);
 });
 test('large backup restoration stays within hosted payload limits and resumes without duplicate documents',async()=>{
  const source=initial();source.entities=Object.fromEntries(Array.from({length:1200},(_,i)=>[`cell:r${i}:c0`,{value:{text:'한글'.repeat(350)},stamp:'old',revision:1}]));

@@ -2,15 +2,15 @@
 import { useCallback, useEffect, useMemo, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { ArrowLeft, Check, Download, FileSpreadsheet, FolderOpen, LoaderCircle, Pencil, Plus, Redo2, RefreshCw, RotateCcw, Trash2, Undo2, X } from "lucide-react";
+import { ArrowLeft, Check, FileSpreadsheet, FolderOpen, LoaderCircle, Pencil, Plus, Redo2, RefreshCw, RotateCcw, Trash2, Undo2, X } from "lucide-react";
 import { getSupabaseClient } from "../client-api";
 import { brainService, type BrainService } from "../brainstorm-client";
-import { type BrainDocument, type BrainKind, type BrainSummary, type CellValue } from "../brainstorm";
+import { type BrainKind, type BrainSummary, type CellValue } from "../brainstorm";
 import type { BrainStore } from "../brainstorm-store";
 import type { Workspace } from "../types";
-import { saveDownload } from "../download";
 import { useConfirm } from "./Confirmation";
 import Dialog from "./Dialog";
+import ChoiceField from "./ChoiceField";
 import BrainSheet from "./BrainSheet";
 import BrainBoard, { BoardPreview } from "./BrainBoard";
 import styles from "./Brainstorming.module.css";
@@ -20,9 +20,6 @@ type OpenDocument = { id: string; store: BrainStore };
 const kindName = (kind: BrainKind) => kind === "sheet" ? "스프레드시트" : "그림판";
 function SheetPreview({ preview }: { preview: BrainSummary["preview"] }) {
   return <div className={styles.sheetPreview} aria-hidden="true"><div className={styles.previewLetters}><span/><span>A</span><span>B</span><span>C</span><span>D</span></div>{Array.from({ length: 5 }, (_, r) => <div key={r}><span>{r + 1}</span>{Array.from({ length: 4 }, (_, c) => { const value = preview[`${r}:${c}`] as CellValue | undefined; return <span key={c} style={{ background: value?.background, color: value?.color, fontWeight: value?.bold ? 700 : undefined }}>{value?.text}</span>; })}</div>)}</div>;
-}
-async function downloadDocument(document: BrainDocument) {
-  await saveDownload(new Blob([JSON.stringify({ format: "tripboogie-brain-v1", document }, null, 2)], { type: "application/json" }), `${document.title.replace(/[\\/:*?"<>|]/g, "_")}.json`);
 }
 export default function Brainstorming({ workspace, accountId, disabled, service: customService }: { workspace: Workspace; accountId: string; disabled: boolean; service?: BrainService }) {
   const service = useMemo(() => customService ?? brainService(accountId, workspace.trip.id), [customService, accountId, workspace.trip.id]);
@@ -99,7 +96,6 @@ export default function Brainstorming({ workspace, accountId, disabled, service:
 
 function BrainEditor({ active, opened, documents, disabled, participants, onClose, onOpen, onCell }: { active: OpenDocument; opened: OpenDocument[]; documents: BrainSummary[]; disabled: boolean; participants: Participant[]; onClose: () => void; onOpen: (doc: BrainSummary) => void; onCell: (label: string) => void }) {
   const ref = useRef<HTMLDialogElement>(null), snapshot = useSyncExternalStore(active.store.subscribe, active.store.getSnapshot, active.store.getSnapshot), confirm = useConfirm();
-  const [feedback, setFeedback] = useState("");
   useEffect(() => {
     const dialog = ref.current; if (!dialog) return;
     const previous = document.body.style.overflow; document.body.style.overflow = "hidden"; dialog.showModal();
@@ -108,15 +104,15 @@ function BrainEditor({ active, opened, documents, disabled, participants, onClos
     fit(); viewport?.addEventListener("resize", fit); viewport?.addEventListener("scroll", fit); window.addEventListener("resize", fit);
     return () => { dialog.close(); document.body.style.overflow = previous; viewport?.removeEventListener("resize", fit); viewport?.removeEventListener("scroll", fit); window.removeEventListener("resize", fit); };
   }, []);
-  const error = snapshot.error || feedback;
+  const error = snapshot.error;
   return createPortal(<dialog ref={ref} className={styles.editor} aria-label="브레인스토밍 전체 화면 편집" data-no-pull-refresh onCancel={e => { e.preventDefault(); onClose(); }} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !(e.target as HTMLElement).matches("input,textarea")) { e.preventDefault(); void active.store.undo(e.shiftKey); } }}>
     <header className={styles.editorHeader}><button className={styles.backButton} aria-label="문서 목록으로 돌아가기" onClick={onClose}><ArrowLeft size={20}/></button><div className={styles.editorTitle}><strong>{snapshot.document.title}</strong><span role="status">{snapshot.pending ? <><LoaderCircle size={12} className="spinner"/>{snapshot.conflict ? "변경 충돌 · 내 변경 보관 중" : snapshot.error ? "미저장 변경 보관 중" : "저장 중…"}</> : snapshot.error ? <>연결 확인 필요</> : <><Check size={12}/>저장됨</>}{disabled && " · 읽기 전용"}</span></div>
-      <select aria-label="브레인스토밍 문서 전환" value={active.id} onChange={e => { const doc = documents.find(d => d.id === e.target.value); if (doc) onOpen(doc); }}><option value={active.id}>{snapshot.document.title}</option>{documents.filter(d => d.id !== active.id).map(d => <option key={d.id} value={d.id}>{kindName(d.kind)} · {d.title}</option>)}</select>
-      <div className={styles.editorActions}><button disabled={disabled || !snapshot.canUndo} aria-label="실행 취소" title="실행 취소" onClick={() => void active.store.undo()}><Undo2 size={19}/></button><button disabled={disabled || !snapshot.canRedo} aria-label="다시 실행" title="다시 실행" onClick={() => void active.store.undo(true)}><Redo2 size={19}/></button><button aria-label="문서 JSON 저장" title="문서 JSON 저장" onClick={() => void downloadDocument(snapshot.document).catch(e => setFeedback((e as Error).message))}><Download size={18}/></button><button aria-label="편집 닫기" onClick={onClose}><X size={20}/></button></div>
+      <div className={styles.documentPicker}><ChoiceField label="브레인스토밍 문서 전환" value={active.id} options={[snapshot.document, ...documents.filter(d => d.id !== active.id)].map(d => ({ id: d.id, label: d.title, icon: d.kind === "sheet" ? <FileSpreadsheet size={16}/> : <Pencil size={16}/> }))} onChange={id => { const doc = documents.find(d => d.id === id); if (doc) onOpen(doc); }}/></div>
+      <div className={styles.editorActions}><button disabled={disabled || !snapshot.canUndo} aria-label="실행 취소" title="실행 취소" onClick={() => void active.store.undo()}><Undo2 size={19}/></button><button disabled={disabled || !snapshot.canRedo} aria-label="다시 실행" title="다시 실행" onClick={() => void active.store.undo(true)}><Redo2 size={19}/></button><button aria-label="편집 닫기" onClick={onClose}><X size={20}/></button></div>
     </header>
     {participants.length > 0 && <div className={styles.presence} aria-label="함께 편집 중인 동행">{participants.slice(0, 8).map((p, i) => <span key={`${p.userId}:${i}`}><i/>{p.name.slice(0, 30)}{p.cell ? ` · ${p.cell.slice(0, 20)}` : ""}</span>)} 함께 보고 있어요</div>}
     {snapshot.document.deletedAt && <div className={styles.error} role="alert">동행이 이 문서를 휴지통으로 옮겼어요. 복원한 뒤 편집할 수 있습니다.</div>}
-    {error && <div className={styles.syncError} role="alert"><span>{error}</span><div>{snapshot.pending > 0 && <button onClick={() => void saveDownload(new Blob([active.store.recovery()], { type: "application/json" }), "브레인스토밍-미저장-복구.json").catch(e => setFeedback((e as Error).message))}>내 변경 내려받기</button>}{snapshot.conflict ? <><button disabled={disabled} onClick={async () => { if (await confirm("동행의 최신 내용 위에 내 미저장 변경을 적용할까요? 같은 항목은 내 내용으로 바뀝니다.", { title: "내 변경 적용", confirmLabel: "내 변경 적용", intent: "default" })) active.store.reapply(); }}>내 변경 적용</button><button onClick={async () => { if (await confirm("임시 보관한 내 변경을 버리고 동행의 최신 내용을 사용할까요?", { title: "내 변경 버리기", confirmLabel: "버리기" })) active.store.discard(); }}>내 변경 버리기</button></> : <button onClick={() => { setFeedback(""); active.store.retry(); void active.store.refresh().catch(() => {}); }}>다시 시도</button>}{snapshot.pending > 0 && !snapshot.conflict && <button onClick={async () => { if (await confirm("미저장 변경을 버릴까요? 필요한 경우 먼저 내려받아 보관해 주세요.", { title: "미저장 변경 버리기", confirmLabel: "버리기" })) active.store.discard(); }}>내 변경 버리기</button>}</div></div>}
+    {error && <div className={styles.syncError} role="alert"><span>{error}</span><div>{snapshot.conflict ? <><button disabled={disabled} onClick={async () => { if (await confirm("동행의 최신 내용 위에 내 미저장 변경을 적용할까요? 같은 항목은 내 내용으로 바뀝니다.", { title: "내 변경 적용", confirmLabel: "내 변경 적용", intent: "default" })) active.store.reapply(); }}>내 변경 적용</button><button onClick={async () => { if (await confirm("임시 보관한 내 변경을 버리고 동행의 최신 내용을 사용할까요?", { title: "내 변경 버리기", confirmLabel: "버리기" })) active.store.discard(); }}>내 변경 버리기</button></> : <button onClick={() => { active.store.retry(); void active.store.refresh().catch(() => {}); }}>다시 시도</button>}{snapshot.pending > 0 && !snapshot.conflict && <button onClick={async () => { if (await confirm("미저장 변경을 버릴까요? 버린 변경은 복원할 수 없습니다.", { title: "미저장 변경 버리기", confirmLabel: "버리기" })) active.store.discard(); }}>내 변경 버리기</button>}</div></div>}
     <div className={styles.editorContent}>{opened.map(({ id, store }) => <div key={id} className={styles.documentSurface} hidden={id !== active.id}><DocumentSurface store={store} disabled={disabled} onCell={id === active.id ? onCell : undefined}/></div>)}</div>
   </dialog>, document.body);
 }
