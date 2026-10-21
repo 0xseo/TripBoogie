@@ -41,7 +41,11 @@ jobs:
           mkdir -p public/downloads
           gh release download "v${release_version}" --repo "$GITHUB_REPOSITORY" --pattern "TripBoogie_${release_version}.apk" --pattern release.json --dir public/downloads
           node scripts/verify-android-download.mjs
+      - name: Verify Vercel deployment access
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node scripts/verify-vercel-access.mjs
       - name: Deploy to Vercel
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: npx --yes vercel@54.17.3 deploy --prod --yes --token "$VERCEL_TOKEN"
+        run: npx --yes vercel@54.17.3 deploy --prod --yes --scope 0xseos-projects --token "$VERCEL_TOKEN"
