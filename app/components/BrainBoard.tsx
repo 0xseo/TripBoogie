@@ -2,7 +2,7 @@
 import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent } from "react";
 import { ArrowUpRight, Check, ChevronDown, Circle, Eraser, Hand, Minus, MousePointer2, Pencil, RectangleHorizontal, Trash2, Type, ZoomIn, ZoomOut, LocateFixed } from "lucide-react";
 import { shapes, type BrainChange, type BrainDocument, type ShapeValue } from "../brainstorm";
-import { attachSelectionErasers, dragBox, eraserTransform, objectsAlongEraser, pathFor, selectionBounds, shapeBounds, shapesInBox, translateShape, type BoardBox } from "../brainstorm-board";
+import { attachSelectionErasers, dragBox, eraserTransform, objectsAlongEraser, pathFor, pointInBox, resizeSelection, selectionBounds, shapeBounds, shapesInBox, translateShape, type BoardBox } from "../brainstorm-board";
 import type { BrainStore } from "../brainstorm-store";
 import Dialog from "./Dialog";
 import styles from "./Brainstorming.module.css";
@@ -53,7 +53,7 @@ export default function BrainBoard({ document: doc, store, disabled }: { documen
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null), [message, setMessage] = useState("");
   const [showSizePreview, setShowSizePreview] = useState(false);
   const svg = useRef<SVGSVGElement>(null), pointers = useRef(new Map<number, { x: number; y: number }>());
-  const gesture = useRef<{ kind: "draw" | "pan" | "pinch" | "move" | "resize" | "marquee" | "objectErase"; startX: number; startY: number; camera: Camera; distance?: number; anchor?: { x: number; y: number }; original?: ShapeValue; originals?: Record<string, ShapeValue>; edits?: Record<string, ShapeValue | null>; stamps?: Record<string, string | null>; selection?: string[]; key?: string; stamp?: string | null; erasers?: BrainChange[] } | null>(null);
+  const gesture = useRef<{ kind: "draw" | "pan" | "pinch" | "move" | "resize" | "marquee" | "objectErase"; startX: number; startY: number; camera: Camera; distance?: number; anchor?: { x: number; y: number }; bounds?: BoardBox; originals?: Record<string, ShapeValue>; edits?: Record<string, ShapeValue | null>; stamps?: Record<string, string | null>; selection?: string[]; key?: string; stamp?: string | null; erasers?: BrainChange[] } | null>(null);
   const id = useId().replaceAll(":", ""), items = useMemo(() => shapes(doc.entities), [doc.entities]), chosenKey = selected.length === 1 ? selected[0] : null, chosen = chosenKey ? doc.entities[chosenKey]?.value as ShapeValue | null : null;
   const point = (e: { clientX: number; clientY: number }) => { const rect = svg.current!.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; };
   const world = (p: { x: number; y: number }, c = cameraRef.current) => ({ x: (p.x - c.x) / c.zoom, y: (p.y - c.y) / c.zoom });
@@ -85,6 +85,14 @@ export default function BrainBoard({ document: doc, store, disabled }: { documen
     setTransformDraft({ ...g.edits }); g.startX = to.x; g.startY = to.y;
   };
   const updateZoom = (factor: number, anchor?: { x: number; y: number }) => { const c = cameraRef.current, p = anchor || { x: (svg.current?.clientWidth || 800) / 2, y: (svg.current?.clientHeight || 500) / 2 }, w = world(p, c), zoom = Math.max(.1, Math.min(8, c.zoom * factor)); setCamera({ zoom, x: p.x - w.x * zoom, y: p.y - w.y * zoom }); };
+  const beginTransform = (kind: "move" | "resize", keys: string[], e: ReactPointerEvent<SVGElement>) => {
+    const originals = Object.fromEntries(items.filter(([key, shape]) => keys.includes(key) && shape.type !== "eraser")), bounds = selectionBounds(Object.entries(originals));
+    if (!bounds) return;
+    if (keys.length > 1000) { setMessage("한 번에 1000개 개체까지 조절할 수 있어요. 개체를 나누어 선택해 주세요."); return; }
+    e.preventDefault(); e.stopPropagation(); const p = point(e), w = world(p);
+    setSelected(Object.keys(originals)); setDraftKey(null); svg.current?.focus({ preventScroll: true }); svg.current?.setPointerCapture(e.pointerId); pointers.current.set(e.pointerId, p);
+    gesture.current = { kind, originals, bounds, startX: w.x, startY: w.y, camera: cameraRef.current, stamps: Object.fromEntries(Object.keys(originals).map(key => [key, doc.entities[key]?.stamp ?? null])), erasers: attachErasers(originals) };
+  };
   const begin = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.button !== 0 && e.button !== 1) return;
     e.preventDefault(); svg.current?.focus(); svg.current?.setPointerCapture(e.pointerId);
@@ -95,6 +103,7 @@ export default function BrainBoard({ document: doc, store, disabled }: { documen
     }
     if (gesture.current?.kind === "move" || gesture.current?.kind === "resize") return;
     if (tool === "hand" || e.button === 1 || disabled) { gesture.current = { kind: "pan", startX: p.x, startY: p.y, camera: cameraRef.current }; return; }
+    if (tool === "select" && !e.shiftKey && pointInBox(w, selectionBounds(items.filter(([key]) => selected.includes(key))), 6 / cameraRef.current.zoom)) { beginTransform("move", selected, e); return; }
     if (tool === "select") { const base = e.shiftKey ? selected : []; setSelected(base); setMarquee({ x: w.x, y: w.y, width: 0, height: 0 }); gesture.current = { kind: "marquee", startX: w.x, startY: w.y, camera: cameraRef.current, selection: base }; return; }
     if (tool === "text") { setTextEdit({ x: w.x, y: w.y, text: "", stamp: null }); return; }
     if (tool === "eraser" && eraserMode === "object") { setDraftKey(null); setSelected([]); gesture.current = { kind: "objectErase", startX: w.x, startY: w.y, camera: cameraRef.current, edits: {}, stamps: {} }; eraseObjects(w, w); return; }
@@ -115,7 +124,7 @@ export default function BrainBoard({ document: doc, store, disabled }: { documen
     if (g.kind === "marquee") { const box = dragBox({ x: g.startX, y: g.startY }, w); setMarquee(box); setSelected([...new Set([...(g.selection || []), ...shapesInBox(items, box)])]); return; }
     if (g.kind === "objectErase") { eraseObjects({ x: g.startX, y: g.startY }, w); return; }
     if (g.kind === "move" && g.originals) { g.edits = Object.fromEntries(Object.entries(g.originals).map(([key, shape]) => [key, translateShape(shape, w.x - g.startX, w.y - g.startY)])); setTransformDraft(g.edits); return; }
-    if (g.kind === "resize" && g.original) { changeDraft({ ...g.original, x2: w.x, y2: w.y }); return; }
+    if (g.kind === "resize" && g.originals && g.bounds) { g.edits = resizeSelection(g.originals, g.bounds, { x: g.startX, y: g.startY }, w); setTransformDraft(g.edits); return; }
     const s = draftRef.current; if (!s) return;
     if (s.points) {
       const last = s.points[s.points.length - 1]; if (Math.hypot(last[0] - w.x, last[1] - w.y) < 1 / cameraRef.current.zoom) return;
@@ -129,7 +138,7 @@ export default function BrainBoard({ document: doc, store, disabled }: { documen
     if (!cancel && !disabled && g?.edits && Object.keys(g.edits).length) {
       const values = { ...Object.fromEntries((g.erasers || []).map(change => [change.key, change.value])), ...g.edits };
       if (Object.keys(values).length <= 1000) store.edit(values, { ...Object.fromEntries((g.erasers || []).map(change => [change.key, change.expected])), ...g.stamps });
-      else setMessage("한 번에 1000개 항목까지 이동할 수 있어요. 개체를 나누어 선택해 주세요.");
+      else setMessage("한 번에 1000개 항목까지 조절할 수 있어요. 개체를 나누어 선택해 주세요.");
     }
     if (!cancel && draftRef.current && !disabled && g && ["draw", "move", "resize"].includes(g.kind)) {
       const key = g.key || `shape:${crypto.randomUUID()}`;
@@ -139,12 +148,9 @@ export default function BrainBoard({ document: doc, store, disabled }: { documen
   };
   const selectShape = (key: string, e: ReactPointerEvent<SVGGElement>) => {
     if (tool !== "select" || disabled || pointers.current.size || e.button !== 0 || (e.pointerType === "touch" && !e.isPrimary)) return;
-    e.preventDefault(); e.stopPropagation(); const p = point(e), w = world(p), original = doc.entities[key]?.value as ShapeValue;
-    if (e.shiftKey) { setSelected(all => all.includes(key) ? all.filter(id => id !== key) : [...all, key]); return; }
-    const keys = selected.includes(key) ? selected : [key], originals = Object.fromEntries(items.filter(([id]) => keys.includes(id)));
-    if (keys.length > 1000) { setMessage("한 번에 1000개 개체까지 이동할 수 있어요. 개체를 나누어 선택해 주세요."); return; }
-    setSelected(keys); setDraftKey(null); svg.current?.focus({ preventScroll: true }); svg.current?.setPointerCapture(e.pointerId); pointers.current.set(e.pointerId, p);
-    gesture.current = { kind: "move", original, originals, startX: w.x, startY: w.y, camera: cameraRef.current, stamps: Object.fromEntries(keys.map(id => [id, doc.entities[id]?.stamp ?? null])), erasers: attachErasers(originals) };
+    if (e.shiftKey) { e.preventDefault(); e.stopPropagation(); setSelected(all => all.includes(key) ? all.filter(id => id !== key) : [...all, key]); return; }
+    const insideSelection = pointInBox(world(point(e)), selectionBounds(items.filter(([id]) => selected.includes(id))), 6 / cameraRef.current.zoom);
+    beginTransform("move", insideSelection || selected.includes(key) ? selected : [key], e);
   };
   const wheel = (e: WheelEvent<SVGSVGElement>) => { if (e.ctrlKey || e.metaKey) updateZoom(Math.exp(-e.deltaY * .005), point(e)); else setCamera(c => ({ ...c, x: c.x - e.deltaX, y: c.y - e.deltaY })); };
   useEffect(() => { const el = svg.current; const prevent = (e: globalThis.WheelEvent) => e.preventDefault(); el?.addEventListener("wheel", prevent, { passive: false }); return () => el?.removeEventListener("wheel", prevent); }, []);
@@ -191,13 +197,23 @@ export default function BrainBoard({ document: doc, store, disabled }: { documen
       <defs><pattern id={`${id}-dots`} x={camera.x % (24 * camera.zoom)} y={camera.y % (24 * camera.zoom)} width={24 * camera.zoom} height={24 * camera.zoom} patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="currentColor" opacity=".16"/></pattern></defs>
       <rect width="100%" height="100%" fill={`url(#${id}-dots)`}/>
       <g transform={`translate(${camera.x} ${camera.y}) scale(${camera.zoom})`}><BoardArtwork items={hasTransform || (draft && (draft.type === "eraser" || draftKey)) ? workingItems : items} prefix={id} onSelect={tool === "select" && !disabled ? selectShape : undefined}/>{draft && draft.type !== "eraser" && !draftKey && <BoardArtwork items={[["draft", draft]]} prefix={`${id}-draft`}/> }
-        {box && tool === "select" && <g><rect x={box.x - 6} y={box.y - 6} width={box.width + 12} height={box.height + 12} fill="none" stroke="#358872" strokeWidth={1.5 / camera.zoom} strokeDasharray={`${5 / camera.zoom} ${4 / camera.zoom}`} pointerEvents="none"/>{chosen && chosenKey && ["rect", "ellipse", "line", "arrow"].includes(chosen.type) && <rect x={box.x + box.width - 5 / camera.zoom} y={box.y + box.height - 5 / camera.zoom} width={10 / camera.zoom} height={10 / camera.zoom} fill="#358872" style={{ cursor: "nwse-resize" }} onPointerDown={e => { e.preventDefault(); e.stopPropagation(); const p = point(e); pointers.current.set(e.pointerId, p); svg.current?.setPointerCapture(e.pointerId); setDraftKey(chosenKey); gesture.current = { kind: "resize", key: chosenKey, original: chosen, startX: 0, startY: 0, camera: cameraRef.current, stamp: doc.entities[chosenKey].stamp, erasers: attachErasers({ [chosenKey]: chosen }) }; }}/>}</g>}
+        {box && tool === "select" && <g>
+          <rect x={box.x - 6 / camera.zoom} y={box.y - 6 / camera.zoom} width={box.width + 12 / camera.zoom} height={box.height + 12 / camera.zoom} fill="none" stroke="#358872" strokeWidth={1.5 / camera.zoom} strokeDasharray={`${5 / camera.zoom} ${4 / camera.zoom}`} pointerEvents="none"/>
+          {!disabled && <g aria-label="선택 영역 크기 조절" style={{ cursor: "nwse-resize" }} onPointerDown={e => {
+            if (e.button !== 0 || pointers.current.size || (e.pointerType === "touch" && !e.isPrimary)) return;
+            beginTransform("resize", selected, e);
+          }}>
+            <title>선택 영역 크기 조절</title>
+            <rect x={box.x + box.width - 9 / camera.zoom} y={box.y + box.height - 9 / camera.zoom} width={30 / camera.zoom} height={30 / camera.zoom} fill="transparent"/>
+            <rect x={box.x + box.width} y={box.y + box.height} width={12 / camera.zoom} height={12 / camera.zoom} rx={2 / camera.zoom} fill="#358872" stroke="white" strokeWidth={1.5 / camera.zoom}/>
+          </g>}
+        </g>}
         {marquee && <rect x={marquee.x} y={marquee.y} width={marquee.width} height={marquee.height} fill="#35887218" stroke="#358872" strokeWidth={1 / camera.zoom} pointerEvents="none"/>}
       </g>
       {cursor && tool === "eraser" && !disabled && <circle cx={cursor.x} cy={cursor.y} r={eraserSize * camera.zoom / 2} fill="#ffffff50" stroke="#6f817b" strokeWidth="1" pointerEvents="none"/>}
       {cursor && tool === "pen" && !disabled && !showSizePreview && <circle cx={cursor.x} cy={cursor.y} r={penSize * camera.zoom / 2} fill={color} opacity=".45" pointerEvents="none"/>}
     </svg>
-    <div className={styles.boardHint}>{tool === "hand" ? "드래그해서 화면 이동" : tool === "select" ? "빈 곳을 드래그해 여러 개 선택 · 선택한 그림을 드래그해 함께 이동" : tool === "eraser" ? eraserMode === "area" ? "지나간 부분만 삭제 · 지우개에서 삭제 방식 변경" : "닿은 개체 전체 삭제 · 실행 취소로 복원" : "한 손가락으로 그리기 · 두 손가락으로 이동·확대"}</div>
+    <div className={styles.boardHint}>{tool === "hand" ? "드래그해서 화면 이동" : tool === "select" ? "빈 곳을 드래그해 선택 · 선택 영역 안에서 이동 · 오른쪽 아래에서 크기 조절" : tool === "eraser" ? eraserMode === "area" ? "지나간 부분만 삭제 · 지우개에서 삭제 방식 변경" : "닿은 개체 전체 삭제 · 실행 취소로 복원" : "한 손가락으로 그리기 · 두 손가락으로 이동·확대"}</div>
     <div className={styles.zoomTools}><button aria-label="축소" onClick={() => updateZoom(.8)}><ZoomOut size={18}/></button><output>{Math.round(camera.zoom * 100)}%</output><button aria-label="확대" onClick={() => updateZoom(1.25)}><ZoomIn size={18}/></button><button aria-label="전체 그림에 맞추기" title="전체 그림에 맞추기" onClick={fit}><LocateFixed size={18}/></button></div>
     {textEdit && <Dialog title="그림판 글씨" onClose={() => setTextEdit(null)}><form className="stack" onSubmit={e => { e.preventDefault(); const edit = textEdit; if (edit.text.trim()) { const k = edit.key || `shape:${crypto.randomUUID()}`; store.edit({ [k]: { ...(edit.key ? doc.entities[edit.key]?.value as ShapeValue : {}), type: "text", x: edit.x, y: edit.y, text: edit.text, color: edit.key ? (doc.entities[edit.key]?.value as ShapeValue).color : color, width: edit.key ? (doc.entities[edit.key]?.value as ShapeValue).width : penSize, fontSize: edit.key ? ((doc.entities[edit.key]?.value as ShapeValue).fontSize || 24) : fontSize, order: edit.key ? (doc.entities[edit.key]?.value as ShapeValue).order : `${Date.now()}:${crypto.randomUUID()}` } }, { [k]: edit.stamp }); } setTextEdit(null); }}><textarea autoFocus aria-label="그림판 글씨 내용" maxLength={2000} rows={5} value={textEdit.text} onChange={e => setTextEdit({ ...textEdit, text: e.target.value })}/><button className="primary" disabled={!textEdit.text.trim()}>글씨 적용</button></form></Dialog>}
   </div>;

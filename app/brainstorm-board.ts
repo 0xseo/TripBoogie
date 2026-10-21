@@ -5,6 +5,10 @@ export function pathFor(points: number[][] = []) {
 }
 
 export function shapeBounds(shape: ShapeValue) {
+  if (shape.type === "text") {
+    const size = shape.fontSize || 24, lines = (shape.text || "").split("\n");
+    return { x: shape.x, y: shape.y, width: Math.max(40 / 24, ...lines.map(line => line.length * .65)) * size, height: size * lines.length * 1.4 };
+  }
   const points = shape.points || [[shape.x, shape.y], [shape.x2 ?? shape.x + Math.max(40, (shape.text?.length || 1) * (shape.fontSize || 24) * .65), shape.y2 ?? shape.y + (shape.fontSize || 24) * (shape.text?.split("\n").length || 1) * 1.4]];
   const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
   return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(1, Math.max(...xs) - Math.min(...xs)), height: Math.max(1, Math.max(...ys) - Math.min(...ys)) };
@@ -30,6 +34,32 @@ export function attachLegacyErasers(entities: BrainEntities, key: string, origin
 
 export type BoardPoint = { x: number; y: number };
 export type BoardBox = BoardPoint & { width: number; height: number };
+export function pointInBox(point: BoardPoint, box: BoardBox | null, padding = 0) {
+  return !!box && point.x >= box.x - padding && point.x <= box.x + box.width + padding && point.y >= box.y - padding && point.y <= box.y + box.height + padding;
+}
+export function resizeSelection(originals: Record<string, ShapeValue>, box: BoardBox, from: BoardPoint, to: BoardPoint) {
+  const diagonal = Math.max(1, box.width ** 2 + box.height ** 2);
+  const requested = 1 + ((to.x - from.x) * box.width + (to.y - from.y) * box.height) / diagonal;
+  let minimum = .01, maximum = 100;
+  for (const shape of Object.values(originals)) {
+    if (shape.type === "text") { minimum = Math.max(minimum, 12 / (shape.fontSize || 24)); maximum = Math.min(maximum, 96 / (shape.fontSize || 24)); }
+    for (const [x, y] of [[shape.x, shape.y], [shape.x2 ?? shape.x, shape.y2 ?? shape.y], ...(shape.points || [])]) {
+      for (const [value, origin] of [[x, box.x], [y, box.y]]) {
+        const delta = value - origin;
+        if (delta) maximum = Math.min(maximum, ((delta > 0 ? 1000000 : -1000000) - origin) / delta);
+      }
+    }
+  }
+  const scale = Math.max(minimum, Math.min(maximum, requested));
+  const x = (value: number) => box.x + (value - box.x) * scale;
+  const y = (value: number) => box.y + (value - box.y) * scale;
+  return Object.fromEntries(Object.entries(originals).map(([key, shape]) => [key, {
+    ...shape, x: x(shape.x), y: y(shape.y), width: Math.max(1, Math.min(80, shape.width * scale)),
+    ...(shape.x2 !== undefined ? { x2: x(shape.x2) } : {}), ...(shape.y2 !== undefined ? { y2: y(shape.y2) } : {}),
+    ...(shape.points ? { points: shape.points.map(([px, py]) => [x(px), y(py)]) } : {}),
+    ...(shape.type === "text" ? { fontSize: Math.max(12, Math.min(96, (shape.fontSize || 24) * scale)) } : {}),
+  }]));
+}
 export function dragBox(a: BoardPoint, b: BoardPoint): BoardBox {
   return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(a.x - b.x), height: Math.abs(a.y - b.y) };
 }

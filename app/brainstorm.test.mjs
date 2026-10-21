@@ -15,7 +15,7 @@ const require=createRequire(path.join(directory,'package.json'));
 const {BrainStore}=require('./brainstorm-store.js'),{axis,cellKey,parseTsv,sheetTsv,mergeDelta}=require('./brainstorm.js');
 global.__brainTestApi=(...args)=>mockApi(...args);
 const {brainImportBatches,importBrainDocuments}=require('./brainstorm-backup.js');
-const {attachLegacyErasers,attachSelectionErasers,dragBox,eraserTransform,objectsAlongEraser,selectionBounds,shapesInBox,translateShape}=require('./brainstorm-board.js');
+const {attachLegacyErasers,attachSelectionErasers,dragBox,eraserTransform,objectsAlongEraser,pointInBox,resizeSelection,selectionBounds,shapesInBox,translateShape}=require('./brainstorm-board.js');
 const {TableTouchGesture,zoomTableView}=require('./brainstorm-sheet.js');
 const copy=value=>structuredClone(value);
 const initial=()=>({id:'doc',tripId:'trip',kind:'sheet',title:'표',revision:1,metaVersion:1,deletedAt:null,updatedAt:'',entities:{},preview:{}});
@@ -135,6 +135,38 @@ test('object eraser hits complete strokes along fast drags and ignores empty sha
  assert.deepEqual(objectsAlongEraser(items,{x:600,y:150},{x:600,y:150},1),['shape:rect']);
  assert.deepEqual(objectsAlongEraser(items,{x:900,y:200},{x:900,y:200},1),['shape:ellipse']);
  assert.deepEqual(objectsAlongEraser([['dot',{...base,type:'pen',x:0,y:0,points:[[0,0]]}]],{x:0,y:0},{x:0,y:0},.5),['dot']);
+});
+test('selection bounds include gaps between selected objects without including the surrounding canvas',()=>{
+ const a={type:'rect',x:0,y:0,x2:40,y2:40,width:3,color:'#254c41',order:'1'};
+ const box=selectionBounds([['a',a],['b',translateShape(a,200,100)]]);
+ assert.equal(pointInBox({x:120,y:70},box),true);
+ assert.equal(pointInBox({x:245,y:70},box),false);
+ assert.equal(pointInBox({x:245,y:70},box,6),true);
+ assert.equal(pointInBox({x:0,y:0},null),false);
+});
+test('resizing mixed selections keeps their layout and erased cuts through save, undo and redo',async()=>{
+ const pen={type:'pen',x:100,y:100,points:[[100,100],[200,150]],width:4,color:'#254c41',order:'1'};
+ const text={type:'text',x:250,y:100,text:'여행',fontSize:24,width:3,color:'#254c41',order:'2'};
+ const reverse={type:'rect',x:400,y:300,x2:300,y2:200,width:3,color:'#254c41',order:'3'};
+ const originals={'shape:pen':pen,'shape:text':text,'shape:rect':reverse},bounds=selectionBounds(Object.entries(originals));
+ const end={x:bounds.x+bounds.width,y:bounds.y+bounds.height};
+ const resized=resizeSelection(originals,bounds,end,{x:end.x+bounds.width,y:end.y+bounds.height});
+ assert.deepEqual(resized['shape:pen'].points,[[100,100],[300,200]]);
+ assert.equal(resized['shape:pen'].width,8);assert.equal(resized['shape:text'].fontSize,48);
+ assert.equal(resized['shape:text'].x,400);assert.equal(resized['shape:rect'].x,700);assert.equal(resized['shape:rect'].x2,500);
+ assert.equal(originals['shape:text'].fontSize,24);
+ const textCut={type:'eraser',x:260,y:100,points:[[260,100],[260,140]],width:20,color:'#254c41',order:'4',targets:['shape:text']};
+ const boundTextCut=attachSelectionErasers({'shape:text':{value:text,stamp:'text'},'shape:cut':{value:textCut,stamp:'cut'}},{'shape:text':text})[0].value;
+ assert.equal(eraserTransform(resized['shape:text'],'shape:text',boundTextCut),'translate(400 100) scale(2 2) translate(-250 -100)');
+ const cut={type:'eraser',x:150,y:100,points:[[150,100],[150,160]],width:20,color:'#254c41',order:'4',targets:['shape:pen']};
+ const s=server(),store=new BrainStore(initial(),s.transport);store.edit({...originals,'shape:cut':cut});await settled(store);
+ const doc=store.getSnapshot().document,erasers=attachSelectionErasers(doc.entities,originals);
+ store.edit({...Object.fromEntries(erasers.map(c=>[c.key,c.value])),...resized},{...Object.fromEntries(erasers.map(c=>[c.key,c.expected])),...Object.fromEntries(Object.keys(originals).map(key=>[key,doc.entities[key].stamp]))});await settled(store);
+ assert.equal(eraserTransform(s.document.entities['shape:pen'].value,'shape:pen',s.document.entities['shape:cut'].value),'translate(100 100) scale(2 2) translate(-100 -100)');
+ await store.undo();assert.deepEqual(s.document.entities['shape:pen'].value,pen);assert.deepEqual(s.document.entities['shape:cut'].value,cut);
+ await store.undo(true);assert.deepEqual(s.document.entities['shape:pen'].value,resized['shape:pen']);
+ const small=resizeSelection(originals,bounds,end,{x:-10000,y:-10000}),large=resizeSelection(originals,bounds,end,{x:10000,y:10000});
+ assert.equal(small['shape:text'].fontSize,12);assert.equal(large['shape:text'].fontSize,96);
 });
 test('large backup restoration stays within hosted payload limits and resumes without duplicate documents',async()=>{
  const source=initial();source.entities=Object.fromEntries(Array.from({length:1200},(_,i)=>[`cell:r${i}:c0`,{value:{text:'한글'.repeat(350)},stamp:'old',revision:1}]));

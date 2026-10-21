@@ -18,7 +18,11 @@ export default function PullToRefresh({children,enabled,onRefresh}:{children:Rea
   const performRefresh=useCallback(async()=>{
     if(running.current||!latest.current.enabled)return;
     running.current=true;setRefreshing(true);setDistance(0);
-    try { await latest.current.onRefresh(); } catch { /* The screen owns its API error message. */ }
+    try {
+      const updates = [latest.current.onRefresh()];
+      window.dispatchEvent(new CustomEvent("tripboogie:refresh", { detail: { waitUntil: (update: Promise<unknown>) => updates.push(update) } }));
+      await Promise.allSettled(updates);
+    } catch { /* The screen owns its API error message. */ }
     finally { running.current=false;if(alive.current){setRefreshing(false);setDistance(0);} }
   },[]);
   useEffect(()=>{
