@@ -127,8 +127,10 @@ public class FormKeyboardTest {
             pull(scenario,"touchend",130);expect(scenario,"!document.querySelector('.pull-indicator')&&window.keyboardFixture.refreshes===0");
             pull(scenario,"touchstart",100);pull(scenario,"touchmove",210);expect(scenario,"document.querySelector('.pull-indicator')?.textContent==='놓으면 새로고침'");SystemClock.sleep(500);System.out.println("PULL_INDICATOR_LAYOUT "+js(scenario,"(()=>{const e=document.querySelector('.pull-indicator'),r=e.getBoundingClientRect(),s=getComputedStyle(e);return JSON.stringify({x:r.x,y:r.y,width:r.width,height:r.height,translate:s.translate,transform:s.transform,opacity:s.opacity,visibility:s.visibility,z:s.zIndex,color:s.color,background:s.backgroundColor,dialogs:document.querySelectorAll('dialog[open]').length})})()"));screenshot("pull-ready");pull(scenario,"touchend",210);pull(scenario,"touchend",210);
             expect(scenario,"window.keyboardFixture.refreshes===1&&!!document.querySelector('body>.refresh-overlay')&&document.querySelector('main').inert");
-            System.out.println("REFRESH_BACKDROP_LAYOUT "+js(scenario,"(()=>{const e=document.querySelector('.refresh-overlay'),r=document.querySelector('.refresh-loader').getBoundingClientRect(),s=getComputedStyle(e);return JSON.stringify({x:r.x,y:r.y,w:r.width,h:r.height,vw:innerWidth,vh:innerHeight,bg:s.backgroundColor,blur:s.backdropFilter,webkitBlur:s.webkitBackdropFilter,hit:document.elementFromPoint(innerWidth-20,innerHeight-100)?.className})})()"));screenshot("refresh-centered");
-            expect(scenario,"(()=>{const e=document.querySelector('.refresh-overlay'),r=document.querySelector('.refresh-loader').getBoundingClientRect(),s=getComputedStyle(e);return Math.abs(r.x+r.width/2-innerWidth/2)<2&&Math.abs(r.y+r.height/2-innerHeight/2)<2&&s.backgroundColor!=='rgb(255, 255, 255)'&&(s.backdropFilter||s.webkitBackdropFilter||'').includes('blur')&&document.elementFromPoint(innerWidth-20,innerHeight-100)===e})()");
+            System.out.println("REFRESH_BACKDROP_LAYOUT "+js(scenario,"(()=>{const e=document.querySelector('.refresh-overlay'),r=e.querySelector('.refresh-spinner').getBoundingClientRect(),s=getComputedStyle(e);return JSON.stringify({x:r.x,y:r.y,w:r.width,h:r.height,vw:innerWidth,vh:innerHeight,bg:s.backgroundColor,blur:s.backdropFilter,webkitBlur:s.webkitBackdropFilter,hit:document.elementFromPoint(innerWidth-20,innerHeight-100)?.className})})()"));screenshot("refresh-centered");
+            expect(scenario,"(()=>{const e=document.querySelector('.refresh-overlay'),r=e.querySelector('.refresh-spinner').getBoundingClientRect(),s=getComputedStyle(e);return Math.abs(r.x+r.width/2-innerWidth/2)<2&&Math.abs(r.y+r.height/2-innerHeight/2)<2&&e.children.length===1&&!e.querySelector('.refresh-loader')&&s.backgroundColor!=='rgb(255, 255, 255)'&&(s.backdropFilter||s.webkitBackdropFilter||'').includes('blur')&&document.elementFromPoint(innerWidth-20,innerHeight-100)===e})()");
+            js(scenario,"window.spinnerTransform=getComputedStyle(document.querySelector('.refresh-spinner')).transform;true");SystemClock.sleep(150);
+            expect(scenario,"getComputedStyle(document.querySelector('.refresh-spinner')).transform!==window.spinnerTransform");
             js(scenario,"window.keyboardFixture.finishRefresh();true");expect(scenario,"!document.querySelector('.refresh-overlay')&&!document.querySelector('main').inert&&document.body.style.overflow!==\"hidden\"");
             pull(scenario,"touchstart",100);pull(scenario,"touchmove",210);pull(scenario,"touchend",210);expect(scenario,"window.keyboardFixture.refreshes===2");js(scenario,"window.keyboardFixture.finishRefresh(true);true");expect(scenario,"!document.querySelector('.refresh-overlay')&&!document.querySelector('main').inert");
             System.out.println("RESERVATION_REFRESH_UI_PASS linkedTourNotice=true hotelPlaceOnly=true multiHotel=true linkedBookingPreserved=true pullFeedback=true centeredBlurLoading=true refreshCleanup=true");
@@ -332,7 +334,12 @@ public class FormKeyboardTest {
 
     @Test public void overviewImagesSaveToGalleryAndShareSeparately() throws Exception {
         try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
-            loadFixture(scenario);show(scenario,"overview");click(scenario,"이미지 저장");
+            loadFixture(scenario);show(scenario,"overview");click(scenario,"기존 일정 불러오기");
+            expect(scenario,"document.querySelectorAll('dialog[open] select').length===0&&!!document.querySelector('dialog[open] button[aria-label=\"연결 방식\"]')&&!!document.querySelector('dialog[open] button[aria-label=\"넣을 위치\"]')");
+            click(scenario,"연결 방식");click(scenario,"구분점으로 연결");
+            expect(scenario,"document.querySelector('dialog[open] button[aria-label=\"연결 방식\"]').textContent==='구분점으로 연결'");
+            click(scenario,"닫기");click(scenario,"이미지 저장");
+            expect(scenario,"document.querySelectorAll('dialog[open] select').length===0&&!!document.querySelector('dialog[open] button[aria-label=\"시작 날짜\"]')&&!!document.querySelector('dialog[open] button[aria-label=\"마지막 날짜\"]')");
             long start=SystemClock.elapsedRealtime();click(scenario,"이미지 미리보기");
             expect(scenario,"document.querySelectorAll('dialog[open] figure img').length>=2");
             long initial=SystemClock.elapsedRealtime()-start;
@@ -341,13 +348,20 @@ public class FormKeyboardTest {
             int[] before={0},after={0};String selection="relative_path=? and _display_name like ?";String[] args={"Pictures/TripBoogie/","키보드 검증 여행_%"};
             scenario.onActivity(a->{try(android.database.Cursor c=a.getContentResolver().query(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,new String[]{"_id"},selection,args,null)){before[0]=c.getCount();}});
             js(scenario,"[...document.querySelectorAll('dialog[open] button')].find(e=>e.textContent.includes('장 기기에 저장')).click();true");
-            expect(scenario,"!!document.querySelector('dialog[open] [role=status]')?.textContent.includes('사진에 저장했어요')");
+            SystemClock.sleep(700);
+            System.out.println("OVERVIEW_SAVE_STATE "+js(scenario,"JSON.stringify({buttons:[...document.querySelectorAll('dialog[open] button')].map(e=>({text:e.textContent,disabled:e.disabled})),alerts:[...document.querySelectorAll('[role=alert]')].map(e=>e.textContent),statuses:[...document.querySelectorAll('dialog[open] [role=status]')].map(e=>e.textContent)})"));screenshot("overview-save-state");
+            expect(scenario,"[...document.querySelectorAll('dialog[open] .primary')].some(e=>e.textContent==='저장 완료'&&e.disabled)&&!document.querySelector('dialog[open] [role=status]:not(.toast)')");
             scenario.onActivity(a->{try(android.database.Cursor c=a.getContentResolver().query(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,new String[]{"_id","is_pending"},selection,args,null)){after[0]=c.getCount();while(c.moveToNext())assertEquals(0,c.getInt(1));}});
             int pages=Integer.parseInt(js(scenario,"document.querySelectorAll('dialog[open] figure img').length"));assertEquals(pages,after[0]-before[0]);
             // Saving completed inside the app without launching the share chooser.
             expect(scenario,"document.hasFocus()&&!!document.querySelector('dialog[open]')");
-            click(scenario,"공유");SystemClock.sleep(800);
-            android.view.accessibility.AccessibilityNodeInfo chooser=InstrumentationRegistry.getInstrumentation().getUiAutomation().getRootInActiveWindow();
+            click(scenario,"공유");
+            android.view.accessibility.AccessibilityNodeInfo chooser=null;
+            for(int attempt=0;attempt<60;attempt++){
+                chooser=InstrumentationRegistry.getInstrumentation().getUiAutomation().getRootInActiveWindow();
+                if(chooser!=null&&!InstrumentationRegistry.getInstrumentation().getTargetContext().getPackageName().equals(chooser.getPackageName()))break;
+                SystemClock.sleep(100);
+            }
             assertNotNull("Share chooser must open",chooser);
             assertNotEquals("Sharing must open the OS chooser",InstrumentationRegistry.getInstrumentation().getTargetContext().getPackageName(),chooser.getPackageName().toString());
             InstrumentationRegistry.getInstrumentation().getUiAutomation().performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK);

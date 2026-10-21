@@ -10,7 +10,7 @@ import {
 import Image from "next/image";
 import type {MapPlace} from "./server/maps";
 import {tripCountries} from "./trip-destinations";
-import {distanceMeters} from "./route-graph";
+import { createTravelCityLookup, includesTravelCity } from "./travel-city";
 import LaunchScreen from "./components/LaunchScreen";
 import TripSidebar from "./components/TripSidebar";
 import {
@@ -214,6 +214,9 @@ function TripAppContent({
     importAttempt = useRef<{ text: string; key: string } | null>(null),
     listRequest = useRef(0),
     authRequest = useRef(0);
+  const resolveTravelCity = useMemo(() => createTravelCityLookup(async point =>
+    (await api<{ places: MapPlace[] }>("/api/maps/reverse", jsonRequest(point))).places[0]
+  ), []);
   useEffect(() => {
     wsRef.current = workspace;
   }, [workspace]);
@@ -616,14 +619,14 @@ function TripAppContent({
   }
   async function suggestTravelCity(place:MapPlace,start:string,end=start){
     const original=wsRef.current;if(!original)return;
-    const normalized=(value:unknown)=>String(value||"").normalize("NFKC").replace(/\s+/g,"").toLocaleLowerCase();
-    if(place.cityName&&(original.trip.settings.cities||[]).some(c=>c.countryCode===place.countryCode&&normalized(c.name)===normalized(place.cityName)))return;
+    if(place.countryCode!=="CN"&&place.cityName&&await includesTravelCity({...place,name:place.cityName},original.trip.settings.cities||[],resolveTravelCity))return;
     let candidate:MapPlace|undefined;
-    try{candidate=(await api<{places:MapPlace[]}>("/api/maps/reverse",jsonRequest({lat:place.lat,lng:place.lng}))).places[0];}catch{return;}
+    try{candidate=await resolveTravelCity(place);}catch{return;}
     if(!candidate?.countryCode||!candidate.timezone)return;
     const current=wsRef.current;if(!current||current.trip.id!==original.trip.id)throw new Error("여행이 바뀌었어요. 다시 저장해 주세요.");
     const cityName=candidate.cityName||candidate.name,cities=current.trip.settings.cities||[];
-    if(cities.some(c=>c.countryCode===candidate!.countryCode&&((candidate!.providerId&&c.providerId===candidate!.providerId)||normalized(c.name)===normalized(cityName)||distanceMeters(c,candidate!)<1000)))return;
+    try{if(await includesTravelCity(candidate,cities,resolveTravelCity))return;}catch{return;}
+    if(wsRef.current?.trip.id!==current.trip.id)throw new Error("여행이 바뀌었어요. 다시 저장해 주세요.");
     if(cities.length>=20){setNotice("방문 도시는 최대 20개까지 추가할 수 있어요.");return;}
     if(!(await confirm(`${cityName}을(를) 여행 방문 도시에 추가할까요?`,{title:"방문 도시 추가",confirmLabel:"추가하기",intent:"default"})))return;
     if(wsRef.current?.trip.id!==current.trip.id)throw new Error("여행이 바뀌었어요. 다시 저장해 주세요.");
@@ -1439,7 +1442,7 @@ function TripAppContent({
             </Dialog>
           )}
           {!openingTrip && <NetworkStatus
-            active={busy || !!openingTrip || listLoading}
+            active={busy || listLoading}
             label={busy ? "저장 중" : "불러오는 중"}
           />}
           <input

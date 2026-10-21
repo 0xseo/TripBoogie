@@ -86,9 +86,11 @@ textarea {
   min-height: 44px;
   justify-content: space-between;
   padding: 9px 12px;
+  gap: 10px;
   font-size: 14px;
   background: var(--paper);
 }
+.choice-field > svg { flex: none; }
 .choice-field span {
   min-width: 0;
   overflow: hidden;
@@ -647,11 +649,11 @@ textarea {
   :is(.preparation-tabs, .itinerary-tabs) {
     gap: 22px;
     justify-content: flex-start;
-    padding-inline: 12px;
+    padding-inline: 0;
   }
   :is(.preparation-tabs, .itinerary-tabs) > button {
     font-size: 13px;
-    padding: 5px 1px;
+    padding: 5px 2px;
     min-height: 34px;
   }
   .app-shell .settings-menu > button {

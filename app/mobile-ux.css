@@ -1,5 +1,4 @@
 /* Shared compact controls. Color tokens follow the companion LookBoogie app. */
-.spinner{animation:refresh-spin .8s linear infinite;flex:none}
 .trip-header-link{min-width:0;max-width:720px;display:grid;justify-content:start;text-align:left;gap:4px;background:transparent;border:0;padding:0}
 .trip-header-link:hover{background:transparent}
 .trip-header-link strong{font-size:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.5px}

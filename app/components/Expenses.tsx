@@ -109,7 +109,8 @@ export default function Expenses({
   onBooking?: (id: string) => void;
   focused?: string;
 }) {
-  const [query, setQuery] = useState(""), [order, setOrder] = useState("date-asc");
+  const [query, setQuery] = useState(""),
+    [order, setOrder] = useState("date-asc");
   const [period, setPeriod] = useState("all"),
     [editing, setEditing] = useState<ItemRecord | "new" | null>(null);
   useEffect(() => {
@@ -164,22 +165,51 @@ export default function Expenses({
       controller.abort();
     };
   }, [neededCurrencies, profile.baseCurrency, conversionKey]);
-  const filteredRows = periodRows.filter(r => {
-    const booking = workspace.records.find(b => b.kind === "booking" && b.id === r.data.bookingId);
-    const people = [...(Array.isArray(r.data.payers) ? r.data.payers : []), ...(Array.isArray(r.data.participants) ? r.data.participants : [])] as Person[];
-    return matchesListQuery(query, [r.data.title, r.data.note, r.data.date, r.data.paidCurrency, r.data.payer,
-      categories.find(c => c.id === r.data.category)?.label, booking && bookingTitle(booking.data), ...people.map(p => p.name)]);
+  const filteredRows = periodRows.filter((r) => {
+    const booking = workspace.records.find(
+      (b) => b.kind === "booking" && b.id === r.data.bookingId
+    );
+    const people = [
+      ...(Array.isArray(r.data.payers) ? r.data.payers : []),
+      ...(Array.isArray(r.data.participants) ? r.data.participants : []),
+    ] as Person[];
+    return matchesListQuery(query, [
+      r.data.title,
+      r.data.note,
+      r.data.date,
+      r.data.paidCurrency,
+      r.data.payer,
+      categories.find((c) => c.id === r.data.category)?.label,
+      booking && bookingTitle(booking.data),
+      ...people.map((p) => p.name),
+    ]);
   });
-  const rowAmounts = new Map(filteredRows.map(r => {
-    const total = expenseBaseTotal([r], profile.baseCurrency, conversionRates.base === profile.baseCurrency ? conversionRates.rates : {});
-    return [r.id, total.missing.length ? null : units(total.amount)] as const;
-  }));
+  const rowAmounts = new Map(
+    filteredRows.map((r) => {
+      const total = expenseBaseTotal(
+        [r],
+        profile.baseCurrency,
+        conversionRates.base === profile.baseCurrency
+          ? conversionRates.rates
+          : {}
+      );
+      return [r.id, total.missing.length ? null : units(total.amount)] as const;
+    })
+  );
   const rows = [...filteredRows].sort((a, b) => {
     if (order.startsWith("amount-")) {
-      const left = rowAmounts.get(a.id), right = rowAmounts.get(b.id);
-      if (left == null || right == null) return Number(left == null) - Number(right == null) || compareListRecords(a, b, "date-asc");
+      const left = rowAmounts.get(a.id),
+        right = rowAmounts.get(b.id);
+      if (left == null || right == null)
+        return (
+          Number(left == null) - Number(right == null) ||
+          compareListRecords(a, b, "date-asc")
+        );
       const difference = left < right ? -1 : left > right ? 1 : 0;
-      return difference * (order === "amount-desc" ? -1 : 1) || compareListRecords(a, b, "date-asc");
+      return (
+        difference * (order === "amount-desc" ? -1 : 1) ||
+        compareListRecords(a, b, "date-asc")
+      );
     }
     return compareListRecords(a, b, order);
   });
@@ -226,13 +256,19 @@ export default function Expenses({
             className={period === "all" ? "active" : ""}
             onClick={() => setPeriod("all")}
           >
-            여행 전체
+            전체
           </button>
           <button
             className={period === "before" ? "active" : ""}
             onClick={() => setPeriod("before")}
           >
             여행 전
+          </button>
+          <button
+            className={period === "after" ? "active" : ""}
+            onClick={() => setPeriod("after")}
+          >
+            여행 후
           </button>
           {days(workspace.trip.startDate, workspace.trip.endDate).map(
             (d, i) => (
@@ -245,32 +281,40 @@ export default function Expenses({
               </button>
             )
           )}
-          <button
-            className={period === "after" ? "active" : ""}
-            onClick={() => setPeriod("after")}
-          >
-            여행 후
-          </button>
         </div>
       </FeatureToolbar>
-      <ListControls label="경비" query={query} onQuery={setQuery} order={order} onOrder={setOrder} count={rows.length} options={[
-        {id:"date-asc",label:"날짜 빠른순"},{id:"date-desc",label:"날짜 늦은순"},
-        {id:"amount-desc",label:"금액 높은순"},{id:"amount-asc",label:"금액 낮은순"},
-        {id:"title",label:"이름순"},{id:"updated-desc",label:"최근 수정순"},
-      ]}/>
+      <ListControls
+        label="경비"
+        query={query}
+        onQuery={setQuery}
+        order={order}
+        onOrder={setOrder}
+        count={rows.length}
+        options={[
+          { id: "date-asc", label: "날짜 빠른순" },
+          { id: "date-desc", label: "날짜 늦은순" },
+          { id: "amount-desc", label: "금액 높은순" },
+          { id: "amount-asc", label: "금액 낮은순" },
+          { id: "title", label: "이름순" },
+          { id: "updated-desc", label: "최근 수정순" },
+        ]}
+      />
       <div className={`expense-summary ${styles.summary}`}>
         <span className={styles.heading}>
-          사용금액 <span>(
-          {baseTotal.missing.length
-            ? converting
-              ? "환산 중…"
-              : "환산 확인 필요"
-            : `${profile.baseCurrency} ${money(
-                baseTotal.amount,
-                profile.baseCurrency,
-                "narrowSymbol"
-              )}`}
-          )</span>
+          사용금액{" "}
+          <span>
+            (
+            {baseTotal.missing.length
+              ? converting
+                ? "환산 중…"
+                : "환산 확인 필요"
+              : `${profile.baseCurrency} ${money(
+                  baseTotal.amount,
+                  profile.baseCurrency,
+                  "narrowSymbol"
+                )}`}
+            )
+          </span>
         </span>
         {baseTotal.live && (
           <small className="muted">
@@ -291,7 +335,9 @@ export default function Expenses({
               }
             >
               <span className="currency-code">{t.currency}</span>{" "}
-              <span className={styles.totalAmount}>{money(t.amount, t.currency, "narrowSymbol")}</span>
+              <span className={styles.totalAmount}>
+                {money(t.amount, t.currency, "narrowSymbol")}
+              </span>
             </strong>
           ))}
         </div>
@@ -328,8 +374,8 @@ export default function Expenses({
                   {periodLabel(r)} ·{" "}
                   {categories.find((c) => c.id === d.category)?.label ||
                     text(d.category, "기타")}
-                  {" · "}
                   {booking && (
+                    <>{" · "}
                     <button
                       type="button"
                       className="expense-booking-link"
@@ -337,6 +383,7 @@ export default function Expenses({
                     >
                       예약
                     </button>
+                    </>
                   )}
                 </small>
                 <h3>{text(d.title)}</h3>
@@ -391,8 +438,12 @@ export default function Expenses({
         })}
       </div>
       {!rows.length && (
-        <Empty title={query.trim() ? "검색 결과가 없어북" : "첫 경비를 기록해북"}>
-          {query.trim() ? "다른 검색어로 찾아봐북" : "결제한 통화와 나눌 동행을 골라북"}
+        <Empty
+          title={query.trim() ? "검색 결과가 없어북" : "첫 경비를 기록해북"}
+        >
+          {query.trim()
+            ? "다른 검색어로 찾아봐북"
+            : "결제한 통화와 나눌 동행을 골라북"}
         </Empty>
       )}
 

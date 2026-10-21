@@ -64,10 +64,9 @@ export default function Checklist({
   }
   return (
     <section className="feature">
-      <FeatureToolbar tabs className={styles.toolbar} action={<>
-        <label className={styles.hideCompleted}><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)}/>완료된 항목 보지 않기</label>
+      <FeatureToolbar tabs className={styles.toolbar} action={
         <AddButton label="할 일 추가" disabled={readOnly} onClick={() => setEditing("new")} />
-      </>}>
+      }>
       <nav
         className="booking-category-tabs checklist-category-tabs"
         aria-label="체크리스트 분류"
@@ -93,7 +92,9 @@ export default function Checklist({
       </FeatureToolbar>
       <ListControls label="체크리스트" query={query} onQuery={setQuery} order={order} onOrder={value=>{setOrder(value);setOrderingCategory(null);}} count={matchingCount} options={[
         {id:"manual",label:"지정한 순서"},{id:"title",label:"이름순"},{id:"updated-desc",label:"최근 수정순"},
-      ]}/>
+      ]} footer={
+        <label className={styles.hideCompleted}><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)}/>완료된 항목 보지 않기</label>
+      }/>
       {error && <p className="error">{error}</p>}
       <div className={styles.grid}>
         {shownGroups.map(({ id, rows: group }) => {

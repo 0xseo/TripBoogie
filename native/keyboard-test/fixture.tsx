@@ -23,7 +23,6 @@ import TripOverview from "../../app/components/TripOverview";
 import { MobileTripNav } from "../../app/components/TripNavigation";
 import Toast from "../../app/components/Toast";
 import PullToRefresh from "../../app/components/PullToRefresh";
-import NetworkStatus from "../../app/components/NetworkStatus";
 import { ConfirmationProvider } from "../../app/components/Confirmation";
 import { Dialog } from "../../app/components/ui";
 import type { Workspace, Profile, ItemRecord, OverviewRow } from "../../app/types";
@@ -677,7 +676,6 @@ function Fixture() {
                 화면을 아래로 당겨 주세요.
               </section>
             </PullToRefresh>
-            <NetworkStatus active />
           </>
         )}
         {scene === "plan" && (

@@ -7,12 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import {
-  FileImage,
-  FolderInput,
-  Pencil,
-  Trash2,
-} from "lucide-react";
+import { FileImage, FolderInput, Pencil, Trash2 } from "lucide-react";
 import type { Workspace, OverviewRow, OverviewChange } from "../types";
 import { shortDate } from "../calendar";
 import {
@@ -30,6 +25,7 @@ import {
   type OverviewSeparator,
 } from "../itinerary-overview";
 import ExportDialog from "./OverviewExportDialog";
+import ChoiceField from "./ChoiceField";
 import { useConfirm } from "./Confirmation";
 import Dialog from "./Dialog";
 import styles from "./TripOverview.module.css";
@@ -633,10 +629,6 @@ function ImportDialog({
       onClose={onClose}
     >
       <div className={styles.importContent}>
-        <p className={styles.help}>
-          표에 넣을 일정을 선택해 주세요. 원본의 시간과 이름을 복사하고,
-          이후에는 자유롭게 고칠 수 있어요.
-        </p>
         <div className={styles.importOptions}>
           <label>
             <input
@@ -666,33 +658,23 @@ function ImportDialog({
             />
             숙소 포함
           </label>
-          <label>
-            연결 방식
-            <select
-              value={separator}
-              onChange={(event) =>
-                setSeparator(event.target.value as typeof separator)
-              }
-            >
-              <option value={"\n"}>일정마다 줄바꿈</option>
-              <option value=" · ">구분점으로 연결</option>
-            </select>
-          </label>
-          <label>
-            넣을 위치
-            <select
-              value={mode}
-              onChange={(event) => {
-                const next = event.target.value as typeof mode;
+          <div className={styles.optionField}>
+            <span>연결 방식</span>
+            <ChoiceField label="연결 방식" value={separator}
+              options={[{id:"\n",label:"일정마다 줄바꿈"},{id:" · ",label:"구분점으로 연결"}]}
+              disabled={busy} onChange={value => setSeparator(value as typeof separator)} />
+          </div>
+          <div className={styles.optionField}>
+            <span>넣을 위치</span>
+            <ChoiceField label="넣을 위치" value={mode}
+              options={[{id:"append",label:"기존 내용 아래에 추가"},{id:"replace",label:"해당 날짜 내용 바꾸기"}]}
+              disabled={busy} onChange={value => {
+                const next = value as typeof mode;
                 setMode(next);
                 if (next === "replace")
                   setSelected(new Set(visible.map((item) => item.id)));
-              }}
-            >
-              <option value="append">기존 내용 아래에 추가</option>
-              <option value="replace">해당 날짜 내용 바꾸기</option>
-            </select>
-          </label>
+              }} />
+          </div>
         </div>
         <div className={styles.selectionBar}>
           <span>{chosen.length}개 선택</span>

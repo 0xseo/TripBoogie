@@ -4,6 +4,7 @@ import { searchLanguages } from "../search-language";
 import { normalizePlaceName, resolvePlaceAlias } from "./place-alias";
 import { boundedJson } from "./http";
 import {cityQuery,searchCities} from "./city-search";
+import { chineseCityBoundary, chineseParentCity } from "./map-city";
 import type { CurrentUser } from "../types";
 import { ApiError, object, readJson } from "./validation";
 
@@ -290,11 +291,36 @@ export function createMapHandler(deps: Deps) {
         );
       }
       let cityMatches: MapPlace[] = [];
-      if(operation==="reverse")return Response.json({places:providerPlaces(raw).filter(p=>p.countryCode&&p.timezone).slice(0,1)},{headers});
+      if (operation === "reverse") {
+        let city = providerPlaces(raw).find(p => p.countryCode && p.timezone);
+        if (city?.countryCode === "CN") {
+          const boundaryUrl = new URL("https://api.geoapify.com/v1/boundaries/part-of");
+          boundaryUrl.search = new URLSearchParams({ lat: String(input.lat), lon: String(input.lng), boundaries: "administrative", geometry: "point", lang: language, apiKey: deps.key }).toString();
+          let parent: Record<string, unknown> | undefined;
+          // Charge every upstream request. A failed boundary lookup may use a
+          // verified parent from the geocoder, never the original district.
+          await deps.budget(request);
+          try {
+            const boundaryResponse = await (deps.fetch ?? globalThis.fetch)(boundaryUrl, { redirect: "manual", cache: "no-store", signal: AbortSignal.any([request.signal, AbortSignal.timeout(10000)]) });
+            if (boundaryResponse.ok) parent = chineseCityBoundary(await boundedJson(boundaryResponse));
+          } catch { /* The explicit parent fallback below is safe during outages. */ }
+          parent ??= chineseParentCity(raw);
+          city = parent ? providerPlaces({ features: [{ properties: {
+            ...parent, name: parent.name, city: parent.name,
+            country_code: "cn", timezone: { name: city.timezone },
+            lat: number(parent.lat, 90) ? parent.lat : city.lat,
+            lon: number(parent.lon, 180) ? parent.lon : city.lng,
+          } }] })[0] : undefined;
+        }
+        if (city?.cityName) city = { ...city, name: city.cityName };
+        raw = { places: city ? [city] : [] };
+        // Reverse results share the normal bounded cache, including canonical
+        // city lookups used to compare existing trip destinations.
+      }
       const country = input.type !== "city" ? input.countryCode as string | undefined : undefined;
       const inCountry = (p: MapPlace) => !country || p.countryCode === country;
-      const directPlaces = operation !== "route" ? providerPlaces(raw).filter(inCountry) : [];
-      if (operation !== "route" && input.type === "city" && !directPlaces.some(p => p.countryCode && p.timezone)) {
+      const directPlaces = operation !== "route" && operation !== "reverse" ? providerPlaces(raw).filter(inCountry) : [];
+      if (operation !== "route" && operation !== "reverse" && input.type === "city" && !directPlaces.some(p => p.countryCode && p.timezone)) {
         try { cityMatches = await searchCities(String(input.query), language, input.countryCode as string | undefined, deps.fetch ?? globalThis.fetch, request.signal); }
         catch { /* A fallback outage never discards valid direct results. */ }
       }
@@ -303,7 +329,7 @@ export function createMapHandler(deps: Deps) {
       let aliasPlaces: MapPlace[] = [], alternativeQuery = "", aliasSource = "";
       // Fuzzy suggestions are not proof the requested place was found. Resolve
       // linked names in autocomplete too, before the client accepts unrelated hits.
-      if (operation !== "route" && input.type !== "city" && (operation === "search" || !exactDirect)) {
+      if (operation !== "route" && operation !== "reverse" && input.type !== "city" && (operation === "search" || !exactDirect)) {
         try {
           const alias = await resolvePlaceAlias(String(input.query).trim(), language, input.countryCode as string | undefined, deps.fetch ?? globalThis.fetch, request.signal);
           if (alias) {
@@ -322,7 +348,8 @@ export function createMapHandler(deps: Deps) {
         } catch { /* Optional language links never discard a valid direct result. */ }
       }
       let result: unknown;
-      if (operation !== "route") {
+      if (operation === "reverse") result = raw;
+      else if (operation !== "route") {
         const candidates = [...cityMatches, ...aliasPlaces, ...directPlaces];
         const unique = candidates.filter((p, i) => candidates.findIndex(other => Math.abs(other.lat-p.lat)<0.00001 && Math.abs(other.lng-p.lng)<0.00001)===i);
         if (input.type !== "city") {

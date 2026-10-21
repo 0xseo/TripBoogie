@@ -4,9 +4,6 @@
 
 .brand {position:absolute;inset:0}
 .refresh {display:none;position:absolute;inset:0;place-items:center;color:var(--muted)}
-.refresh svg {animation:startup-spin .85s linear infinite}
 :global(html[data-startup="reload"]) .screen {background:var(--bg)}
 :global(html[data-startup="reload"]) .brand {display:none}
 :global(html[data-startup="reload"]) .refresh {display:grid}
-@keyframes startup-spin {to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){.refresh svg{animation:none}}

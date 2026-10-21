@@ -4,7 +4,8 @@ import { isNativeApp } from "./runtime";
 import { nativeSocialSignIn } from "./native-runtime";
 import { nativeLoginErrorMessage } from "./native-contract";
 import { useEffect, useState } from "react";
-import { MessageCircle, LoaderCircle, Info, ChevronRight } from "lucide-react";
+import { MessageCircle, Info, ChevronRight } from "lucide-react";
+import Spinner from "./components/Spinner";
 import {
   getAuthConfig,
   getSupabaseClient,
@@ -136,7 +137,7 @@ export default function AuthPanel({
       </div>
       {busy && (
         <p className={styles.loading} role="status" aria-label="로그인 중">
-          <LoaderCircle size={20} className={styles.spin} />
+          <Spinner size={20} />
         </p>
       )}
       {error && (

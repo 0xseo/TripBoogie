@@ -17,7 +17,7 @@ import { NextRequestAdapter } from "next/dist/server/web/spec-extension/adapters
 const directory = await mkdtemp(path.join(tmpdir(), "tripboogie-postgres-test-"));
 test.after(() => rm(directory, { recursive: true, force: true }));
 await symlink(new URL("../../node_modules", import.meta.url), path.join(directory, "node_modules"), "dir");
-const modules = new Set(["../route-graph", "./route-graph", "../media", "./media", "./origin-policy", "./runtime", "./native-runtime", "./native-contract", "./client-api", "./api", "./repository", "./validation", "./planning", "./http", "../countries", "./countries", "./place-alias", "./city-search", "../search-language"]);
+const modules = new Set(["../route-graph", "./route-graph", "../media", "./media", "./origin-policy", "./runtime", "./native-runtime", "./native-contract", "./client-api", "./api", "./repository", "./validation", "./planning", "./http", "../countries", "./countries", "./place-alias", "./city-search", "./map-city", "../search-language"]);
 function moduleExtensions(context) {
   const visit = (node) => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && modules.has(node.moduleSpecifier.text))
@@ -27,7 +27,7 @@ function moduleExtensions(context) {
   };
   return (source) => ts.visitNode(source, visit);
 }
-for (const [name, relative] of [["city-search","./city-search.ts"], ["media", "../media.ts"], ["place-details", "./place-details.ts"], ["origin-policy", "./origin-policy.ts"], ["runtime", "../runtime.ts"], ["native-runtime", "../native-runtime.ts"], ["native-contract", "../native-contract.ts"], ["api", "./api.ts"], ["repository", "./repository.ts"], ["validation", "./validation.ts"], ["client-api", "../client-api.ts"], ["maps", "./maps.ts"], ["planning", "../planning.ts"], ["route-graph","../route-graph.ts"], ["money","../money.ts"], ["http","./http.ts"], ["tools","./tools.ts"], ["countries","../countries.ts"], ["travel-context","../travel-context.ts"], ["airports","../airports.ts"], ["place-alias","./place-alias.ts"], ["search-language","../search-language.ts"], ["auth-navigation","../auth-navigation.ts"], ["auth-provider","./auth-provider.ts"]]) {
+for (const [name, relative] of [["map-city","./map-city.ts"], ["city-search","./city-search.ts"], ["media", "../media.ts"], ["place-details", "./place-details.ts"], ["origin-policy", "./origin-policy.ts"], ["runtime", "../runtime.ts"], ["native-runtime", "../native-runtime.ts"], ["native-contract", "../native-contract.ts"], ["api", "./api.ts"], ["repository", "./repository.ts"], ["validation", "./validation.ts"], ["client-api", "../client-api.ts"], ["maps", "./maps.ts"], ["planning", "../planning.ts"], ["route-graph","../route-graph.ts"], ["money","../money.ts"], ["http","./http.ts"], ["tools","./tools.ts"], ["countries","../countries.ts"], ["travel-context","../travel-context.ts"], ["airports","../airports.ts"], ["place-alias","./place-alias.ts"], ["search-language","../search-language.ts"], ["auth-navigation","../auth-navigation.ts"], ["auth-provider","./auth-provider.ts"]]) {
   const source = (await readFile(new URL(relative, import.meta.url), "utf8")).replace('from "./data/airports.json";', 'from "./airports.json" with { type: "json" };');
   const output = ts.transpileModule(source, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },

@@ -10,6 +10,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useRate } from "./Expenses";
+import { formatExchangeRate } from "../exchange-display";
 import type { Profile, Workspace, TravelCity } from "../types";
 import { travelContext } from "../travel-context";
 import { tripCurrencies } from "../trip-destinations";
@@ -238,13 +239,9 @@ function Exchange({ currency, base }: { currency: string; base: string }) {
         {rate.quote ? (
           <>
             <span>
-              1 {currency} ={" "}
-              {rate.quote.rate.toLocaleString("ko-KR", {
-                maximumFractionDigits: 6,
-              })}{" "}
-              {base}
+              {formatExchangeRate(currency, base, rate.quote.rate)}
             </span>
-            <small className="inverse-rate">1 {base} = {(1/rate.quote.rate).toLocaleString("ko-KR",{maximumFractionDigits:8})} {currency}</small>
+            <small className="inverse-rate">{formatExchangeRate(base, currency, 1 / rate.quote.rate)}</small>
             <small>{rate.quote.date} 기준</small>
           </>
         ) : (

@@ -5,6 +5,7 @@
 .wrangler/
 .openai/
 .git/
+.github/
 .agents/
 .codex/
 node_modules/

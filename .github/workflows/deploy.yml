@@ -1,0 +1,46 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tripboogie-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_ORG_ID: team_Ygy0jXbFcWJLDs1ccVEQDR4T
+      VERCEL_PROJECT_ID: prj_k7On5BoeJrRDoQLcQ13dqPEjMxpw
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify source
+        run: |
+          node --test app/*.test.mjs native/native.test.mjs
+          npx tsc --noEmit
+          npm run lint
+      - name: Restore verified release APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_version=$(node -p "require('./package.json').version")
+          mkdir -p public/downloads
+          gh release download "v${release_version}" --repo "$GITHUB_REPOSITORY" --pattern "TripBoogie_${release_version}.apk" --pattern release.json --dir public/downloads
+          node scripts/verify-android-download.mjs
+      - name: Deploy to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx --yes vercel@54.17.3 deploy --prod --yes --token "$VERCEL_TOKEN"

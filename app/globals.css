@@ -326,13 +326,20 @@ legend {
   gap: 15px;
 }
 .spinner {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  animation: spin .9s linear infinite;
+  transform-origin: center;
+}
+.spinner:not(svg) {
   width: 17px;
   height: 17px;
   border: 2px solid #dce9dc;
   border-top-color: var(--green);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
 }
+svg.spinner { border: 0; border-radius: 0; transform-box: fill-box; }
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -1852,6 +1859,7 @@ footer > span {
     scroll-behavior: auto !important;
     transition: none !important;
   }
+  .spinner { animation: spin 1.6s linear infinite !important; }
 }
 
 /* Keep functional text readable on both desktop and handheld screens. */

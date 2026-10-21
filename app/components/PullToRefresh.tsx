@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ArrowDown, LoaderCircle } from "lucide-react";
+import { ArrowDown } from "lucide-react";
+import LoadingOverlay from "./LoadingOverlay";
 import { bindPullRefresh, pullRefreshThreshold } from "../pull-to-refresh";
 export default function PullToRefresh({children,enabled,onRefresh}:{children:ReactNode;enabled:boolean;onRefresh:()=>Promise<unknown>}) {
   const ref=useRef<HTMLDivElement>(null), [distance,setDistance]=useState(0), [refreshing,setRefreshing]=useState(false);
@@ -12,9 +13,7 @@ export default function PullToRefresh({children,enabled,onRefresh}:{children:Rea
     if(!refreshing)return;
     const overflow=document.body.style.overflow;
     document.body.style.overflow="hidden";
-    const surface=ref.current?.closest("main"),wasInert=surface?.inert;
-    if(surface)surface.inert=true;
-    return()=>{document.body.style.overflow=overflow;if(surface)surface.inert=!!wasInert;};
+    return()=>{document.body.style.overflow=overflow;};
   },[refreshing]);
   const performRefresh=useCallback(async()=>{
     if(running.current||!latest.current.enabled)return;
@@ -42,7 +41,7 @@ export default function PullToRefresh({children,enabled,onRefresh}:{children:Rea
   return <div ref={ref} className="pull-refresh-root" aria-busy={refreshing}>
     <button type="button" className="refresh-accessible" disabled={!enabled||refreshing} onClick={()=>void performRefresh()}>현재 화면 새로고침</button>
     {shown>4&&createPortal(<div className="pull-indicator" data-ready={shown>=pullRefreshThreshold} style={{transform:`translateY(${Math.min(shown/3,24)}px)`}} role="status"><ArrowDown size={19} aria-hidden="true"/><span>{shown>=pullRefreshThreshold?"놓으면 새로고침":"당겨서 새로고침"}</span></div>,document.body)}
-    {refreshing&&createPortal(<div className="refresh-overlay" role="status" aria-live="polite"><div className="refresh-loader"><LoaderCircle className="refresh-spinner" size={40} aria-hidden="true"/><span>새로고침 중…</span></div></div>,document.body)}
+    {refreshing&&<LoadingOverlay label="새로고침 중" />}
     {children}
   </div>;
 }
