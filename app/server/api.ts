@@ -12,15 +12,27 @@ type Dependencies = {
   resolveUser: (request: Request) => Promise<CurrentUser | null>;
 };
 
+const privateHeaders = {
+  "Cache-Control": "private, no-store",
+  Vary: "Authorization",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
+};
 function json(value: unknown, status = 200) {
-  return Response.json(value, {
-    status,
-    headers: {
-      "Cache-Control": "private, no-store",
-      Vary: "Authorization",
-      "X-Content-Type-Options": "nosniff",
-      "Referrer-Policy": "no-referrer",
-    },
+  return Response.json(value, { status, headers: privateHeaders });
+}
+async function workspaceJson(request: Request, value: unknown) {
+  const body = JSON.stringify(value);
+  // No private response cache: authentication and the repository run before every comparison.
+  let etag: string | undefined;
+  try {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body));
+    etag = `W/"${Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("")}"`;
+  } catch { /* A missing digest implementation must not prevent reading a trip. */ }
+  const unchanged = etag !== undefined && request.headers.get("If-None-Match")?.split(",").some(candidate => candidate.trim() === etag);
+  return new Response(unchanged ? null : body, {
+    status: unchanged ? 304 : 200,
+    headers: { ...privateHeaders, "Content-Type": "application/json", ...(etag ? { ETag: etag } : {}) },
   });
 }
 
@@ -104,7 +116,7 @@ export function createApiHandler(deps: Dependencies) {
         );
       if (segments[0] === "trips" && segments.length === 2) {
         if (method === "GET")
-          return json(await repository.workspace(segments[1]));
+          return await workspaceJson(request, await repository.workspace(segments[1]));
         if (method === "DELETE")
           return json(
             await repository.deleteTrip(segments[1], await readJson(request)),

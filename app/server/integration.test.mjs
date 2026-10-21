@@ -1306,3 +1306,42 @@ test("shared overview: backup and trip copy remap plan links, retain deleted-sou
     const oldBackup=await rpc('owner','import',null,{key:crypto.randomUUID(),trip:details,records:[]});assert.deepEqual(oldBackup.overview,[]);
   }finally{await db.close();}
 });
+
+
+test("conditional workspace reads omit unchanged bodies and still verify access and every data section", async () => {
+  let value = {trip:{id:"trip",role:"owner"},revision:1,records:[],members:[{id:"owner",name:"동행"}],files:[],overview:[{date:"2026-11-01",text:"가".repeat(9000),sourceIds:[],version:1}]};
+  let allowed = true, authenticated = true, reads = 0, authChecks = 0;
+  const {ApiError} = await import(pathToFileURL(path.join(directory,"validation.mjs")));
+  const handler = createApiHandler({resolveUser:async()=>{authChecks++;return authenticated?users.owner:null;},repository:()=>({workspace:async()=>{reads++;if(!allowed)throw new ApiError(403,"권한 없음");return value;}})});
+  const send = etag => handler(new Request("https://tripboogie.example.test/api/trips/trip", {headers:etag?{"If-None-Match":etag}:{}}),["trips","trip"]);
+  const first = await send(); assert.equal(first.status,200); const etag=first.headers.get("ETag"); assert.match(etag,/^W\/"[a-f0-9]{64}"$/);
+  assert.ok((await first.text()).length>9000); assert.match(first.headers.get("cache-control"),/private.*no-store/);
+  const cached = await send(etag); assert.equal(cached.status,304); assert.equal(await cached.text(),""); assert.equal(reads,2); assert.equal(authChecks,2);
+  for (const change of [w=>w.overview[0].text="새 내용",w=>w.members[0].name="새 이름",w=>w.trip.role="viewer",w=>w.files.push({id:"file",state:"ready"}),w=>w.records.push({id:"plan"})]) {
+    value=structuredClone(value);change(value);const changed=await send(etag);assert.equal(changed.status,200);assert.notEqual(changed.headers.get("ETag"),etag);
+  }
+  allowed=false; assert.equal((await send(etag)).status,403);
+  authenticated=false; assert.equal((await send(etag)).status,401);
+});
+
+test("conditional API clients accept empty 304 bodies without hiding failures or changing ordinary JSON requests", async () => {
+  const client=await import(pathToFileURL(path.join(directory,"client-api.mjs"))),originalFetch=globalThis.fetch;
+  const etags=[];let response=()=>Response.json({revision:1},{headers:{ETag:'W/"first"'}});
+  try {
+    globalThis.fetch=async(url,init)=>{
+      if(String(url).includes('auth-config'))return Response.json({url:'',publishableKey:'',providers:{email:false,google:true,kakao:true}});
+      assert.equal(init.cache,"no-store");assert.equal(init.headers.get("If-None-Match"),'W/"first"');return response();
+    };
+    const activity={background:true,conditional:{etag:'W/"first"',receiveEtag:value=>etags.push(value)}};
+    assert.deepEqual(await client.apiFetch('/api/trips/trip',{},activity),{revision:1});
+    response=()=>new Response(null,{status:304,headers:{ETag:'W/"first"'}});
+    assert.equal(await client.apiFetch('/api/trips/trip',{},activity),undefined);
+    assert.deepEqual(etags,['W/"first"','W/"first"']);assert.equal(client.getApiPending(),0);
+    response=()=>Response.json({error:"권한 없음"},{status:403});
+    await assert.rejects(client.apiFetch('/api/trips/trip',{},activity),error=>error.status===403);
+    assert.equal(etags.length,2);
+    globalThis.fetch=async()=>new Response(null,{status:304});
+    await assert.rejects(client.apiFetch('/api/trips/trip'),error=>error.status===304);
+    assert.equal(client.getApiPending(),0);
+  } finally {globalThis.fetch=originalFetch;}
+});

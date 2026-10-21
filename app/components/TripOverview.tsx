@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { ArrowDownToLine, Check, FileImage, FolderInput, Pencil, Trash2 } from "lucide-react";
 import type { Workspace, OverviewRow, OverviewChange } from "../types";
 import { shortDate } from "../calendar";
-import { emptyOverview, importOverview, overviewCandidatesByDate, overviewStorageKey, overviewTextLimit, parseOverview, overviewFromRows, overviewChanges, type OverviewCandidate, type OverviewDraft, type OverviewSeparator } from "../itinerary-overview";
+import { emptyOverview, importOverview, overviewCandidatesByDate, overviewStorageKey, overviewTextLimit, parseOverview, overviewFromRows, overviewChanges, sameOverviewSources, type OverviewCandidate, type OverviewDraft, type OverviewSeparator } from "../itinerary-overview";
 import type { OverviewImageRow } from "../overview-image";
 import { saveDownload } from "../download";
 import { useConfirm } from "./Confirmation";
@@ -13,6 +13,7 @@ import styles from "./TripOverview.module.css";
 
 type Props = { workspace: Workspace; days: string[]; accountId: string; disabled?: boolean; onSave: (rows: OverviewChange[]) => Promise<void>; preview?: boolean };
 type ImportRequest = { dates: string[]; draft: OverviewDraft; rows: OverviewRow[] };
+const emptyRows: OverviewRow[] = [];
 const subscribe = () => () => {};
 const failureText = (cause: unknown) => cause instanceof Error ? cause.message : "저장하지 못했어요. 연결을 확인하고 다시 시도해 주세요.";
 
@@ -32,10 +33,11 @@ function OverviewEditor({ workspace, days, accountId, disabled = false, onSave, 
   const [importRequest, setImportRequest] = useState<ImportRequest | null>(null), [exporting, setExporting] = useState(false);
   const [saving, setSaving] = useState(false), [error, setError] = useState("");
   const confirm = useConfirm();
-  const rows = workspace.overview ?? [];
-  const dates = [...new Set([...days, ...rows.map(row => row.date)])].sort();
-  const draft = overviewFromRows(rows);
-  const filled = dates.filter(date => draft.days[date]?.text.trim()).length;
+  const rows = workspace.overview ?? emptyRows;
+  const rowByDate = useMemo(() => new Map(rows.map(row => [row.date, row])), [rows]);
+  const dates = useMemo(() => [...new Set([...days, ...rowByDate.keys()])].sort(), [days, rowByDate]);
+  const draft = useMemo(() => overviewFromRows(rows), [rows]);
+  const filled = useMemo(() => dates.filter(date => draft.days[date]?.text.trim()).length, [dates, draft]);
   const ready = workspace.overview !== undefined;
   const locked = disabled || saving || !ready;
   const hasLegacy = Object.values(legacy.days).some(day => day.text.trim());
@@ -82,13 +84,13 @@ function OverviewEditor({ workspace, days, accountId, disabled = false, onSave, 
       <caption className={styles.caption}>{workspace.trip.title} · {dates.length}일 중 {filled}일 작성</caption>
       <thead><tr><th scope="col">날짜</th><th scope="col">일정<span>{disabled ? "열람 권한" : "날짜 칸을 눌러 편집"}</span></th></tr></thead>
       <tbody>{dates.map((date,index)=><tr key={date}><th scope="row"><small>DAY {index+1}</small><strong>{shortDate(date)}</strong></th><td>
-        <button type="button" className={styles.cellPreview} disabled={locked} aria-label={`${shortDate(date)} 요약 일정 편집`} onClick={()=>setEditing({date,initial:rows.find(row=>row.date===date)})}>
+        <button type="button" className={styles.cellPreview} disabled={locked} aria-label={`${shortDate(date)} 요약 일정 편집`} onClick={()=>setEditing({date,initial:rowByDate.get(date)})}>
           <span className={draft.days[date]?.text ? undefined : styles.placeholder}>{draft.days[date]?.text || "일정 입력"}</span><Pencil size={13} aria-hidden="true"/>
         </button>
       </td></tr>)}</tbody>
     </table></div>
     <p className={styles.footnote}>시간은 각 장소의 현지 시각이에요. 원본 일정의 최신 내용을 반영하려면 다시 불러와 주세요.</p>
-    {editing && <CellEditor key={editing.date} workspace={workspace} date={editing.date} initial={editing.initial} latest={rows.find(row=>row.date===editing.date)} disabled={disabled} onSave={async row=>{await saveRows([row]);setEditing(null);}} onClose={()=>setEditing(null)}/>}
+    {editing && <CellEditor key={editing.date} workspace={workspace} date={editing.date} initial={editing.initial} latest={rowByDate.get(editing.date)} disabled={disabled} onSave={async row=>{await saveRows([row]);setEditing(null);}} onClose={()=>setEditing(null)}/>}
     {importRequest && <ImportDialog workspace={workspace} days={importRequest.dates} draft={importRequest.draft} onClose={()=>setImportRequest(null)} onImport={async(items,mode,separator)=>{const next=importOverview(importRequest.draft,items,mode,separator);await saveRows(overviewChanges(importRequest.draft,next,importRequest.rows));setImportRequest(null);}}/>}
     {exporting && <ExportDialog title={workspace.trip.title} rows={dates.map(date=>({date,text:draft.days[date]?.text??""}))} onClose={()=>setExporting(false)}/>}
   </section>;
@@ -101,8 +103,8 @@ function CellEditor({workspace,date,initial,latest,disabled,onSave,onClose}:{wor
   const confirm=useConfirm();
   const input=useRef<HTMLTextAreaElement|null>(null);
   const focus=useCallback((node:HTMLTextAreaElement|null)=>{input.current=node;if(node)requestAnimationFrame(()=>{if(node.isConnected){node.focus();node.setSelectionRange(node.value.length,node.value.length);}});},[]);
-  const dirty=value!==base.text||JSON.stringify(sourceIds)!==JSON.stringify(base.sourceIds);
-  const conflict=!saving&&(latest?.version??0)!==base.version&&((latest?.text??"")!==value||JSON.stringify(latest?.sourceIds??[])!==JSON.stringify(sourceIds));
+  const dirty=value!==base.text||!sameOverviewSources(sourceIds,base.sourceIds);
+  const conflict=!saving&&(latest?.version??0)!==base.version&&((latest?.text??"")!==value||!sameOverviewSources(latest?.sourceIds??[],sourceIds));
   async function close(){if(saving)return;if(dirty&&!await confirm("입력한 내용을 저장하지 않고 닫을까요?",{title:"편집 중인 내용",confirmLabel:"저장하지 않고 닫기"}))return;onClose();}
   function merge(){const remote={text:latest?.text??"",sourceIds:latest?.sourceIds??[],version:latest?.version??0};setValue(dirty&&remote.text!==value?[remote.text,value].filter(Boolean).join("\n"):remote.text);setSourceIds([...new Set([...remote.sourceIds,...sourceIds])]);setBase(remote);setError("");}
   async function save(){if(disabled||saving||conflict)return;setSaving(true);setError("");try{await onSave({date,text:value,sourceIds,version:base.version});}catch(cause){setError(failureText(cause));}finally{setSaving(false);}}
@@ -123,7 +125,7 @@ function ImportDialog({ workspace, days, draft, onClose, onImport }: { workspace
   const [times, setTimes] = useState(true), [hotels, setHotels] = useState(false);
   const [mode, setMode] = useState<"append" | "replace">("append");
   const [separator, setSeparator] = useState<OverviewSeparator>("\n");
-  const candidatesByDate = useMemo(() => overviewCandidatesByDate(workspace, days, times), [workspace, days, times]);
+  const candidatesByDate = useMemo(() => overviewCandidatesByDate({records: workspace.records}, days, times), [workspace.records, days, times]);
   const candidates = useMemo(() => [...candidatesByDate.values()].flat(), [candidatesByDate]);
   const [selected, setSelected] = useState(() => new Set(candidates.filter(item => !item.hotel && !item.sourceIds.some(id => draft.days[item.date]?.sourceIds.includes(id))).map(item => item.id)));
   const [error, setError] = useState("");

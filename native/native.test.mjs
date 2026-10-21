@@ -55,3 +55,11 @@ test("native login never displays raw SDK or server payloads", () => {
     assert.doesNotMatch(nativeLoginErrorMessage("kakao", failure), /private|access_token/);
   }
 });
+
+
+test("native conditional polling permits its validator header and exposes response validators", () => {
+  const headers=nativeCorsHeaders("capacitor://localhost");
+  assert.match(headers["Access-Control-Allow-Headers"],/If-None-Match/);
+  assert.equal(headers["Access-Control-Expose-Headers"],"ETag");
+  assert.deepEqual(nativeCorsHeaders("https://evil.test"),{});
+});

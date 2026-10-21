@@ -51,7 +51,7 @@ import { profileSearchLanguage } from "./search-language";
 import {travelEstimateKey} from "./route-time";
 import { comparePlans, itineraryDays,placePoint } from "./planning";
 import { WorkspaceMutations } from "./workspace-mutations";
-import { WorkspaceCache, sameWorkspace } from "./workspace-cache";
+import { WorkspaceCache, reconcileWorkspace } from "./workspace-cache";
 import { lazyPanel } from "./components/LazyPanel";
 import { isNativeApp } from "./runtime";
 import {
@@ -203,6 +203,7 @@ function TripAppContent({
     identity = useRef<string | null>(initialBootstrap?.user?.id ?? null),
     bootLoaded = useRef(initialBootstrap?.user?.id ?? null),
     workspaceCache = useRef(new WorkspaceCache(3)),
+    workspaceValidator = useRef<{ workspace: Workspace; etag: string } | null>(null),
     refreshInFlight = useRef<{ tripId: string; userId: string | null; result: Promise<boolean> } | null>(null),
     openRequest = useRef(0),
     mutating = useRef(false),
@@ -220,6 +221,7 @@ function TripAppContent({
         cancelConfirmation();
         identity.current = next?.id ?? null;
         workspaceCache.current.clear();
+        workspaceValidator.current = null;
         mutationQueue.current = null;
         wsRef.current = null;
         openRequest.current++;
@@ -244,6 +246,7 @@ function TripAppContent({
         "ACCOUNT_WITHDRAWN"
       ) {
         workspaceCache.current.clear();
+        workspaceValidator.current = null;
         setWorkspace(null);
         setTrips([]);
         setModal(null);
@@ -257,6 +260,7 @@ function TripAppContent({
       if (status === 401) changeUser(null);
       else if (id && (status === 403 || status === 404)) {
         workspaceCache.current.delete(id);
+        if (workspaceValidator.current?.workspace.trip.id === id) workspaceValidator.current = null;
         if (wsRef.current?.trip.id === id) {
           wsRef.current = null;
           setWorkspace(null);
@@ -440,10 +444,12 @@ function TripAppContent({
     };
   }, [userId, fail, setProfile]);
   function accept(next: Workspace) {
-    workspaceCache.current.set(next.trip.id, next);
-    wsRef.current = next;
-    setWorkspace(next);
-    setTrips((t) => [next.trip, ...t.filter((x) => x.id !== next.trip.id)]);
+    const accepted = reconcileWorkspace(wsRef.current, next);
+    if (workspaceValidator.current?.workspace !== accepted) workspaceValidator.current = null;
+    workspaceCache.current.set(accepted.trip.id, accepted);
+    wsRef.current = accepted;
+    setWorkspace(accepted);
+    setTrips((t) => [accepted.trip, ...t.filter((x) => x.id !== accepted.trip.id)]);
   }
   const refresh = useCallback(
     async (background = false) => {
@@ -455,21 +461,28 @@ function TripAppContent({
         return pending.result;
       const result = (async () => {
         try {
+          let etag: string | null = null;
           const next = await api<Workspace>(
             `/api/trips/${current.trip.id}`,
             {},
-            { background }
+            { background, conditional: {
+              etag: workspaceValidator.current?.workspace === current ? workspaceValidator.current.etag : undefined,
+              receiveEtag: value => { etag = value; },
+            } }
           );
+          if (!next) return identity.current === uid && wsRef.current?.trip.id === current.trip.id;
           if (
             identity.current === uid &&
             wsRef.current?.trip.id === next.trip.id &&
             !mutating.current
           ) {
             setWorkspace((w) => {
-              if (w && next.revision >= w.revision && !sameWorkspace(w, next)) {
-                workspaceCache.current.set(next.trip.id, next);
-                wsRef.current = next;
-                return next;
+              if (w && next.revision >= w.revision) {
+                const accepted = reconcileWorkspace(w, next);
+                workspaceValidator.current = etag ? { workspace: accepted, etag } : null;
+                workspaceCache.current.set(accepted.trip.id, accepted);
+                wsRef.current = accepted;
+                return accepted;
               }
               return w;
             });
@@ -845,7 +858,8 @@ function TripAppContent({
     };
   }, [accountScreen, activeTripId, tab, busy, atHome]);
   const records = workspace?.records ?? emptyRecords;
-  const allDays = useMemo(() => workspace ? itineraryDays(workspace.trip, records) : [], [workspace, records]);
+  const startDate = workspace?.trip.startDate, endDate = workspace?.trip.endDate;
+  const allDays = useMemo(() => startDate && endDate ? itineraryDays({startDate, endDate}, records) : [], [startDate, endDate, records]);
   const currentDate = allDays.includes(date) ? date : allDays[0] ?? "",
     plans = useMemo(() => records
       .filter((r) => r.kind === "plan" && r.data.date === currentDate)

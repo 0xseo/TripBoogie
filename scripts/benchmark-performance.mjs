@@ -45,13 +45,17 @@ try {
   const workspace = { records };
   const places = Array.from({ length: 1000 }, (_, i) => ({ id: `p-${i}`, data: { lat: (i * 17) % 80, lng: (i * 37) % 160 } }));
   const plans = places.map((place, i) => ({ id: `r-${i}`, data: { placeId: place.id, position: i } }));
+  const overviewRows = dates.map((date, day) => ({date, text:"여행 요약", version:1, sourceIds:Array.from({length:140}, (_, i) => `00000000-0000-4000-8000-${String(day*140+i).padStart(12,"0")}`)}));
+  const initialOverview = before.overview.overviewFromRows?.(overviewRows), editedOverview = after.overview.overviewFromRows(overviewRows);
+  editedOverview.days[dates[100]].text = "내 편집";
   const benchmarks = [
     { name: "airport_search_10_queries", unit: "10 queries", calls: 5, run: lib => () => queries.forEach(q => lib.airports.searchAirports(q)) },
     { name: "country_prefix_10_queries", unit: "10 queries", calls: 50, run: lib => () => queries.forEach(q => lib.city.cityQuery(`New Zealand ${q}`, "ko")) },
     { name: "overview_365_days_5000_records", unit: "whole-trip import candidates", calls: 10, run: lib => () => lib.overview.overviewCandidatesByDate ? lib.overview.overviewCandidatesByDate(workspace, dates) : dates.flatMap(date => lib.overview.overviewCandidates(workspace, date)) },
+    { name: "overview_diff_365_days_51100_links", unit: "one edited-day comparison", calls: 20, run: lib => () => lib.overview.overviewChanges(initialOverview, editedOverview, overviewRows) },
     { name: "distance_sort_1000_plans", unit: "one sort", calls: 20, run: lib => () => lib.planning.distanceOrder(plans, places) },
   ];
-  const results = benchmarks.map(item => {
+  const results = benchmarks.filter(item => item.name !== "overview_diff_365_days_51100_links" || initialOverview).map(item => {
     const baselineMs = measure(item.run(before), item.calls), optimizedMs = measure(item.run(after), item.calls);
     return { name: item.name, unit: item.unit, baselineMs: round(baselineMs), optimizedMs: round(optimizedMs), speedup: round(baselineMs / optimizedMs) };
   });

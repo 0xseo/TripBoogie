@@ -39,3 +39,16 @@ function sameJson(a: unknown, b: unknown): boolean {
 export function sameWorkspace(previous: Workspace, next: Workspace) {
   return previous.revision === next.revision && sameJson(previous, next);
 }
+
+/** Preserve unaffected array references so summary polling cannot rebuild the itinerary/map. */
+export function reconcileWorkspace(previous: Workspace | null, next: Workspace): Workspace {
+  if (!previous || previous.trip.id !== next.trip.id) return next;
+  const keys = Object.keys(next) as (keyof Workspace)[];
+  const shared: Record<string, unknown> = { ...next };
+  let unchanged = keys.length === Object.keys(previous).length;
+  for (const key of keys) {
+    if (Object.hasOwn(previous, key) && sameJson(previous[key], next[key])) shared[key] = previous[key];
+    else unchanged = false;
+  }
+  return unchanged ? previous : shared as unknown as Workspace;
+}

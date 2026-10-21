@@ -81,11 +81,16 @@ export function jsonRequest(
   };
 }
 
+type ConditionalRead = { etag?: string; receiveEtag: (etag: string | null) => void };
+type ApiActivity = { background?: boolean; conditional?: ConditionalRead };
+
 async function performApiFetch<T>(
   path: string,
-  init: RequestInit = {}
-): Promise<T> {
+  init: RequestInit = {},
+  conditional?: ConditionalRead
+): Promise<T | undefined> {
   const headers = new Headers(init.headers);
+  if (conditional?.etag) headers.set("If-None-Match", conditional.etag);
   const client = await getSupabaseClient();
   if (client) {
     const { data, error } = await client.auth.getSession();
@@ -98,6 +103,10 @@ async function performApiFetch<T>(
     headers,
     cache: "no-store",
   });
+  if (conditional && (response.ok || response.status === 304)) {
+    conditional.receiveEtag(response.headers.get("ETag"));
+    if (response.status === 304) return undefined;
+  }
   const payload: unknown = await response.json().catch(() => ({}));
   if (!response.ok) {
     const parsed = z
@@ -129,16 +138,18 @@ export function subscribeApiActivity(listener: () => void) {
     activityListeners.delete(listener);
   };
 }
+export function apiFetch<T>(path: string, init: RequestInit, activity: ApiActivity & { conditional: ConditionalRead }): Promise<T | undefined>;
+export function apiFetch<T>(path: string, init?: RequestInit, activity?: { background?: boolean }): Promise<T>;
 export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
-  activity: { background?: boolean } = {}
-): Promise<T> {
-  if (activity.background) return performApiFetch<T>(path, init);
+  activity: ApiActivity = {}
+): Promise<T | undefined> {
+  if (activity.background) return performApiFetch<T>(path, init, activity.conditional);
   apiPending++;
   activityListeners.forEach((listener) => listener());
   try {
-    return await performApiFetch<T>(path, init);
+    return await performApiFetch<T>(path, init, activity.conditional);
   } finally {
     apiPending--;
     activityListeners.forEach((listener) => listener());

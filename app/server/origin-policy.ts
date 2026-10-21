@@ -6,8 +6,9 @@ export function nativeCorsHeaders(origin: string | null): Record<string, string>
   return isNativeOrigin(origin) ? {
     "Access-Control-Allow-Origin": origin!,
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, If-None-Match",
     "Access-Control-Max-Age": "600",
+    "Access-Control-Expose-Headers": "ETag",
     "Vary": "Origin",
   } : {};
 }

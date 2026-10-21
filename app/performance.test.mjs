@@ -20,7 +20,7 @@ const require = createRequire(path.join(directory, "package.json"));
 const { searchAirports } = require("./airports.js");
 const { cityQuery } = require("./server/city-search.js");
 const { distanceOrder, comparePlans, placePoint } = require("./planning.js");
-const { WorkspaceCache, sameWorkspace } = require("./workspace-cache.js");
+const { WorkspaceCache, sameWorkspace, reconcileWorkspace } = require("./workspace-cache.js");
 const airports = require("./data/airports.json");
 const { countryCodes } = require("./countries.js");
 const normalize = value => value.toLowerCase().replace(/국제|international|airport|공항/g, "").normalize("NFKD").replace(/\p{M}/gu, "").replace(/[^\p{L}\p{N}]/gu, "");
@@ -85,4 +85,20 @@ test("cached distance sort preserves the first anchor, unknown locations, ties a
   const expected = plans.map(p => placePoint(lookup.get(p.data.placeId)) ? ordered[cursor++].id : p.id);
   assert.deepEqual(distanceOrder(plans, places), expected);
   assert.equal(JSON.stringify({ plans, places }), before);
+});
+
+
+test("summary-only synchronization preserves itinerary, files and member references, while all changes remain visible", () => {
+  const current = { ...workspace("a"), overview: [{ date: "2026-11-01", text: "내용", sourceIds: [], version: 1 }] };
+  assert.equal(reconcileWorkspace(current, structuredClone(current)), current);
+  const next = structuredClone(current); next.revision++; next.trip.revision = next.revision; next.overview[0].text = "동행의 편집"; next.overview[0].version++;
+  const result = reconcileWorkspace(current, next);
+  assert.equal(result.records, current.records); assert.equal(result.files, current.files); assert.equal(result.members, current.members);
+  assert.notEqual(result.overview, current.overview); assert.deepEqual(result, next);
+  const edit = structuredClone(current); edit.records[0].data.title = "새 일정";
+  assert.notEqual(reconcileWorkspace(current, edit).records, current.records);
+  const removed = structuredClone(current); delete removed.overview;
+  assert.equal(Object.hasOwn(reconcileWorkspace(current, removed), "overview"), false);
+  const other = workspace("other"); assert.equal(reconcileWorkspace(current, other), other);
+  assert.equal(reconcileWorkspace(null, other), other);
 });

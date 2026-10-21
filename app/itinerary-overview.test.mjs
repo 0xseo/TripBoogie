@@ -154,3 +154,19 @@ test('shared changes retain the version originally edited and never include anot
   assert.deepEqual(overview.overviewChanges(before,before,rows),[]);
   assert.equal(rows[0].text,'원래 내용');assert.equal(before.days['2026-11-27'].text,'동행의 날짜');
 });
+
+
+test('source link comparisons preserve ordered change detection without serialized copies', () => {
+  const sourceIds = Array.from({length: 5000}, (_, i) => `plan-${i}`);
+  assert.equal(overview.sameOverviewSources(sourceIds, sourceIds), true);
+  assert.equal(overview.sameOverviewSources(sourceIds, [...sourceIds]), true);
+  assert.equal(overview.sameOverviewSources(sourceIds, sourceIds.slice(1)), false);
+  assert.equal(overview.sameOverviewSources(sourceIds, [...sourceIds].reverse()), false);
+  const rows = [{date, text:'요약', sourceIds, version:7}];
+  const before = overview.overviewFromRows(rows), after = overview.overviewFromRows(rows);
+  assert.deepEqual(overview.overviewChanges(before, after, rows), []);
+  after.days[date].sourceIds.reverse();
+  const changes = overview.overviewChanges(before, after, rows);
+  assert.equal(changes.length, 1); assert.equal(changes[0].version, 7);
+  assert.notEqual(changes[0].sourceIds, after.days[date].sourceIds);
+});

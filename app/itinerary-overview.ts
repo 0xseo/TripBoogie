@@ -16,6 +16,10 @@ export type OverviewCandidate = {
 export type OverviewSeparator = " · " | "\n";
 export const emptyOverview = (): OverviewDraft => ({ schema: 1, days: {} });
 
+export function sameOverviewSources(left: readonly string[], right: readonly string[]) {
+  return left === right || left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
 export function overviewFromRows(rows: OverviewRow[] = []): OverviewDraft {
   return { schema: 1, days: Object.fromEntries(rows.map(row => [row.date, { text: row.text, sourceIds: [...row.sourceIds] }])) };
 }
@@ -23,7 +27,7 @@ export function overviewFromRows(rows: OverviewRow[] = []): OverviewDraft {
 /** Expected versions belong to the snapshot the user actually edited. Never rebase them. */
 export function overviewChanges(before: OverviewDraft, after: OverviewDraft, rows: OverviewRow[] = []): OverviewChange[] {
   const versions = new Map(rows.map(row => [row.date, row.version]));
-  return Object.entries(after.days).filter(([date, day]) => day.text !== (before.days[date]?.text ?? "") || JSON.stringify(day.sourceIds) !== JSON.stringify(before.days[date]?.sourceIds ?? []))
+  return Object.entries(after.days).filter(([date, day]) => day.text !== (before.days[date]?.text ?? "") || !sameOverviewSources(day.sourceIds, before.days[date]?.sourceIds ?? []))
     .map(([date, day]) => ({ date, text: day.text, sourceIds: [...day.sourceIds], version: versions.get(date) ?? 0 }));
 }
 
@@ -64,7 +68,7 @@ export function overviewDuration(value: unknown) {
 }
 
 /** Index records once when importing a whole trip instead of scanning them for every date. */
-export function overviewCandidatesByDate(workspace: Workspace, dates: readonly string[], times = true) {
+export function overviewCandidatesByDate(workspace: Pick<Workspace, "records">, dates: readonly string[], times = true) {
   const bookings = new Map<string, ItemRecord>();
   const grouped = new Map(dates.map(date => [date, [] as ItemRecord[]]));
   for (const record of workspace.records) {
